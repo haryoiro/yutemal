@@ -7,13 +7,13 @@ import (
 
 	"github.com/haryoiro/yutemal/internal/database"
 	"github.com/haryoiro/yutemal/internal/structures"
-	"github.com/haryoiro/yutemal/pkg/ytapi"
+	"github.com/haryoiro/yutemal/internal/api"
 )
 
 // APISystem handles YouTube Music API interactions
 type APISystem struct {
 	config *structures.Config
-	client *ytapi.Client
+	client *api.Client
 	db     database.DB
 }
 
@@ -35,7 +35,7 @@ func NewAPISystem(cfg *structures.Config, db database.DB) *APISystem {
 
 // InitializeFromHeaderFile initializes the API client from header file
 func (as *APISystem) InitializeFromHeaderFile(headerPath string) error {
-	client, err := ytapi.NewClientFromHeaderFile(headerPath)
+	client, err := api.NewClientFromHeaderFile(headerPath)
 	if err != nil {
 		return fmt.Errorf("failed to create YouTube API client: %w", err)
 	}
@@ -62,7 +62,7 @@ func (as *APISystem) GetLibraryPlaylists() ([]Playlist, error) {
 	}
 
 	// Fetch from API
-	playlists, err := as.client.GetLibrary(ytapi.MusicLibraryLandingEndpoint())
+	playlists, err := as.client.GetLibrary(api.MusicLibraryLandingEndpoint())
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func (as *APISystem) GetLikedPlaylists() ([]Playlist, error) {
 	}
 
 	// Fetch from API
-	playlists, err := as.client.GetLibrary(ytapi.MusicLikedPlaylistsEndpoint())
+	playlists, err := as.client.GetLibrary(api.MusicLikedPlaylistsEndpoint())
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +297,7 @@ type SearchResults struct {
 }
 
 // GetHomeEnhanced fetches enhanced home page content with sections
-func (as *APISystem) GetHomeEnhanced() ([]ytapi.Section, error) {
+func (as *APISystem) GetHomeEnhanced() ([]api.Section, error) {
 	if as.client == nil {
 		return nil, fmt.Errorf("API client not initialized")
 	}
@@ -309,16 +309,16 @@ func (as *APISystem) GetHomeEnhanced() ([]ytapi.Section, error) {
 	}
 
 	// Create sections from the results
-	sections := []ytapi.Section{}
+	sections := []api.Section{}
 
 	if len(results.Tracks) > 0 {
-		trackSection := ytapi.Section{
+		trackSection := api.Section{
 			Title:    "Recommended Tracks",
-			Contents: []ytapi.ContentItem{},
+			Contents: []api.ContentItem{},
 		}
 		for _, track := range results.Tracks {
 			t := track // Create a copy to avoid pointer issues
-			trackSection.Contents = append(trackSection.Contents, ytapi.ContentItem{
+			trackSection.Contents = append(trackSection.Contents, api.ContentItem{
 				Type:  "track",
 				Track: &t,
 			})
@@ -327,13 +327,13 @@ func (as *APISystem) GetHomeEnhanced() ([]ytapi.Section, error) {
 	}
 
 	if len(results.Playlists) > 0 {
-		playlistSection := ytapi.Section{
+		playlistSection := api.Section{
 			Title:    "Recommended Playlists",
-			Contents: []ytapi.ContentItem{},
+			Contents: []api.ContentItem{},
 		}
 		for _, playlist := range results.Playlists {
 			p := playlist // Create a copy to avoid pointer issues
-			playlistSection.Contents = append(playlistSection.Contents, ytapi.ContentItem{
+			playlistSection.Contents = append(playlistSection.Contents, api.ContentItem{
 				Type:     "playlist",
 				Playlist: &p,
 			})

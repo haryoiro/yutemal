@@ -1,4 +1,4 @@
-package ytapi
+package api
 
 import (
 	"strconv"

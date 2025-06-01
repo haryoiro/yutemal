@@ -1,4 +1,4 @@
-package ytapi
+package api
 
 // TrackRef represents a YouTube Music track reference
 type TrackRef struct {
