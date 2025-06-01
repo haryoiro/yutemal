@@ -21,7 +21,6 @@ yutemal is a terminal-based YouTube Music client that allows you to browse, sear
 - yt-dlp (for downloading audio)
 - Linux: `libasound2-dev libdbus-1-dev pkg-config`
 - macOS: No additional requirements
-- Windows: No additional requirements
 
 ## Installation
 
