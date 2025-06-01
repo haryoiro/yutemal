@@ -12,9 +12,9 @@ import (
 
 // SQLiteDatabase represents the SQLite-based music database
 type SQLiteDatabase struct {
-	mu       sync.RWMutex
-	db       *sql.DB
-	path     string
+	mu   sync.RWMutex
+	db   *sql.DB
+	path string
 }
 
 // OpenSQLite opens or creates a SQLite database
@@ -406,4 +406,3 @@ func (db *SQLiteDatabase) CleanExpiredCache() error {
 	_, err := db.db.Exec("DELETE FROM api_cache WHERE expires_at <= CURRENT_TIMESTAMP")
 	return err
 }
-

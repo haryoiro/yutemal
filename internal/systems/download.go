@@ -234,7 +234,7 @@ func (ds *DownloadSystem) downloadTrack(track structures.Track) error {
 		// Add verbose logging and URL
 		args = append(args,
 			"--verbose", // Add verbose logging
-			"--", // End of options
+			"--",        // End of options
 			fmt.Sprintf("https://www.youtube.com/watch?v=%s", track.TrackID),
 		)
 

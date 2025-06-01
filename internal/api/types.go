@@ -13,10 +13,9 @@ type TrackRef struct {
 }
 
 type PlaylistTracksRef struct {
-	Tracks []TrackRef `json:"tracks"`
+	Tracks   []TrackRef  `json:"tracks"`
 	Playlist PlaylistRef `json:"playlist"`
 }
-
 
 // PlaylistRef represents a YouTube Music playlist reference
 type PlaylistRef struct {

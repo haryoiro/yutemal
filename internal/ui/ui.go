@@ -26,35 +26,35 @@ const (
 )
 
 type Model struct {
-	systems           *systems.Systems
-	config            *structures.Config
-	themeManager      *ThemeManager
-	state             ViewState
-	width             int
-	height            int
-	playerHeight      int
-	contentHeight     int
+	systems            *systems.Systems
+	config             *structures.Config
+	themeManager       *ThemeManager
+	state              ViewState
+	width              int
+	height             int
+	playerHeight       int
+	contentHeight      int
 	playerContentWidth int
 
 	// Section-related fields
-	sections          []structures.Section
+	sections            []structures.Section
 	currentSectionIndex int
-	selectedIndex     int
-	scrollOffset      int
+	selectedIndex       int
+	scrollOffset        int
 
 	// Legacy fields for compatibility
-	playlists         []systems.Playlist
-	currentList       []structures.Track
-	currentListName   string
+	playlists       []systems.Playlist
+	currentList     []structures.Track
+	currentListName string
 
 	// Other fields
-	playerState       structures.PlayerState
-	searchQuery       string
-	searchResults     []structures.Track
-	err               error
-	marqueeOffset     int
-	marqueeTicker     *time.Ticker
-	lastUpdate        time.Time
+	playerState   structures.PlayerState
+	searchQuery   string
+	searchResults []structures.Track
+	err           error
+	marqueeOffset int
+	marqueeTicker *time.Ticker
+	lastUpdate    time.Time
 }
 
 type tickMsg time.Time

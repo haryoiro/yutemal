@@ -79,7 +79,7 @@ func (m *Model) renderPlayer() string {
 
 		// Calculate exact width needed for time displays and spacing
 		timeWidth := runewidth.StringWidth(currentTime) + runewidth.StringWidth(totalTime) + 2 // 2 spaces
-		barWidth := availableWidth - timeWidth * 2
+		barWidth := availableWidth - timeWidth*2
 		if barWidth < 10 {
 			barWidth = 10
 		}
@@ -101,8 +101,8 @@ func (m *Model) renderPlayer() string {
 		}
 
 		// Calculate exact width for empty progress bar
-		timeWidth := runewidth.StringWidth("--:--") * 2 + 2 // 2 time displays + 2 spaces
-		barWidth := availableWidth - timeWidth * 2
+		timeWidth := runewidth.StringWidth("--:--")*2 + 2 // 2 time displays + 2 spaces
+		barWidth := availableWidth - timeWidth*2
 		if barWidth < 10 {
 			barWidth = 10
 		}

@@ -16,19 +16,19 @@ import (
 
 // Player represents the audio player
 type Player struct {
-	mu              sync.RWMutex
-	streamer        beep.StreamSeekCloser
-	ctrl            *beep.Ctrl
-	volume          *effects.Volume
-	format          beep.Format
-	isPlaying       bool
-	currentFile     string
-	position        time.Duration
-	duration        time.Duration
-	ctx             context.Context
-	cancel          context.CancelFunc
+	mu                 sync.RWMutex
+	streamer           beep.StreamSeekCloser
+	ctrl               *beep.Ctrl
+	volume             *effects.Volume
+	format             beep.Format
+	isPlaying          bool
+	currentFile        string
+	position           time.Duration
+	duration           time.Duration
+	ctx                context.Context
+	cancel             context.CancelFunc
 	speakerInitialized bool
-	currentSampleRate beep.SampleRate
+	currentSampleRate  beep.SampleRate
 }
 
 // New creates a new audio player

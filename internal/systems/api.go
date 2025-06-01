@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/haryoiro/yutemal/internal/api"
 	"github.com/haryoiro/yutemal/internal/database"
 	"github.com/haryoiro/yutemal/internal/structures"
-	"github.com/haryoiro/yutemal/internal/api"
 )
 
 // APISystem handles YouTube Music API interactions
@@ -19,10 +19,10 @@ type APISystem struct {
 
 // Cache configuration constants
 const (
-	cacheTTLPlaylistList = 3600    // 1 hour in seconds
-	cacheTTLPlaylistTracks = 1800  // 30 minutes in seconds
-	cacheTTLSearch = 900           // 15 minutes in seconds
-	cacheTTLSections = 1800        // 30 minutes in seconds
+	cacheTTLPlaylistList   = 3600 // 1 hour in seconds
+	cacheTTLPlaylistTracks = 1800 // 30 minutes in seconds
+	cacheTTLSearch         = 900  // 15 minutes in seconds
+	cacheTTLSections       = 1800 // 30 minutes in seconds
 )
 
 // NewAPISystem creates a new API system
@@ -367,9 +367,9 @@ func (as *APISystem) GetSections() ([]structures.Section, error) {
 	homePlaylists, err := as.GetHomePlaylists()
 	if err == nil && len(homePlaylists) > 0 {
 		section := structures.Section{
-			ID:    "recommended",
-			Title: "Recommended for You",
-			Type:  structures.SectionTypeRecommendedPlaylists,
+			ID:       "recommended",
+			Title:    "Recommended for You",
+			Type:     structures.SectionTypeRecommendedPlaylists,
 			Contents: make([]structures.ContentItem, 0, len(homePlaylists)),
 		}
 		for _, playlist := range homePlaylists {
@@ -392,9 +392,9 @@ func (as *APISystem) GetSections() ([]structures.Section, error) {
 	libraryPlaylists, err := as.GetLibraryPlaylists()
 	if err == nil && len(libraryPlaylists) > 0 {
 		section := structures.Section{
-			ID:    "library",
-			Title: "Your Library",
-			Type:  structures.SectionTypeLibraryPlaylists,
+			ID:       "library",
+			Title:    "Your Library",
+			Type:     structures.SectionTypeLibraryPlaylists,
 			Contents: make([]structures.ContentItem, 0, len(libraryPlaylists)),
 		}
 		for _, playlist := range libraryPlaylists {
@@ -417,9 +417,9 @@ func (as *APISystem) GetSections() ([]structures.Section, error) {
 	likedPlaylists, err := as.GetLikedPlaylists()
 	if err == nil && len(likedPlaylists) > 0 {
 		section := structures.Section{
-			ID:    "liked",
-			Title: "Liked Music",
-			Type:  structures.SectionTypeLikedPlaylists,
+			ID:       "liked",
+			Title:    "Liked Music",
+			Type:     structures.SectionTypeLikedPlaylists,
 			Contents: make([]structures.ContentItem, 0, len(likedPlaylists)),
 		}
 		for _, playlist := range likedPlaylists {
@@ -442,9 +442,9 @@ func (as *APISystem) GetSections() ([]structures.Section, error) {
 	homeResults, err := as.client.GetHomeEnhanced()
 	if err == nil && len(homeResults.Tracks) > 0 {
 		section := structures.Section{
-			ID:    "trending",
-			Title: "Trending Tracks",
-			Type:  structures.SectionTypeHomeFeed,
+			ID:       "trending",
+			Title:    "Trending Tracks",
+			Type:     structures.SectionTypeHomeFeed,
 			Contents: make([]structures.ContentItem, 0, len(homeResults.Tracks)),
 		}
 		for _, track := range homeResults.Tracks {
@@ -539,14 +539,14 @@ func (as *APISystem) InvalidateAllCache() error {
 	if as.db == nil {
 		return nil
 	}
-	
+
 	cacheTypes := []string{"playlist_list", "playlist_tracks", "search", "sections"}
 	for _, cacheType := range cacheTypes {
 		if err := as.db.InvalidateCacheByType(cacheType); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -556,14 +556,14 @@ func (as *APISystem) RefreshCache() error {
 	if err := as.InvalidateAllCache(); err != nil {
 		return err
 	}
-	
+
 	// Pre-fetch commonly used data
 	// This runs in the background to warm up the cache
 	go func() {
 		// Fetch home sections (includes multiple playlist types)
 		_, _ = as.GetSections()
 	}()
-	
+
 	return nil
 }
 

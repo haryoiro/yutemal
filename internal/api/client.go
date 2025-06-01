@@ -21,12 +21,12 @@ const (
 
 // Client represents a YouTube Music API client
 type Client struct {
-	sapisid           string
-	innertubeAPIKey   string
-	clientVersion     string
-	cookies           string
-	accountID         string
-	httpClient        *http.Client
+	sapisid         string
+	innertubeAPIKey string
+	clientVersion   string
+	cookies         string
+	accountID       string
+	httpClient      *http.Client
 }
 
 // NewClient creates a new YouTube Music API client from headers
@@ -181,7 +181,7 @@ func (c *Client) browse(endpoint Endpoint) (*BrowseResponse, error) {
 	}
 
 	body = map[string]interface{}{
-		"context":          context,
+		"context":         context,
 		endpoint.GetKey(): endpoint.GetParam(),
 	}
 
@@ -296,7 +296,6 @@ func (c *Client) GetHomeEnhanced() (*SearchResults, error) {
 	contents := navigateToContents(*resp)
 	var tracks []TrackRef
 	var playlists []PlaylistRef
-
 
 	for _, content := range contents {
 		// Extract from music shelves

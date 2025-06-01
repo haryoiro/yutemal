@@ -341,5 +341,3 @@ func extractBrowseID(data map[string]any) string {
 	}
 	return findPlaylistBrowseID(objInterface)
 }
-
-

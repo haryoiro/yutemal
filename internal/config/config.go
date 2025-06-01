@@ -43,13 +43,13 @@ func Default() *structures.Config {
 		SeekSeconds:            5,
 		MaxCacheSize:           1024, // 1GB
 		Theme: structures.Theme{
-			Background:      "#1a1b26",  // Tokyo Night Storm background
-			Foreground:      "#c0caf5",  // Tokyo Night foreground
-			Selected:        "#7aa2f7",  // Tokyo Night blue
-			Playing:         "#9ece6a",  // Tokyo Night green
-			Border:          "#3b4261",  // Tokyo Night border
-			ProgressBar:     "#565f89",  // Tokyo Night dark gray
-			ProgressBarFill: "#7aa2f7",  // Tokyo Night blue
+			Background:       "#1a1b26",  // Tokyo Night Storm background
+			Foreground:       "#c0caf5",  // Tokyo Night foreground
+			Selected:         "#7aa2f7",  // Tokyo Night blue
+			Playing:          "#9ece6a",  // Tokyo Night green
+			Border:           "#3b4261",  // Tokyo Night border
+			ProgressBar:      "#565f89",  // Tokyo Night dark gray
+			ProgressBarFill:  "#7aa2f7",  // Tokyo Night blue
 			ProgressBarStyle: "gradient", // Default to gradient style
 		},
 		KeyBindings: structures.KeyBindings{

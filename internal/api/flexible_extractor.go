@@ -168,7 +168,6 @@ func getPathString(data map[string]interface{}, keys ...string) string {
 	return ""
 }
 
-
 // convertToInterface converts string slice to interface slice
 func convertToInterface(strings []string) []interface{} {
 	interfaces := make([]interface{}, len(strings))

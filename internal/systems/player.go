@@ -15,15 +15,15 @@ import (
 
 // PlayerSystem manages audio playback
 type PlayerSystem struct {
-	mu                sync.RWMutex
-	config            *structures.Config
-	database          database.DB
-	state             *structures.PlayerState
-	actionChan        chan structures.SoundAction
-	stopChan          chan struct{}
-	player            *player.Player
-	cacheDir          string
-	downloadCallback  func(track structures.Track)
+	mu               sync.RWMutex
+	config           *structures.Config
+	database         database.DB
+	state            *structures.PlayerState
+	actionChan       chan structures.SoundAction
+	stopChan         chan struct{}
+	player           *player.Player
+	cacheDir         string
+	downloadCallback func(track structures.Track)
 }
 
 // NewPlayerSystem creates a new player system
@@ -439,7 +439,6 @@ func (ps *PlayerSystem) loadCurrentSong() {
 		}
 	}
 }
-
 
 // deleteCurrentTrack removes the current track from the playlist and deletes its files
 func (ps *PlayerSystem) deleteCurrentTrack() {

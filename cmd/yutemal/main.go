@@ -31,12 +31,12 @@ const (
 func main() {
 	// Parse command line flags
 	var (
-		showHelp     = flag.Bool("help", false, "Show help message")
-		showFiles    = flag.Bool("files", false, "Show file locations")
-		fixDB        = flag.Bool("fix-db", false, "Fix database issues")
-		clearCache   = flag.Bool("clear-cache", false, "Clear cache directory")
-		showVersion  = flag.Bool("version", false, "Show version")
-		debugMode    = flag.Bool("debug", false, "Enable debug logging")
+		showHelp    = flag.Bool("help", false, "Show help message")
+		showFiles   = flag.Bool("files", false, "Show file locations")
+		fixDB       = flag.Bool("fix-db", false, "Fix database issues")
+		clearCache  = flag.Bool("clear-cache", false, "Clear cache directory")
+		showVersion = flag.Bool("version", false, "Show version")
+		debugMode   = flag.Bool("debug", false, "Enable debug logging")
 	)
 
 	flag.Parse()

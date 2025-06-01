@@ -10,15 +10,15 @@ type ThemeManager struct {
 	theme structures.Theme
 
 	// Cached styles
-	baseStyle           lipgloss.Style
-	selectedStyle       lipgloss.Style
-	playingStyle        lipgloss.Style
-	borderStyle         lipgloss.Style
-	progressStyle       lipgloss.Style
-	progressFillStyle   lipgloss.Style
-	titleStyle          lipgloss.Style
-	subtitleStyle       lipgloss.Style
-	helpStyle           lipgloss.Style
+	baseStyle         lipgloss.Style
+	selectedStyle     lipgloss.Style
+	playingStyle      lipgloss.Style
+	borderStyle       lipgloss.Style
+	progressStyle     lipgloss.Style
+	progressFillStyle lipgloss.Style
+	titleStyle        lipgloss.Style
+	subtitleStyle     lipgloss.Style
+	helpStyle         lipgloss.Style
 }
 
 // NewThemeManager creates a new theme manager with the given theme
@@ -140,13 +140,13 @@ func (tm *ThemeManager) RenderHelp(text string) string {
 // GetDefaultTheme returns the default theme
 func GetDefaultTheme() structures.Theme {
 	return structures.Theme{
-		Background:      "#1a1b26",  // Tokyo Night Storm background
-		Foreground:      "#c0caf5",  // Tokyo Night foreground
-		Selected:        "#7aa2f7",  // Tokyo Night blue
-		Playing:         "#9ece6a",  // Tokyo Night green
-		Border:          "#3b4261",  // Tokyo Night border
-		ProgressBar:     "#565f89",  // Tokyo Night dark gray
-		ProgressBarFill: "#7aa2f7",  // Tokyo Night blue
+		Background:       "#1a1b26",  // Tokyo Night Storm background
+		Foreground:       "#c0caf5",  // Tokyo Night foreground
+		Selected:         "#7aa2f7",  // Tokyo Night blue
+		Playing:          "#9ece6a",  // Tokyo Night green
+		Border:           "#3b4261",  // Tokyo Night border
+		ProgressBar:      "#565f89",  // Tokyo Night dark gray
+		ProgressBarFill:  "#7aa2f7",  // Tokyo Night blue
 		ProgressBarStyle: "gradient", // Default to gradient style
 	}
 }
