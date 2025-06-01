@@ -214,7 +214,7 @@ func (l *Logger) log(level LogLevel, format string, args ...interface{}) {
 
 	l.logger.Println(logLine)
 
-	// FATAL レベルの場合はプログラムを終了
+	// Exit the program if FATAL level
 	if level == FATAL {
 		os.Exit(1)
 	}
