@@ -116,10 +116,6 @@ type AppStatus struct {
 
 // Config represents the application configuration
 type Config struct {
-	// UI Configuration
-	ShowVolumBar       bool        `toml:"show_volume_bar"`
-	HideChannelsOnHome bool        `toml:"hide_channels_on_homepage"`
-	HideAlbumsOnHome   bool        `toml:"hide_albums_on_homepage"`
 	Theme              Theme       `toml:"theme"`
 	KeyBindings        KeyBindings `toml:"key_bindings"`
 

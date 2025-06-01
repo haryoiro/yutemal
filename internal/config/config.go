@@ -35,9 +35,6 @@ func Save(cfg *structures.Config, path string) error {
 // Default returns the default configuration
 func Default() *structures.Config {
 	return &structures.Config{
-		ShowVolumeBar:          true,
-		HideChannelsOnHome:     true,
-		HideAlbumsOnHome:       false,
 		MaxConcurrentDownloads: 4,
 		DefaultVolume:          0.7,
 		SeekSeconds:            5,

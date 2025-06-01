@@ -1,11 +1,6 @@
 # Example configuration file for yutemal
 # Copy this file to ~/.config/yutemal/config.toml and customize as needed
 
-# UI Configuration
-show_volume_bar = true
-hide_channels_on_homepage = true
-hide_albums_on_homepage = false
-
 # Download Configuration
 download_dir = ""  # Empty means use default cache directory
 max_concurrent_downloads = 4
