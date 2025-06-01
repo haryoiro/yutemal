@@ -1,8 +1,11 @@
 package systems
 
 import (
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 
+	"github.com/haryoiro/yutemal/internal/database"
 	"github.com/haryoiro/yutemal/internal/structures"
 	"github.com/haryoiro/yutemal/pkg/ytapi"
 )
@@ -11,12 +14,22 @@ import (
 type APISystem struct {
 	config *structures.Config
 	client *ytapi.Client
+	db     database.DB
 }
 
+// Cache configuration constants
+const (
+	cacheTTLPlaylistList = 3600    // 1 hour in seconds
+	cacheTTLPlaylistTracks = 1800  // 30 minutes in seconds
+	cacheTTLSearch = 900           // 15 minutes in seconds
+	cacheTTLSections = 1800        // 30 minutes in seconds
+)
+
 // NewAPISystem creates a new API system
-func NewAPISystem(cfg *structures.Config) *APISystem {
+func NewAPISystem(cfg *structures.Config, db database.DB) *APISystem {
 	return &APISystem{
 		config: cfg,
+		db:     db,
 	}
 }
 
@@ -37,6 +50,18 @@ func (as *APISystem) GetLibraryPlaylists() ([]Playlist, error) {
 		return nil, fmt.Errorf("API client not initialized")
 	}
 
+	// Check cache first
+	cacheKey := "playlist_list:library"
+	if as.db != nil {
+		if cachedData, found := as.db.GetCache(cacheKey); found {
+			var result []Playlist
+			if err := json.Unmarshal([]byte(cachedData), &result); err == nil {
+				return result, nil
+			}
+		}
+	}
+
+	// Fetch from API
 	playlists, err := as.client.GetLibrary(ytapi.MusicLibraryLandingEndpoint())
 	if err != nil {
 		return nil, err
@@ -51,6 +76,13 @@ func (as *APISystem) GetLibraryPlaylists() ([]Playlist, error) {
 		})
 	}
 
+	// Cache the result
+	if as.db != nil && len(result) > 0 {
+		if data, err := json.Marshal(result); err == nil {
+			_ = as.db.SetCache(cacheKey, "playlist_list", string(data), cacheTTLPlaylistList)
+		}
+	}
+
 	return result, nil
 }
 
@@ -60,6 +92,18 @@ func (as *APISystem) GetLikedPlaylists() ([]Playlist, error) {
 		return nil, fmt.Errorf("API client not initialized")
 	}
 
+	// Check cache first
+	cacheKey := "playlist_list:liked"
+	if as.db != nil {
+		if cachedData, found := as.db.GetCache(cacheKey); found {
+			var result []Playlist
+			if err := json.Unmarshal([]byte(cachedData), &result); err == nil {
+				return result, nil
+			}
+		}
+	}
+
+	// Fetch from API
 	playlists, err := as.client.GetLibrary(ytapi.MusicLikedPlaylistsEndpoint())
 	if err != nil {
 		return nil, err
@@ -74,6 +118,13 @@ func (as *APISystem) GetLikedPlaylists() ([]Playlist, error) {
 		})
 	}
 
+	// Cache the result
+	if as.db != nil && len(result) > 0 {
+		if data, err := json.Marshal(result); err == nil {
+			_ = as.db.SetCache(cacheKey, "playlist_list", string(data), cacheTTLPlaylistList)
+		}
+	}
+
 	return result, nil
 }
 
@@ -83,6 +134,18 @@ func (as *APISystem) GetHomePlaylists() ([]Playlist, error) {
 		return nil, fmt.Errorf("API client not initialized")
 	}
 
+	// Check cache first
+	cacheKey := "playlist_list:home"
+	if as.db != nil {
+		if cachedData, found := as.db.GetCache(cacheKey); found {
+			var result []Playlist
+			if err := json.Unmarshal([]byte(cachedData), &result); err == nil {
+				return result, nil
+			}
+		}
+	}
+
+	// Fetch from API
 	results, err := as.client.GetHomeEnhanced()
 	if err != nil {
 		return nil, err
@@ -97,6 +160,13 @@ func (as *APISystem) GetHomePlaylists() ([]Playlist, error) {
 		})
 	}
 
+	// Cache the result
+	if as.db != nil && len(playlists) > 0 {
+		if data, err := json.Marshal(playlists); err == nil {
+			_ = as.db.SetCache(cacheKey, "playlist_list", string(data), cacheTTLPlaylistList)
+		}
+	}
+
 	return playlists, nil
 }
 
@@ -106,6 +176,18 @@ func (as *APISystem) GetPlaylistTracks(playlistID string) ([]structures.Track, e
 		return nil, fmt.Errorf("API client not initialized")
 	}
 
+	// Check cache first
+	cacheKey := fmt.Sprintf("playlist_tracks:%s", playlistID)
+	if as.db != nil {
+		if cachedData, found := as.db.GetCache(cacheKey); found {
+			var result []structures.Track
+			if err := json.Unmarshal([]byte(cachedData), &result); err == nil {
+				return result, nil
+			}
+		}
+	}
+
+	// Fetch from API
 	tracks, err := as.client.GetPlaylistByID(playlistID)
 	if err != nil {
 		return nil, err
@@ -125,6 +207,13 @@ func (as *APISystem) GetPlaylistTracks(playlistID string) ([]structures.Track, e
 		})
 	}
 
+	// Cache the result
+	if as.db != nil && len(result) > 0 {
+		if data, err := json.Marshal(result); err == nil {
+			_ = as.db.SetCache(cacheKey, "playlist_tracks", string(data), cacheTTLPlaylistTracks)
+		}
+	}
+
 	return result, nil
 }
 
@@ -134,6 +223,21 @@ func (as *APISystem) Search(query string) (*SearchResults, error) {
 		return nil, fmt.Errorf("API client not initialized")
 	}
 
+	// Create a deterministic cache key from the query
+	queryHash := sha256.Sum256([]byte(query))
+	cacheKey := fmt.Sprintf("search:%x", queryHash)
+
+	// Check cache first
+	if as.db != nil {
+		if cachedData, found := as.db.GetCache(cacheKey); found {
+			var result SearchResults
+			if err := json.Unmarshal([]byte(cachedData), &result); err == nil {
+				return &result, nil
+			}
+		}
+	}
+
+	// Fetch from API
 	results, err := as.client.Search(query)
 	if err != nil {
 		return nil, err
@@ -162,10 +266,19 @@ func (as *APISystem) Search(query string) (*SearchResults, error) {
 		})
 	}
 
-	return &SearchResults{
+	searchResults := &SearchResults{
 		Tracks:    videos,
 		Playlists: playlists,
-	}, nil
+	}
+
+	// Cache the result
+	if as.db != nil {
+		if data, err := json.Marshal(searchResults); err == nil {
+			_ = as.db.SetCache(cacheKey, "search", string(data), cacheTTLSearch)
+		}
+	}
+
+	return searchResults, nil
 }
 
 // Playlist represents a YouTube Music playlist
@@ -235,6 +348,17 @@ func (as *APISystem) GetHomeEnhanced() ([]ytapi.Section, error) {
 func (as *APISystem) GetSections() ([]structures.Section, error) {
 	if as.client == nil {
 		return nil, fmt.Errorf("API client not initialized")
+	}
+
+	// Check cache first
+	cacheKey := "home_sections"
+	if as.db != nil {
+		if cachedData, found := as.db.GetCache(cacheKey); found {
+			var result []structures.Section
+			if err := json.Unmarshal([]byte(cachedData), &result); err == nil {
+				return result, nil
+			}
+		}
 	}
 
 	var sections []structures.Section
@@ -392,5 +516,61 @@ func (as *APISystem) GetSections() ([]structures.Section, error) {
 	}
 	sections = append(sections, recentSection)
 
+	// Cache the result
+	if as.db != nil && len(sections) > 0 {
+		if data, err := json.Marshal(sections); err == nil {
+			_ = as.db.SetCache(cacheKey, "sections", string(data), cacheTTLSections)
+		}
+	}
+
 	return sections, nil
+}
+
+// InvalidateCache invalidates cached data for a specific type
+func (as *APISystem) InvalidateCache(cacheType string) error {
+	if as.db == nil {
+		return nil
+	}
+	return as.db.InvalidateCacheByType(cacheType)
+}
+
+// InvalidateAllCache invalidates all cached API data
+func (as *APISystem) InvalidateAllCache() error {
+	if as.db == nil {
+		return nil
+	}
+	
+	cacheTypes := []string{"playlist_list", "playlist_tracks", "search", "sections"}
+	for _, cacheType := range cacheTypes {
+		if err := as.db.InvalidateCacheByType(cacheType); err != nil {
+			return err
+		}
+	}
+	
+	return nil
+}
+
+// RefreshCache forces a refresh of cached data by clearing cache and re-fetching
+func (as *APISystem) RefreshCache() error {
+	// Clear all cache
+	if err := as.InvalidateAllCache(); err != nil {
+		return err
+	}
+	
+	// Pre-fetch commonly used data
+	// This runs in the background to warm up the cache
+	go func() {
+		// Fetch home sections (includes multiple playlist types)
+		_, _ = as.GetSections()
+	}()
+	
+	return nil
+}
+
+// CleanExpiredCache removes expired cache entries
+func (as *APISystem) CleanExpiredCache() error {
+	if as.db == nil {
+		return nil
+	}
+	return as.db.CleanExpiredCache()
 }

@@ -26,7 +26,7 @@ func New(cfg *structures.Config, db database.DB, cacheDir string) *Systems {
 	// Initialize subsystems
 	s.Player = NewPlayerSystem(cfg, db, cacheDir)
 	s.Download = NewDownloadSystem(cfg, db, cacheDir)
-	s.API = NewAPISystem(cfg)
+	s.API = NewAPISystem(cfg, db)
 
 	return s
 }

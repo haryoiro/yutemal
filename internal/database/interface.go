@@ -9,4 +9,11 @@ type DB interface {
 	Get(trackID string) (*structures.DatabaseEntry, bool)
 	GetAll() []structures.DatabaseEntry
 	Close() error
+
+	// Cache methods
+	GetCache(cacheKey string) (string, bool)
+	SetCache(cacheKey, cacheType, responseData string, ttlSeconds int) error
+	InvalidateCache(cacheKey string) error
+	InvalidateCacheByType(cacheType string) error
+	CleanExpiredCache() error
 }

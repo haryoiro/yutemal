@@ -112,6 +112,19 @@ func (db *SQLiteDatabase) createTables() error {
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
 
+		// API cache table
+		`CREATE TABLE IF NOT EXISTS api_cache (
+			cache_key TEXT PRIMARY KEY,
+			cache_type TEXT NOT NULL,
+			response_data TEXT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			expires_at DATETIME NOT NULL,
+			etag TEXT,
+			request_params TEXT
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_cache_type ON api_cache(cache_type)`,
+		`CREATE INDEX IF NOT EXISTS idx_cache_expires ON api_cache(expires_at)`,
+
 		// Trigger to update updated_at timestamp
 		`CREATE TRIGGER IF NOT EXISTS update_tracks_timestamp
 		AFTER UPDATE ON tracks
@@ -129,6 +142,42 @@ func (db *SQLiteDatabase) createTables() error {
 	for _, query := range queries {
 		if _, err := db.db.Exec(query); err != nil {
 			return fmt.Errorf("failed to execute query: %w", err)
+		}
+	}
+
+	// Run migrations for existing databases
+	if err := db.runMigrations(); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+
+	return nil
+}
+
+// runMigrations applies schema updates to existing databases
+func (db *SQLiteDatabase) runMigrations() error {
+	// Check if playlists table has sync columns
+	var columnExists bool
+	err := db.db.QueryRow(`
+		SELECT COUNT(*) FROM pragma_table_info('playlists')
+		WHERE name = 'last_synced'
+	`).Scan(&columnExists)
+
+	if err != nil {
+		return fmt.Errorf("failed to check column existence: %w", err)
+	}
+
+	// Add sync columns if they don't exist
+	if !columnExists {
+		migrations := []string{
+			`ALTER TABLE playlists ADD COLUMN last_synced DATETIME`,
+			`ALTER TABLE playlists ADD COLUMN sync_etag TEXT`,
+		}
+
+		for _, migration := range migrations {
+			if _, err := db.db.Exec(migration); err != nil {
+				// Ignore error if column already exists
+				// SQLite doesn't support IF NOT EXISTS for ALTER TABLE
+			}
 		}
 	}
 
@@ -298,258 +347,63 @@ func (db *SQLiteDatabase) GetAll() []structures.DatabaseEntry {
 	return entries
 }
 
-// UpdatePlayStats updates play statistics for a track
-func (db *SQLiteDatabase) UpdatePlayStats(trackID string) error {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-
-	tx, err := db.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	// Update play count and last played
-	_, err = tx.Exec(`
-		UPDATE tracks
-		SET play_count = play_count + 1,
-		    last_played = CURRENT_TIMESTAMP
-		WHERE track_id = ?
-	`, trackID)
-	if err != nil {
-		return err
-	}
-
-	// Add to listening history
-	_, err = tx.Exec(`
-		INSERT INTO listening_history (track_id)
-		VALUES (?)
-	`, trackID)
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit()
-}
-
-// GetMostPlayed returns the most played tracks
-func (db *SQLiteDatabase) GetMostPlayed(limit int) []structures.DatabaseEntry {
+// GetCache retrieves cached data by key
+func (db *SQLiteDatabase) GetCache(cacheKey string) (string, bool) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	query := `
-		SELECT track_id, title, artists, album, thumbnail, duration, is_available,
-		       is_explicit, added_at, file_path, file_size
-		FROM tracks
-		WHERE play_count > 0
-		ORDER BY play_count DESC, last_played DESC
-		LIMIT ?
-	`
+	var responseData string
+	err := db.db.QueryRow(`
+		SELECT response_data FROM api_cache
+		WHERE cache_key = ? AND expires_at > CURRENT_TIMESTAMP
+	`, cacheKey).Scan(&responseData)
 
-	rows, err := db.db.Query(query, limit)
-	if err != nil {
-		return nil
-	}
-	defer rows.Close()
-
-	var entries []structures.DatabaseEntry
-
-	for rows.Next() {
-		var entry structures.DatabaseEntry
-		var artistsJSON string
-		var album, thumbnail, filePath sql.NullString
-		var fileSize sql.NullInt64
-
-		err := rows.Scan(
-			&entry.Track.TrackID,
-			&entry.Track.Title,
-			&artistsJSON,
-			&album,
-			&thumbnail,
-			&entry.Track.Duration,
-			&entry.Track.IsAvailable,
-			&entry.Track.IsExplicit,
-			&entry.AddedAt,
-			&filePath,
-			&fileSize,
-		)
-
-		if err != nil {
-			continue
-		}
-
-		// Parse artists JSON
-		if err := json.Unmarshal([]byte(artistsJSON), &entry.Track.Artists); err != nil {
-			continue
-		}
-
-		// Handle nullable fields
-		entry.Track.Album = album.String
-		entry.Track.Thumbnail = thumbnail.String
-		entry.FilePath = filePath.String
-		entry.FileSize = fileSize.Int64
-
-		entries = append(entries, entry)
-	}
-
-	return entries
-}
-
-// GetRecentlyPlayed returns recently played tracks
-func (db *SQLiteDatabase) GetRecentlyPlayed(limit int) []structures.DatabaseEntry {
-	db.mu.RLock()
-	defer db.mu.RUnlock()
-
-	query := `
-		SELECT DISTINCT t.track_id, t.title, t.artists, t.album, t.thumbnail,
-		       t.duration, t.is_available, t.is_explicit, t.added_at,
-		       t.file_path, t.file_size
-		FROM tracks t
-		INNER JOIN listening_history h ON t.track_id = h.track_id
-		ORDER BY h.played_at DESC
-		LIMIT ?
-	`
-
-	rows, err := db.db.Query(query, limit)
-	if err != nil {
-		return nil
-	}
-	defer rows.Close()
-
-	var entries []structures.DatabaseEntry
-
-	for rows.Next() {
-		var entry structures.DatabaseEntry
-		var artistsJSON string
-		var album, thumbnail, filePath sql.NullString
-		var fileSize sql.NullInt64
-
-		err := rows.Scan(
-			&entry.Track.TrackID,
-			&entry.Track.Title,
-			&artistsJSON,
-			&album,
-			&thumbnail,
-			&entry.Track.Duration,
-			&entry.Track.IsAvailable,
-			&entry.Track.IsExplicit,
-			&entry.AddedAt,
-			&filePath,
-			&fileSize,
-		)
-
-		if err != nil {
-			continue
-		}
-
-		// Parse artists JSON
-		if err := json.Unmarshal([]byte(artistsJSON), &entry.Track.Artists); err != nil {
-			continue
-		}
-
-		// Handle nullable fields
-		entry.Track.Album = album.String
-		entry.Track.Thumbnail = thumbnail.String
-		entry.FilePath = filePath.String
-		entry.FileSize = fileSize.Int64
-
-		entries = append(entries, entry)
-	}
-
-	return entries
-}
-
-// SaveAppState saves application state
-func (db *SQLiteDatabase) SaveAppState(key, value string) error {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-
-	_, err := db.db.Exec(`
-		INSERT OR REPLACE INTO app_state (key, value, updated_at)
-		VALUES (?, ?, CURRENT_TIMESTAMP)
-	`, key, value)
-	return err
-}
-
-// GetAppState retrieves application state
-func (db *SQLiteDatabase) GetAppState(key string) (string, bool) {
-	db.mu.RLock()
-	defer db.mu.RUnlock()
-
-	var value string
-	err := db.db.QueryRow("SELECT value FROM app_state WHERE key = ?", key).Scan(&value)
 	if err != nil {
 		return "", false
 	}
-	return value, true
+
+	return responseData, true
 }
 
-// Search performs a text search on tracks
-func (db *SQLiteDatabase) Search(query string) []structures.DatabaseEntry {
-	db.mu.RLock()
-	defer db.mu.RUnlock()
+// SetCache stores data in the cache
+func (db *SQLiteDatabase) SetCache(cacheKey, cacheType, responseData string, ttlSeconds int) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
 
-	searchPattern := "%" + query + "%"
-	sqlQuery := `
-		SELECT track_id, title, artists, album, thumbnail, duration, is_available,
-		       is_explicit, added_at, file_path, file_size
-		FROM tracks
-		WHERE title LIKE ? OR artists LIKE ? OR album LIKE ?
-		ORDER BY
-			CASE
-				WHEN title LIKE ? THEN 1
-				WHEN artists LIKE ? THEN 2
-				ELSE 3
-			END,
-			play_count DESC
-		LIMIT 50
+	query := `
+		INSERT OR REPLACE INTO api_cache
+		(cache_key, cache_type, response_data, created_at, expires_at)
+		VALUES (?, ?, ?, CURRENT_TIMESTAMP, datetime('now', '+' || ? || ' seconds'))
 	`
 
-	rows, err := db.db.Query(sqlQuery, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
-	if err != nil {
-		return nil
-	}
-	defer rows.Close()
-
-	var entries []structures.DatabaseEntry
-
-	for rows.Next() {
-		var entry structures.DatabaseEntry
-		var artistsJSON string
-		var album, thumbnail, filePath sql.NullString
-		var fileSize sql.NullInt64
-
-		err := rows.Scan(
-			&entry.Track.TrackID,
-			&entry.Track.Title,
-			&artistsJSON,
-			&album,
-			&thumbnail,
-			&entry.Track.Duration,
-			&entry.Track.IsAvailable,
-			&entry.Track.IsExplicit,
-			&entry.AddedAt,
-			&filePath,
-			&fileSize,
-		)
-
-		if err != nil {
-			continue
-		}
-
-		// Parse artists JSON
-		if err := json.Unmarshal([]byte(artistsJSON), &entry.Track.Artists); err != nil {
-			continue
-		}
-
-		// Handle nullable fields
-		entry.Track.Album = album.String
-		entry.Track.Thumbnail = thumbnail.String
-		entry.FilePath = filePath.String
-		entry.FileSize = fileSize.Int64
-
-		entries = append(entries, entry)
-	}
-
-	return entries
+	_, err := db.db.Exec(query, cacheKey, cacheType, responseData, ttlSeconds)
+	return err
 }
+
+// InvalidateCache removes a specific cache entry
+func (db *SQLiteDatabase) InvalidateCache(cacheKey string) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	_, err := db.db.Exec("DELETE FROM api_cache WHERE cache_key = ?", cacheKey)
+	return err
+}
+
+// InvalidateCacheByType removes all cache entries of a specific type
+func (db *SQLiteDatabase) InvalidateCacheByType(cacheType string) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	_, err := db.db.Exec("DELETE FROM api_cache WHERE cache_type = ?", cacheType)
+	return err
+}
+
+// CleanExpiredCache removes expired cache entries
+func (db *SQLiteDatabase) CleanExpiredCache() error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	_, err := db.db.Exec("DELETE FROM api_cache WHERE expires_at <= CURRENT_TIMESTAMP")
+	return err
+}
+
