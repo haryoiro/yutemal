@@ -62,16 +62,6 @@ yutemal requires YouTube Music cookies for authentication. You can export cookie
 - `/`: Search
 - `h/l`: Navigate between views
 
-
-
 ## License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## Disclaimer
-
-This project is not affiliated with YouTube or Google. It uses the YouTube Music API in accordance with their terms of service.
