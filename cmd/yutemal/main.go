@@ -11,6 +11,7 @@ import (
 	"github.com/haryoiro/yutemal/internal/config"
 	"github.com/haryoiro/yutemal/internal/database"
 	"github.com/haryoiro/yutemal/internal/logger"
+	"github.com/haryoiro/yutemal/internal/structures"
 	"github.com/haryoiro/yutemal/internal/systems"
 	"github.com/haryoiro/yutemal/internal/ui"
 )
@@ -124,15 +125,7 @@ func main() {
 
 	// Check if yt-dlp is installed
 	if err := checkYtDlp(); err != nil {
-		fmt.Println(banner)
-		fmt.Println("\n❌ yt-dlp is not installed!")
-		fmt.Println("\nyt-dlp is required to download music from YouTube.")
-		fmt.Println("\nInstallation instructions:")
-		fmt.Println("  macOS:    brew install yt-dlp")
-		fmt.Println("  Linux:    sudo apt install yt-dlp  # or use pip")
-		fmt.Println("  Windows:  winget install yt-dlp")
-		fmt.Println("  Python:   pip install yt-dlp")
-		fmt.Println("\nFor more information, visit: https://github.com/yt-dlp/yt-dlp")
+		showYtDlpError()
 		return
 	}
 
@@ -146,81 +139,28 @@ func main() {
 
 	// Load configuration
 	configPath := filepath.Join(configDir, "config.toml")
-	cfg, err := config.Load(configPath)
-	if err != nil {
-		logger.Warn("Failed to load config, using defaults: %v", err)
-		cfg = config.Default()
-
-		// Save default config for future use
-		if err := config.Save(cfg, configPath); err != nil {
-			logger.Warn("Failed to save default config: %v", err)
-		} else {
-			logger.Info("Created default config at: %s", configPath)
-		}
-	} else {
-		logger.Debug("Configuration loaded successfully from: %s", configPath)
-	}
+	cfg := loadConfiguration(configPath)
 
 	// Initialize SQLite database
-	db, err := database.OpenSQLite(filepath.Join(dataDir, "yutemal.db"))
-	if err != nil {
-		logger.Fatal("Failed to open SQLite database: %v", err)
-	}
+	db := initializeDatabase(dataDir)
 	defer func() {
 		logger.Debug("Closing database connection")
 		db.Close()
 	}()
-	logger.Debug("SQLite database opened successfully")
 
-	// Check for authentication - try both header.txt and headers.txt
-	headerFile := filepath.Join(configDir, "headers.txt")
-	if !fileExists(headerFile) {
-		// Try alternative name
-		altHeaderFile := "header.txt"
-		if fileExists(altHeaderFile) {
-			headerFile = altHeaderFile
-		} else {
-			fmt.Println(banner)
-			fmt.Println("\nNo authentication found!")
-			fmt.Println("Please create a header.txt or headers.txt file with your YouTube Music cookies.")
-			fmt.Printf("Locations: %s or %s\n", headerFile, altHeaderFile)
-			fmt.Println("\nSee README for instructions on obtaining cookies.")
-			return
-		}
+	// Check for authentication
+	headerFile := findHeaderFile(configDir)
+	if headerFile == "" {
+		showAuthenticationError(configDir)
+		return
 	}
 
-	// Initialize systems
-	logger.Debug("Initializing application systems...")
-	appSystems := systems.New(cfg, db, cacheDir)
-
-	// Initialize API client with header file
-	logger.Debug("Initializing YouTube API with header file: %s", headerFile)
-	if err := appSystems.API.InitializeFromHeaderFile(headerFile); err != nil {
-		logger.Warn("Failed to initialize YouTube API: %v", err)
-		fmt.Printf("Warning: YouTube API not available. Some features will be limited.\n")
-	} else {
-		logger.Debug("YouTube API initialized successfully")
-	}
-
-	// Set header file for download system (for cookie authentication)
-	logger.Debug("Setting header file for download system")
-	if err := appSystems.Download.SetHeaderFile(headerFile); err != nil {
-		logger.Warn("Failed to set header file for downloads: %v", err)
-		fmt.Printf("Warning: Downloads may fail without proper authentication.\n")
-	} else {
-		logger.Debug("Header file set successfully for downloads")
-	}
-
-	// Start all systems
-	logger.Debug("Starting all application systems...")
-	if err := appSystems.Start(); err != nil {
-		logger.Fatal("Failed to start systems: %v", err)
-	}
+	// Initialize and start systems
+	appSystems := initializeSystems(cfg, db, cacheDir, headerFile)
 	defer func() {
 		logger.Debug("Stopping all application systems...")
 		appSystems.Stop()
 	}()
-	logger.Info("All systems started successfully")
 
 	// Start the application
 	fmt.Println(banner)
@@ -307,4 +247,100 @@ func checkYtDlp() error {
 	logger.Info("Found yt-dlp version: %s", version)
 	logger.Debug("yt-dlp path: %s", path)
 	return nil
+}
+
+// Helper functions for main
+
+func showYtDlpError() {
+	fmt.Println(banner)
+	fmt.Println("\n❌ yt-dlp is not installed!")
+	fmt.Println("\nyt-dlp is required to download music from YouTube.")
+	fmt.Println("\nInstallation instructions:")
+	fmt.Println("  macOS:    brew install yt-dlp")
+	fmt.Println("  Linux:    sudo apt install yt-dlp  # or use pip")
+	fmt.Println("  Windows:  winget install yt-dlp")
+	fmt.Println("  Python:   pip install yt-dlp")
+	fmt.Println("\nFor more information, visit: https://github.com/yt-dlp/yt-dlp")
+}
+
+func loadConfiguration(configPath string) *structures.Config {
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		logger.Warn("Failed to load config, using defaults: %v", err)
+		cfg = config.Default()
+
+		// Save default config for future use
+		if err := config.Save(cfg, configPath); err != nil {
+			logger.Warn("Failed to save default config: %v", err)
+		} else {
+			logger.Info("Created default config at: %s", configPath)
+		}
+	} else {
+		logger.Debug("Configuration loaded successfully from: %s", configPath)
+	}
+	return cfg
+}
+
+func initializeDatabase(dataDir string) database.DB {
+	db, err := database.OpenSQLite(filepath.Join(dataDir, "yutemal.db"))
+	if err != nil {
+		logger.Fatal("Failed to open SQLite database: %v", err)
+	}
+	logger.Debug("SQLite database opened successfully")
+	return db
+}
+
+func findHeaderFile(configDir string) string {
+	headerFile := filepath.Join(configDir, "headers.txt")
+	if fileExists(headerFile) {
+		return headerFile
+	}
+
+	// Try alternative name
+	altHeaderFile := "header.txt"
+	if fileExists(altHeaderFile) {
+		return altHeaderFile
+	}
+
+	return ""
+}
+
+func showAuthenticationError(configDir string) {
+	fmt.Println(banner)
+	fmt.Println("\nNo authentication found!")
+	fmt.Println("Please create a header.txt or headers.txt file with your YouTube Music cookies.")
+	fmt.Printf("Locations: %s/headers.txt or ./header.txt\n", configDir)
+	fmt.Println("\nSee README for instructions on obtaining cookies.")
+}
+
+func initializeSystems(cfg *structures.Config, db database.DB, cacheDir, headerFile string) *systems.Systems {
+	logger.Debug("Initializing application systems...")
+	appSystems := systems.New(cfg, db, cacheDir)
+
+	// Initialize API client with header file
+	logger.Debug("Initializing YouTube API with header file: %s", headerFile)
+	if err := appSystems.API.InitializeFromHeaderFile(headerFile); err != nil {
+		logger.Warn("Failed to initialize YouTube API: %v", err)
+		fmt.Printf("Warning: YouTube API not available. Some features will be limited.\n")
+	} else {
+		logger.Debug("YouTube API initialized successfully")
+	}
+
+	// Set header file for download system (for cookie authentication)
+	logger.Debug("Setting header file for download system")
+	if err := appSystems.Download.SetHeaderFile(headerFile); err != nil {
+		logger.Warn("Failed to set header file for downloads: %v", err)
+		fmt.Printf("Warning: Downloads may fail without proper authentication.\n")
+	} else {
+		logger.Debug("Header file set successfully for downloads")
+	}
+
+	// Start all systems
+	logger.Debug("Starting all application systems...")
+	if err := appSystems.Start(); err != nil {
+		logger.Fatal("Failed to start systems: %v", err)
+	}
+	logger.Info("All systems started successfully")
+
+	return appSystems
 }
