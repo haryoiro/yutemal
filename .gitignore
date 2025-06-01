@@ -1,1 +1,29 @@
+# IDE specific files
+.vscode/
+.idea/
+
+# Build output
+yutemal
+*.exe
 tmp
+
+# Go build cache
+*.test
+*.out
+
+# Dependency directories
+vendor/
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Application data
+*.db
+downloads/
+logs/
+
+# Configuration files with sensitive data
+config.toml
+!config.example.toml
+cookies.txt
