@@ -4,7 +4,7 @@ A Terminal UI (TUI) YouTube Music player written in Go.
 
 ## About
 
-yutemal is a terminal-based YouTube Music client that allows you to browse, search, and play music directly from your terminal. This project is inspired by and based on the excellent work of [ytermusic](https://github.com/ccgauche/ytermusic) by ccgauche, reimplemented in Go with a focus on performance and cross-platform compatibility.
+yutemal is a terminal-based YouTube Music client that allows you to browse, search, and play music directly from your terminal.
 
 ## Features
 
@@ -14,7 +14,6 @@ yutemal is a terminal-based YouTube Music client that allows you to browse, sear
 - ⌨️ Vim-style keyboard navigation
 - 🎨 Customizable themes
 - 💾 Local caching for offline playback
-- 🚀 Lightweight and fast
 
 ## Requirements
 
@@ -63,28 +62,7 @@ yutemal requires YouTube Music cookies for authentication. You can export cookie
 - `/`: Search
 - `h/l`: Navigate between views
 
-## Project Structure
 
-```
-yutemal/
-├── cmd/
-│   └── yutemal/
-│       └── main.go          # Entry point
-├── internal/
-│   ├── config/              # Configuration management
-│   ├── database/            # Local music database
-│   ├── logger/              # Logging utilities
-│   ├── player/              # Audio playback engine
-│   ├── structures/          # Core data structures
-│   ├── systems/             # Core systems (player, download, API)
-│   └── ui/                  # Terminal UI components
-└── pkg/
-    └── ytapi/               # YouTube Music API client
-```
-
-## Acknowledgments
-
-This project is a Go implementation inspired by [ytermusic](https://github.com/ccgauche/ytermusic), originally written in Rust by ccgauche. We are grateful for their innovative work in creating a terminal-based YouTube Music player, which served as the foundation and inspiration for yutemal.
 
 ## License
 
