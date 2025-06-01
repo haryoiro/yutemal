@@ -6,7 +6,7 @@ echo "Building yutemal..."
 
 # Check Go version
 GO_VERSION=$(go version | awk '{print $3}' | sed 's/go//')
-REQUIRED_VERSION="1.23"
+REQUIRED_VERSION="1.24"
 
 if ! command -v go &> /dev/null; then
     echo "Error: Go is not installed"

@@ -1,8 +1,6 @@
 module github.com/haryoiro/yutemal
 
-go 1.23.0
-
-toolchain go1.24.2
+go 1.24
 
 require (
 	github.com/charmbracelet/bubbletea v1.3.5
