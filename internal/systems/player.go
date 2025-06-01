@@ -1,7 +1,6 @@
 package systems
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -441,17 +440,6 @@ func (ps *PlayerSystem) loadCurrentSong() {
 	}
 }
 
-// CurrentSong returns the currently playing song
-func (ps *PlayerSystem) CurrentSong() (*structures.Track, error) {
-	ps.mu.RLock()
-	defer ps.mu.RUnlock()
-
-	if ps.state.Current < 0 || ps.state.Current >= len(ps.state.List) {
-		return nil, fmt.Errorf("no current song")
-	}
-
-	return &ps.state.List[ps.state.Current], nil
-}
 
 // deleteCurrentTrack removes the current track from the playlist and deletes its files
 func (ps *PlayerSystem) deleteCurrentTrack() {
