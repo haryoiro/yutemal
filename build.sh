@@ -25,9 +25,17 @@ cd "$(dirname "$0")"
 echo "Downloading dependencies..."
 go mod download
 
-# Build the binary
-echo "Building binary..."
-go build -o yutemal cmd/yutemal/main.go
+# Get version information
+VERSION=${VERSION:-dev}
+COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+# Build the binary with version information
+echo "Building binary (version: $VERSION)..."
+go build -ldflags "-X github.com/haryoiro/yutemal/internal/version.Version=$VERSION \
+    -X github.com/haryoiro/yutemal/internal/version.Commit=$COMMIT \
+    -X github.com/haryoiro/yutemal/internal/version.Date=$DATE" \
+    -o yutemal cmd/yutemal/main.go
 
 if [ $? -eq 0 ]; then
     echo "Build successful! Binary created: ./yutemal"

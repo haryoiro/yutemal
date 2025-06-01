@@ -14,11 +14,11 @@ import (
 	"github.com/haryoiro/yutemal/internal/structures"
 	"github.com/haryoiro/yutemal/internal/systems"
 	"github.com/haryoiro/yutemal/internal/ui"
+	"github.com/haryoiro/yutemal/internal/version"
 )
 
 const (
-	version = "0.1.0"
-	banner  = `
+	banner = `
 ██╗   ██╗██╗   ██╗████████╗███████╗███╗   ███╗ █████╗ ██╗
 ╚██╗ ██╔╝██║   ██║╚══██╔══╝██╔════╝████╗ ████║██╔══██╗██║
  ╚████╔╝ ██║   ██║   ██║   █████╗  ██╔████╔██║███████║██║
@@ -76,7 +76,7 @@ func main() {
 	}
 
 	if *showVersion {
-		fmt.Printf("yutemal (Go) v%s\n", version)
+		fmt.Println(version.Info())
 		return
 	}
 
