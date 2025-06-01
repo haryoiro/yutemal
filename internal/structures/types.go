@@ -116,8 +116,8 @@ type AppStatus struct {
 
 // Config represents the application configuration
 type Config struct {
-	Theme              Theme       `toml:"theme"`
-	KeyBindings        KeyBindings `toml:"key_bindings"`
+	Theme       Theme       `toml:"theme"`
+	KeyBindings KeyBindings `toml:"key_bindings"`
 
 	// Download Configuration
 	DownloadDir            string `toml:"download_dir"`
