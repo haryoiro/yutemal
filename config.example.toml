@@ -1,0 +1,114 @@
+# Example configuration file for yutemal
+# Copy this file to ~/.config/yutemal/config.toml and customize as needed
+
+# UI Configuration
+show_volume_bar = true
+hide_channels_on_homepage = true
+hide_albums_on_homepage = false
+
+# Download Configuration
+download_dir = ""  # Empty means use default cache directory
+max_concurrent_downloads = 4
+max_cache_size = 1024  # in MB
+
+# Player Configuration
+default_volume = 0.7
+seek_seconds = 5
+
+# Theme Configuration
+[theme]
+# Note: The 'background' field is not used to avoid partial background coloring.
+# Please set your terminal's background color directly in your terminal emulator.
+
+# Default theme: Tokyo Night Storm
+# background = "#1a1b26"       # Not used - set in terminal emulator
+foreground = "#c0caf5"       # Default text color
+selected = "#7aa2f7"        # Selected item color (bold)
+playing = "#9ece6a"         # Currently playing item color
+border = "#3b4261"          # Border color
+progress_bar = "#565f89"    # Progress bar background
+progress_bar_fill = "#7aa2f7" # Progress bar fill color
+progress_bar_style = "gradient" # Progress bar style: "line", "block", or "gradient"
+
+# Alternative theme examples:
+
+# Catppuccin Mocha
+# background = "#1e1e2e"
+# foreground = "#cdd6f4"
+# selected = "#89b4fa"
+# playing = "#a6e3a1"
+# border = "#45475a"
+# progress_bar = "#313244"
+# progress_bar_fill = "#89b4fa"
+
+# Dracula
+# background = "#282a36"
+# foreground = "#f8f8f2"
+# selected = "#bd93f9"
+# playing = "#50fa7b"
+# border = "#44475a"
+# progress_bar = "#44475a"
+# progress_bar_fill = "#bd93f9"
+
+# Nord
+# background = "#2e3440"
+# foreground = "#eceff4"
+# selected = "#81a1c1"
+# playing = "#a3be8c"
+# border = "#4c566a"
+# progress_bar = "#434c5e"
+# progress_bar_fill = "#81a1c1"
+
+# Gruvbox Dark
+# background = "#282828"
+# foreground = "#ebdbb2"
+# selected = "#fabd2f"
+# playing = "#b8bb26"
+# border = "#504945"
+# progress_bar = "#504945"
+# progress_bar_fill = "#fabd2f"
+
+# Key Bindings Configuration
+[key_bindings]
+# Global controls
+play_pause = "space"
+quit = "ctrl+d"
+volume_up = ["+", "="]
+volume_down = ["-", "_"]
+seek_forward = "right"
+seek_backward = "left"
+
+# Navigation
+move_up = ["up", "k"]
+move_down = ["down", "j"]
+select = ["enter", "l"]
+back = ["esc", "backspace"]
+next_section = "tab"
+prev_section = "shift+tab"
+
+# Actions
+search = "f"
+shuffle = "s"
+remove_track = "r"
+home = "h"
+
+# Alternative key binding examples:
+# You can customize any key binding. Some examples:
+
+# Vim-style navigation only:
+# move_up = ["k"]
+# move_down = ["j"]
+# select = ["l"]
+# back = ["h"]
+
+# Media player style:
+# play_pause = "p"
+# seek_forward = "."
+# seek_backward = ","
+# volume_up = ["]"]
+# volume_down = ["["]
+
+# Minimal controls:
+# quit = "q"
+# search = "/"
+# home = "g"
