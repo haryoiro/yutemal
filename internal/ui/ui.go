@@ -7,8 +7,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/haryoiro/yutemal/internal/logger"
 	"github.com/haryoiro/yutemal/internal/structures"
 	"github.com/haryoiro/yutemal/internal/systems"
+	"github.com/haryoiro/yutemal/pkg/timg"
 	"github.com/mattn/go-runewidth"
 )
 
@@ -55,6 +57,8 @@ type Model struct {
 	marqueeOffset int
 	marqueeTicker *time.Ticker
 	lastUpdate    time.Time
+	timg          *timg.TerminalImage
+	
 }
 
 type tickMsg time.Time
@@ -72,9 +76,25 @@ func RunSimple(systems *systems.Systems, config *structures.Config) error {
 		state:         HomeView,
 		playerHeight:  5,
 		marqueeTicker: time.NewTicker(150 * time.Millisecond),
+		timg:          timg.New(),
 	}
-
-	p := tea.NewProgram(&m, tea.WithAltScreen())
+	logger.Info("terminal image protocol: %s", m.timg.ProtocolName())
+	
+	// Warn about Kitty + AltScreen limitation
+	if m.timg.ProtocolName() == "Kitty Graphics" && !config.DisableAltScreen {
+		logger.Warn("Kitty terminal detected with AltScreen enabled. Thumbnail may not display correctly.")
+		logger.Warn("To fix this, set 'disable_alt_screen = true' in your config file.")
+	}
+	
+	// Create program options
+	opts := []tea.ProgramOption{}
+	
+	// Only use AltScreen if not disabled in config
+	if !config.DisableAltScreen {
+		opts = append(opts, tea.WithAltScreen())
+	}
+	
+	p := tea.NewProgram(&m, opts...)
 	if _, err := p.Run(); err != nil {
 		return err
 	}
@@ -114,6 +134,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case playerUpdateMsg:
 		m.playerState = structures.PlayerState(msg)
 		return m, m.listenToPlayer()
+	
 
 	case sectionsLoadedMsg:
 		m.sections = msg
@@ -204,11 +225,14 @@ func (m *Model) View() string {
 	}
 	content = strings.Join(contentLines, "\n")
 
-	return lipgloss.JoinVertical(
+	result := lipgloss.JoinVertical(
 		lipgloss.Top,
 		mainStyle.Render(content),
 		playerStyle.Render(player),
 	)
+	
+	
+	return result
 }
 
 // Helper functions for key binding checks
