@@ -29,13 +29,17 @@ func (m *Model) renderPlayer() string {
 			Italic(true)
 	}
 
-	var b strings.Builder
-
 	// 利用可能幅を使用（フレームサイズは既に考慮済み）
 	availableWidth := m.playerContentWidth
 	if availableWidth <= 0 {
 		availableWidth = 80 // フォールバック値
 	}
+
+	// Use full width for content (thumbnail removed)
+	contentWidth := availableWidth
+
+	// Content rendering
+	var content strings.Builder
 
 	// First line: Song info
 	if m.playerState.Current < len(m.playerState.List) && m.playerState.Current >= 0 {
@@ -43,10 +47,10 @@ func (m *Model) renderPlayer() string {
 		title := video.Title
 		artists := formatArtists(video.Artists)
 
-		// タイトルとアーティストの幅計算
+		// タイトルとアーティストの幅計算（コンテンツ幅を使用）
 		artistsWidth := runewidth.StringWidth(artists)
 		prefixWidth := runewidth.StringWidth("🎵  - ")
-		maxTitleWidth := availableWidth - artistsWidth - prefixWidth
+		maxTitleWidth := contentWidth - artistsWidth - prefixWidth
 
 		if maxTitleWidth < 10 {
 			maxTitleWidth = 10
@@ -59,18 +63,18 @@ func (m *Model) renderPlayer() string {
 
 		// 全体の行が利用可能幅に収まるように調整
 		fullLine := fmt.Sprintf("🎵 %s - %s", title, artists)
-		if runewidth.StringWidth(fullLine) > availableWidth {
-			maxArtistsWidth := availableWidth - runewidth.StringWidth(fmt.Sprintf("🎵 %s - ", title))
+		if runewidth.StringWidth(fullLine) > contentWidth {
+			maxArtistsWidth := contentWidth - runewidth.StringWidth(fmt.Sprintf("🎵 %s - ", title))
 			if maxArtistsWidth > 0 {
 				artists = truncate(artists, maxArtistsWidth)
 			}
 		}
 
-		b.WriteString(playerInfoStyle.Render(fmt.Sprintf("🎵 %s - %s", title, artists)))
+		content.WriteString(playerInfoStyle.Render(fmt.Sprintf("🎵 %s - %s", title, artists)))
 	} else {
-		b.WriteString(dimStyle.Render("NO SONG PLAYING"))
+		content.WriteString(dimStyle.Render("NO SONG PLAYING"))
 	}
-	b.WriteString("\n\n")
+	content.WriteString("\n\n")
 
 	// Second line: Progress bar
 	if m.playerState.TotalTime > 0 {
@@ -79,14 +83,14 @@ func (m *Model) renderPlayer() string {
 
 		// Calculate exact width needed for time displays and spacing
 		timeWidth := runewidth.StringWidth(currentTime) + runewidth.StringWidth(totalTime) + 2 // 2 spaces
-		barWidth := availableWidth - timeWidth*2
+		barWidth := contentWidth - timeWidth*2
 		if barWidth < 10 {
 			barWidth = 10
 		}
 
 		progressBar := m.renderProgressBar(barWidth)
 
-		b.WriteString(fmt.Sprintf("%s %s %s",
+		content.WriteString(fmt.Sprintf("%s %s %s",
 			timeStyle.Render(currentTime),
 			progressBar,
 			timeStyle.Render(totalTime)))
@@ -102,23 +106,23 @@ func (m *Model) renderPlayer() string {
 
 		// Calculate exact width for empty progress bar
 		timeWidth := runewidth.StringWidth("--:--")*2 + 2 // 2 time displays + 2 spaces
-		barWidth := availableWidth - timeWidth*2
+		barWidth := contentWidth - timeWidth*2
 		if barWidth < 10 {
 			barWidth = 10
 		}
 		bar := progressBgStyle.Render(strings.Repeat("─", barWidth))
-		b.WriteString(fmt.Sprintf("%s %s %s",
+		content.WriteString(fmt.Sprintf("%s %s %s",
 			timeStyle.Render("--:--"),
 			bar,
 			timeStyle.Render("--:--")))
 	}
-	b.WriteString("\n\n")
+	content.WriteString("\n\n")
 
 	// Third line: Controls and status
-	controls := m.renderControls(availableWidth)
-	b.WriteString(controls)
+	controls := m.renderControls(contentWidth)
+	content.WriteString(controls)
 
-	return b.String()
+	return content.String()
 }
 
 func (m *Model) renderProgressBar(width int) string {
@@ -247,6 +251,7 @@ func (m *Model) createGradientBar(width int, startColor, endColor string) string
 
 	return result
 }
+
 
 func (m *Model) renderControls(availableWidth int) string {
 	// Get dimStyle
