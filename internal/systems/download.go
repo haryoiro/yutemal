@@ -377,3 +377,4 @@ func (ds *DownloadSystem) GetCacheSize() (int64, error) {
 
 	return totalSize, nil
 }
+
