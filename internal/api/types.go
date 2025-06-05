@@ -5,7 +5,6 @@ type TrackRef struct {
 	TrackID     string   `json:"trackId"`
 	Title       string   `json:"title"`
 	Artists     []string `json:"artists"`
-	Album       string   `json:"album,omitempty"`
 	Thumbnail   string   `json:"thumbnail,omitempty"`
 	Duration    int      `json:"duration"` // in seconds
 	IsAvailable bool     `json:"isAvailable"`

@@ -108,7 +108,6 @@ func extractTrackFromItem(value any) *TrackRef {
 	}
 
 	artists := findArtists(objInterface)
-	album := findAlbum(objInterface)
 	duration := findDuration(objInterface)
 	thumbnail := findThumbnail(objInterface)
 
@@ -116,7 +115,6 @@ func extractTrackFromItem(value any) *TrackRef {
 		TrackID:     trackID,
 		Title:       title,
 		Artists:     artists,
-		Album:       album,
 		Duration:    duration,
 		Thumbnail:   thumbnail,
 		IsAvailable: true,

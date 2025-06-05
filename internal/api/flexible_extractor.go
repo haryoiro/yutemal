@@ -94,27 +94,6 @@ func findArtists(obj map[string]interface{}) []string {
 	return artists
 }
 
-// findAlbum searches for album information
-func findAlbum(obj map[string]interface{}) string {
-	// Try flexColumns approach
-	if flexCols, ok := obj["flexColumns"].([]interface{}); ok && len(flexCols) > 2 {
-		if col, ok := flexCols[2].(map[string]interface{}); ok {
-			if renderer, ok := col["musicResponsiveListItemFlexColumnRenderer"].(map[string]interface{}); ok {
-				if text, ok := renderer["text"].(map[string]interface{}); ok {
-					if runs, ok := text["runs"].([]interface{}); ok && len(runs) > 0 {
-						if runObj, ok := runs[0].(map[string]interface{}); ok {
-							if runText, ok := runObj["text"].(string); ok {
-								return runText
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return ""
-}
 
 // findDuration searches for duration information
 func findDuration(obj map[string]any) int {
@@ -146,8 +125,8 @@ func findThumbnail(obj map[string]interface{}) string {
 		if thumbnails := getPath(obj, convertToInterface(path)...); thumbnails != nil {
 			if thumbArray, ok := thumbnails.([]interface{}); ok && len(thumbArray) > 0 {
 				// Get the largest thumbnail (usually the last one)
-				if thumb, ok := thumbArray[len(thumbArray)-1].(map[string]interface{}); ok {
-					if url, ok := thumb["url"].(string); ok {
+				if lastThumb, ok := thumbArray[len(thumbArray)-1].(map[string]interface{}); ok {
+					if url, ok := lastThumb["url"].(string); ok {
 						return url
 					}
 				}
@@ -157,6 +136,8 @@ func findThumbnail(obj map[string]interface{}) string {
 
 	return ""
 }
+
+
 
 // getPathString gets a string value from a nested path
 func getPathString(data map[string]interface{}, keys ...string) string {
