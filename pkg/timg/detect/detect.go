@@ -30,6 +30,7 @@ func Auto() protocol.Protocol {
 		return protocol.New(protocol.TypeTerminalGraphics)
 	}
 
+	// 対応プロトコルがない場合はnilを返す
 	return nil
 }
 

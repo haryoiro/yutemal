@@ -49,6 +49,8 @@ func New(protoType Type) Protocol {
 		return newSixel()
 	case TypeTerminalGraphics:
 		return newTerminalGraphics()
+	case TypeNone:
+		return nil
 	default:
 		return nil
 	}

@@ -40,7 +40,7 @@ func (ti *TerminalImage) ProtocolName() string {
 
 // IsSupported グラフィックスプロトコルがサポートされているか
 func (ti *TerminalImage) IsSupported() bool {
-	return ti.validate() == nil && ti.proto.Type() != protocol.TypeNone
+	return ti.validate() == nil
 }
 
 // validate プロトコルの存在を検証

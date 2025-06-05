@@ -35,7 +35,7 @@ echo "Building binary (version: $VERSION)..."
 go build -ldflags "-X github.com/haryoiro/yutemal/internal/version.Version=$VERSION \
     -X github.com/haryoiro/yutemal/internal/version.Commit=$COMMIT \
     -X github.com/haryoiro/yutemal/internal/version.Date=$DATE" \
-    -o yutemal cmd/yutemal/main.go
+    -o yutemal main.go
 
 if [ $? -eq 0 ]; then
     echo "Build successful! Binary created: ./yutemal"

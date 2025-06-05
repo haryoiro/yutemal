@@ -41,9 +41,27 @@ func GetTermEnv() (term, termProgram string) {
 }
 
 func IsKittyTerminal(term, termProgram string) bool {
-	return strings.Contains(term, "kitty") ||
-		strings.Contains(termProgram, "kitty") ||
-		os.Getenv("KITTY_WINDOW_ID") != ""
+	 // KittyターミナルかWezTermなど、kitty protocolをサポートするターミナルを検出
+    if strings.Contains(term, "kitty") {
+        return true
+    }
+
+	supportedTerminals := []string{
+			"kitty",
+			"wezterm",
+			"foot",
+			"ghostty",
+		}
+
+    for _, supported := range supportedTerminals {
+        if strings.Contains(term, supported) ||
+           strings.Contains(termProgram, supported) {
+			return true
+        }
+    }
+
+	// それ以外のターミナルはKittyではない
+	return false
 }
 
 func IsInteractiveTerminal() bool {

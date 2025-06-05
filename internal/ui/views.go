@@ -453,23 +453,62 @@ func (m Model) renderSectionTabs(maxWidth int) string {
 }
 
 func (m Model) applyMarquee(text string, maxLen int) string {
-	if len(text) <= maxLen {
+	textWidth := runewidth.StringWidth(text)
+	if textWidth <= maxLen {
 		return text
 	}
 
-	// Add some spacing for smooth scrolling
-	paddedText := text + "   " + text
-	offset := m.marqueeOffset % len(paddedText)
-
-	result := paddedText[offset:]
-	if len(result) > maxLen {
-		result = result[:maxLen]
-	} else {
-		// Wrap around
-		result += paddedText[:maxLen-len(result)]
+	// Convert to runes for proper Unicode handling
+	runes := []rune(text)
+	spacer := []rune("   ")
+	
+	// Create padded text with spacer
+	paddedRunes := append(append([]rune{}, runes...), spacer...)
+	paddedRunes = append(paddedRunes, runes...)
+	
+	// Calculate offset based on rune count
+	totalRunes := len(paddedRunes)
+	offset := m.marqueeOffset % totalRunes
+	
+	// Build result string with proper width calculation
+	var result []rune
+	currentWidth := 0
+	
+	for i := offset; currentWidth < maxLen && i < totalRunes; i++ {
+		r := paddedRunes[i]
+		w := runewidth.RuneWidth(r)
+		
+		// Check if adding this rune would exceed maxLen
+		if currentWidth + w > maxLen {
+			break
+		}
+		
+		result = append(result, r)
+		currentWidth += w
+	}
+	
+	// If we need more characters, wrap around to the beginning
+	if currentWidth < maxLen {
+		for i := 0; currentWidth < maxLen && i < offset; i++ {
+			r := paddedRunes[i]
+			w := runewidth.RuneWidth(r)
+			
+			if currentWidth + w > maxLen {
+				break
+			}
+			
+			result = append(result, r)
+			currentWidth += w
+		}
+	}
+	
+	// Pad with spaces if needed to maintain consistent width
+	for currentWidth < maxLen {
+		result = append(result, ' ')
+		currentWidth++
 	}
 
-	return result
+	return string(result)
 }
 
 func truncate(s string, maxWidth int) string {

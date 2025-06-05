@@ -11,8 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/haryoiro/yutemal/internal/logger"
 )
 
 const (
@@ -370,14 +368,7 @@ func extractSAPISID(cookies string) string {
 	return ""
 }
 
-func logJSON(label string, data any) {
-	jsonData, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		logger.Debug("%s: error marshaling JSON: %v\n", label, err)
-		return
-	}
-	logger.Debug("%s:\n%s\n", label, jsonData)
-}
+
 
 func extractBetween(s, start, end string) string {
 	startIdx := strings.Index(s, start)
