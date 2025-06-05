@@ -74,14 +74,7 @@ func RunSimple(systems *systems.Systems, config *structures.Config) error {
 		marqueeTicker: time.NewTicker(150 * time.Millisecond),
 	}
 
-	// Create program options
 	opts := []tea.ProgramOption{}
-
-	// Only use AltScreen if not disabled in config
-	if !config.DisableAltScreen {
-		opts = append(opts, tea.WithAltScreen())
-	}
-
 	p := tea.NewProgram(&m, opts...)
 	if _, err := p.Run(); err != nil {
 		return err
@@ -126,7 +119,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case sectionsLoadedMsg:
 		m.sections = msg
-		m.currentSectionIndex = 1
+		
+		// Find "Your Library" section and set it as default, or use first section
+		m.currentSectionIndex = 0
+		for i, section := range m.sections {
+			if section.ID == "library" || section.Title == "Your Library" {
+				m.currentSectionIndex = i
+				break
+			}
+		}
+		
 		m.selectedIndex = 0
 		m.scrollOffset = 0
 		return m, nil

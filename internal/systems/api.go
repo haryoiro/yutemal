@@ -388,7 +388,15 @@ func (as *APISystem) GetSections() ([]structures.Section, error) {
 
 	// Library Playlists Section
 	libraryPlaylists, err := as.GetLibraryPlaylists()
+	if err != nil {
+		// Log error but continue with other sections
+		fmt.Printf("Error getting library playlists: %v\n", err)
+	} else if len(libraryPlaylists) == 0 {
+		fmt.Printf("Warning: No library playlists found\n")
+	}
+
 	if err == nil && len(libraryPlaylists) > 0 {
+		fmt.Printf("Successfully loaded %d library playlists\n", len(libraryPlaylists))
 		section := structures.Section{
 			ID:       "library",
 			Title:    "Your Library",
@@ -409,6 +417,8 @@ func (as *APISystem) GetSections() ([]structures.Section, error) {
 			})
 		}
 		sections = append(sections, section)
+	} else {
+		fmt.Printf("Your Library section skipped - err: %v, playlist count: %d\n", err, len(libraryPlaylists))
 	}
 
 	// Liked Playlists Section

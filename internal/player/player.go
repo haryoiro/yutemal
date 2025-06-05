@@ -29,6 +29,8 @@ type Player struct {
 	cancel             context.CancelFunc
 	speakerInitialized bool
 	currentSampleRate  beep.SampleRate
+	lastSeekTime       time.Time
+	seekCooldown       time.Duration
 }
 
 // New creates a new audio player
@@ -36,8 +38,9 @@ func New() (*Player, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	player := &Player{
-		ctx:    ctx,
-		cancel: cancel,
+		ctx:          ctx,
+		cancel:       cancel,
+		seekCooldown: 500 * time.Millisecond, // Prevent immediate end-of-song detection after seek
 	}
 
 	// Don't initialize speaker here - do it when we load the first file
@@ -253,21 +256,43 @@ func (p *Player) Seek(pos time.Duration) error {
 		return fmt.Errorf("no file loaded")
 	}
 
+	// Clamp position to valid range
+	if pos < 0 {
+		pos = 0
+	}
+	if pos > p.duration {
+		pos = p.duration
+	}
+
 	samplePos := p.format.SampleRate.N(pos)
 	if err := p.streamer.Seek(samplePos); err != nil {
 		return fmt.Errorf("failed to seek: %w", err)
 	}
 
-	p.position = pos
+	// Record seek operation to avoid immediate end-of-song detection
+	p.lastSeekTime = time.Now()
+	
+	// Update position based on actual streamer position after seek
+	actualSample := p.streamer.Position()
+	p.position = p.format.SampleRate.D(actualSample)
+	
+	logger.Debug("Seeked to %v (requested: %v)", p.position, pos)
 	return nil
 }
 
 // SeekForward seeks forward by the specified duration
 func (p *Player) SeekForward(duration time.Duration) error {
 	p.mu.RLock()
-	newPos := p.position + duration
+	currentPos := p.GetPositionUnsafe() // Get real-time position
+	newPos := currentPos + duration
+	
+	// Handle boundary: if seeking beyond end, go to 95% to avoid immediate song end
 	if newPos > p.duration {
-		newPos = p.duration
+		if p.duration > time.Second {
+			newPos = p.duration - (p.duration / 20) // 95% of duration
+		} else {
+			newPos = p.duration
+		}
 	}
 	p.mu.RUnlock()
 
@@ -277,7 +302,8 @@ func (p *Player) SeekForward(duration time.Duration) error {
 // SeekBackward seeks backward by the specified duration
 func (p *Player) SeekBackward(duration time.Duration) error {
 	p.mu.RLock()
-	newPos := p.position - duration
+	currentPos := p.GetPositionUnsafe() // Get real-time position
+	newPos := currentPos - duration
 	if newPos < 0 {
 		newPos = 0
 	}
@@ -290,7 +316,12 @@ func (p *Player) SeekBackward(duration time.Duration) error {
 func (p *Player) GetPosition() time.Duration {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+	return p.GetPositionUnsafe()
+}
 
+// GetPositionUnsafe returns the current playback position without locking
+// Should only be called when already holding the lock
+func (p *Player) GetPositionUnsafe() time.Duration {
 	if p.streamer == nil {
 		return 0
 	}
@@ -320,6 +351,13 @@ func (p *Player) GetCurrentFile() string {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.currentFile
+}
+
+// IsRecentSeek returns true if a seek operation was performed recently
+func (p *Player) IsRecentSeek() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return time.Since(p.lastSeekTime) < p.seekCooldown
 }
 
 // Close closes the player and releases resources

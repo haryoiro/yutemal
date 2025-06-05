@@ -131,7 +131,13 @@ func (ps *PlayerSystem) updateLoop() {
 				ps.state.IsPlaying = ps.player.IsPlaying()
 
 				// Check if we've reached the end of the current song
-				if ps.state.IsPlaying && ps.state.CurrentTime >= ps.state.TotalTime-time.Millisecond*100 {
+				// Only advance if it's a natural end (not a recent seek operation)
+				if ps.state.IsPlaying && 
+				   ps.state.CurrentTime >= ps.state.TotalTime-time.Millisecond*200 &&
+				   !ps.player.IsRecentSeek() &&
+				   ps.state.TotalTime > 0 {
+					logger.Debug("Song ended naturally, advancing to next song (current: %v, total: %v)", 
+						ps.state.CurrentTime, ps.state.TotalTime)
 					// Auto-advance to next song
 					ps.nextSong()
 				}
@@ -174,110 +180,120 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 
 	switch a := action.(type) {
 	case structures.PlayPauseAction:
-		if ps.player != nil {
-			if ps.state.IsPlaying {
-				if err := ps.player.Pause(); err != nil {
-					logger.Error("Failed to pause playback: %v", err)
-					// Try to reload the current song
-					ps.loadCurrentSong()
-				} else {
-					ps.state.IsPlaying = false
-				}
-			} else {
-				if err := ps.player.Play(); err != nil {
-					logger.Error("Failed to start playback: %v", err)
-					// Try to reload the current song
-					ps.loadCurrentSong()
-				} else {
-					ps.state.IsPlaying = true
-					ps.state.CurrentTime = ps.player.GetPosition()
-					ps.state.TotalTime = ps.player.GetDuration()
-					logger.Debug("Playback started, current time: %v, total time: %v",
-						ps.state.CurrentTime, ps.state.TotalTime)
-				}
-			}
-		} else {
-			logger.Warn("Player is nil, cannot toggle playback")
-			// Try to reload the current song
+		if !ps.validatePlayerState() {
+			logger.Warn("Cannot toggle playback: invalid player state")
 			ps.loadCurrentSong()
+			return
 		}
-	case structures.PlayAction:
-		if ps.player != nil {
-			logger.Debug("ps.state.Current: %d, ps.state.List size: %d",
-				ps.state.Current, len(ps.state.List))
-			if ps.state.Current < 0 || ps.state.Current >= len(ps.state.List) {
-				logger.Warn("No current song to play")
-				return
-			}
-			if !ps.state.IsPlaying {
-				ps.loadCurrentSong()
-				if err := ps.player.Play(); err != nil {
-					logger.Error("Failed to start playback: %v", err)
-					// Try to reload the current song
-					ps.loadCurrentSong()
-				} else {
-					ps.state.IsPlaying = true
-					ps.state.CurrentTime = ps.player.GetPosition()
-					ps.state.TotalTime = ps.player.GetDuration()
-					logger.Debug("Playback started, current time: %v, total time: %v",
-						ps.state.CurrentTime, ps.state.TotalTime)
-				}
-			} else {
-				// 一旦停止してclearしてから再生
-				if err := ps.player.Stop(); err != nil {
-					logger.Error("Failed to stop playback: %v", err)
-				}
-				ps.loadCurrentSong()
-				if err := ps.player.Play(); err != nil {
-					logger.Error("Failed to start playback: %v", err)
-					// Try to reload the current song
-					ps.loadCurrentSong()
-				} else {
-					ps.state.IsPlaying = true
-					ps.state.CurrentTime = ps.player.GetPosition()
-					ps.state.TotalTime = ps.player.GetDuration()
-					logger.Debug("Playback restarted, current time: %v, total time: %v",
-						ps.state.CurrentTime, ps.state.TotalTime)
-				}
-			}
-		} else {
-			logger.Warn("Player is nil, cannot play")
-			// Try to reload the current song
-			ps.loadCurrentSong()
-		}
-	case structures.PauseAction:
-		if ps.player != nil {
+		
+		if ps.state.IsPlaying {
 			if err := ps.player.Pause(); err != nil {
 				logger.Error("Failed to pause playback: %v", err)
 				// Try to reload the current song
 				ps.loadCurrentSong()
 			} else {
 				ps.state.IsPlaying = false
+				logger.Debug("Playback paused")
 			}
 		} else {
-			logger.Warn("Player is nil, cannot pause playback")
+			if err := ps.player.Play(); err != nil {
+				logger.Error("Failed to start playback: %v", err)
+				// Try to reload the current song
+				ps.loadCurrentSong()
+			} else {
+				ps.state.IsPlaying = true
+				ps.state.CurrentTime = ps.player.GetPosition()
+				ps.state.TotalTime = ps.player.GetDuration()
+				logger.Debug("Playback started, current time: %v, total time: %v",
+					ps.state.CurrentTime, ps.state.TotalTime)
+			}
+		}
+	case structures.PlayAction:
+		if !ps.validatePlayerState() {
+			logger.Warn("Cannot play: invalid player state")
+			ps.loadCurrentSong()
+			return
+		}
+		
+		logger.Debug("PlayAction: current=%d, list size=%d, isPlaying=%v", 
+			ps.state.Current, len(ps.state.List), ps.state.IsPlaying)
+			
+		if !ps.state.IsPlaying {
+			ps.loadCurrentSong()
+			if err := ps.player.Play(); err != nil {
+				logger.Error("Failed to start playback: %v", err)
+				ps.handleLoadFailure()
+			} else {
+				ps.state.IsPlaying = true
+				ps.state.CurrentTime = ps.player.GetPosition()
+				ps.state.TotalTime = ps.player.GetDuration()
+				logger.Debug("Playback started, current time: %v, total time: %v",
+					ps.state.CurrentTime, ps.state.TotalTime)
+			}
+		} else {
+			// 一旦停止してclearしてから再生（曲の再開始）
+			if err := ps.player.Stop(); err != nil {
+				logger.Error("Failed to stop playback: %v", err)
+			}
+			ps.loadCurrentSong()
+			if err := ps.player.Play(); err != nil {
+				logger.Error("Failed to restart playback: %v", err)
+				ps.handleLoadFailure()
+			} else {
+				ps.state.IsPlaying = true
+				ps.state.CurrentTime = ps.player.GetPosition()
+				ps.state.TotalTime = ps.player.GetDuration()
+				logger.Debug("Playback restarted, current time: %v, total time: %v",
+					ps.state.CurrentTime, ps.state.TotalTime)
+			}
+		}
+	case structures.PauseAction:
+		if !ps.validatePlayerState() {
+			logger.Warn("Cannot pause: invalid player state")
+			return
+		}
+		
+		if err := ps.player.Pause(); err != nil {
+			logger.Error("Failed to pause playback: %v", err)
+			// Try to reload the current song
+			ps.loadCurrentSong()
+		} else {
+			ps.state.IsPlaying = false
+			logger.Debug("Playback paused")
 		}
 
 	case structures.VolumeUpAction:
 		if ps.player != nil {
-			ps.player.VolumeUp()
+			if err := ps.player.VolumeUp(); err != nil {
+				logger.Error("Failed to increase volume: %v", err)
+			}
 			ps.state.Volume = ps.player.GetVolume()
 		}
 
 	case structures.VolumeDownAction:
 		if ps.player != nil {
-			ps.player.VolumeDown()
+			if err := ps.player.VolumeDown(); err != nil {
+				logger.Error("Failed to decrease volume: %v", err)
+			}
 			ps.state.Volume = ps.player.GetVolume()
 		}
 
 	case structures.ForwardAction:
-		if ps.player != nil {
-			ps.player.SeekForward(time.Duration(ps.config.SeekSeconds) * time.Second)
+		if ps.validatePlayerState() && ps.state.TotalTime > 0 {
+			if err := ps.player.SeekForward(time.Duration(ps.config.SeekSeconds) * time.Second); err != nil {
+				logger.Error("Failed to seek forward: %v", err)
+			} else {
+				logger.Debug("Seeked forward by %d seconds", ps.config.SeekSeconds)
+			}
 		}
 
 	case structures.BackwardAction:
-		if ps.player != nil {
-			ps.player.SeekBackward(time.Duration(ps.config.SeekSeconds) * time.Second)
+		if ps.validatePlayerState() && ps.state.TotalTime > 0 {
+			if err := ps.player.SeekBackward(time.Duration(ps.config.SeekSeconds) * time.Second); err != nil {
+				logger.Error("Failed to seek backward: %v", err)
+			} else {
+				logger.Debug("Seeked backward by %d seconds", ps.config.SeekSeconds)
+			}
 		}
 
 	case structures.NextAction:
@@ -352,22 +368,49 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 // nextSong advances to the next song
 func (ps *PlayerSystem) nextSong() {
 	if ps.state.Current+1 < len(ps.state.List) {
+		wasPlaying := ps.state.IsPlaying
 		ps.state.Current++
 		ps.loadCurrentSong()
+		// Maintain playing state
+		if wasPlaying && ps.player != nil {
+			if err := ps.player.Play(); err != nil {
+				logger.Error("Failed to start playback after advancing to next song: %v", err)
+				ps.state.IsPlaying = false
+			} else {
+				ps.state.IsPlaying = true
+			}
+		}
+	} else {
+		// Reached end of playlist, stop playing
+		ps.state.IsPlaying = false
+		if ps.player != nil {
+			ps.player.Stop()
+		}
+		logger.Debug("Reached end of playlist")
 	}
 }
 
 // previousSong goes back to the previous song
 func (ps *PlayerSystem) previousSong() {
 	if ps.state.Current > 0 {
+		wasPlaying := ps.state.IsPlaying
 		ps.state.Current--
 		ps.loadCurrentSong()
+		// Maintain playing state
+		if wasPlaying && ps.player != nil {
+			if err := ps.player.Play(); err != nil {
+				logger.Error("Failed to start playback after going to previous song: %v", err)
+				ps.state.IsPlaying = false
+			} else {
+				ps.state.IsPlaying = true
+			}
+		}
 	}
 }
 
 // loadCurrentSong loads the current song for playback
 func (ps *PlayerSystem) loadCurrentSong() {
-	if ps.player == nil || ps.state.Current >= len(ps.state.List) {
+	if !ps.validatePlayerState() {
 		return
 	}
 
@@ -438,6 +481,43 @@ func (ps *PlayerSystem) loadCurrentSong() {
 			}
 		}
 	}
+}
+
+// handleLoadFailure handles the case when current song fails to load
+func (ps *PlayerSystem) handleLoadFailure() {
+	currentTrack := ps.state.List[ps.state.Current]
+	logger.Warn("Failed to load track: %s, attempting to skip", currentTrack.Title)
+	
+	// Mark as failed
+	ps.state.MusicStatus[currentTrack.TrackID] = structures.DownloadFailed
+	
+	// Try to advance to next song if available
+	if ps.state.Current+1 < len(ps.state.List) {
+		logger.Debug("Advancing to next song due to load failure")
+		ps.nextSong()
+	} else {
+		// No more songs, stop playback
+		logger.Debug("No more songs available, stopping playback")
+		ps.state.IsPlaying = false
+		if ps.player != nil {
+			ps.player.Stop()
+		}
+	}
+}
+
+// validatePlayerState ensures the player state is consistent
+func (ps *PlayerSystem) validatePlayerState() bool {
+	if ps.player == nil {
+		logger.Error("Player is nil")
+		return false
+	}
+	
+	if ps.state.Current < 0 || ps.state.Current >= len(ps.state.List) {
+		logger.Error("Invalid current track index: %d (list size: %d)", ps.state.Current, len(ps.state.List))
+		return false
+	}
+	
+	return true
 }
 
 // deleteCurrentTrack removes the current track from the playlist and deletes its files
