@@ -19,7 +19,6 @@ type Track struct {
 	TrackID     string   `json:"track_id"`
 	Title       string   `json:"title"`
 	Artists     []string `json:"artists"`
-	Album       string   `json:"album,omitempty"`
 	Thumbnail   string   `json:"thumbnail,omitempty"`
 	Duration    int      `json:"duration"` // in seconds
 	IsAvailable bool     `json:"is_available"`
@@ -127,6 +126,9 @@ type Config struct {
 	// Player Configuration
 	DefaultVolume float64 `toml:"default_volume"`
 	SeekSeconds   int     `toml:"seek_seconds"`
+	
+	// UI Configuration
+	DisableAltScreen bool `toml:"disable_alt_screen"` // Disable alternate screen for Kitty graphics compatibility
 }
 
 // Theme represents the UI theme configuration
@@ -168,8 +170,8 @@ type KeyBindings struct {
 
 // Database entry structure
 type DatabaseEntry struct {
-	Track    Track
-	AddedAt  time.Time
-	FilePath string
-	FileSize int64
+	Track         Track
+	AddedAt       time.Time
+	FilePath      string
+	FileSize      int64
 }
