@@ -119,6 +119,14 @@ func main() {
 		if err := os.Remove(dbPath); err != nil && !os.IsNotExist(err) {
 			logger.Warn("Failed to remove database: %v", err)
 		}
+		dbWalPath := dbPath + "-wal"
+		if err := os.Remove(dbWalPath); err != nil && !os.IsNotExist(err) {
+			logger.Warn("Failed to remove database WAL file: %v", err)
+		}
+		dbShmPath := dbPath + "-shm"
+		if err := os.Remove(dbShmPath); err != nil && !os.IsNotExist(err) {
+			logger.Warn("Failed to remove database SHM file: %v", err)
+		}
 		fmt.Println("Cache cleared successfully")
 		return
 	}
