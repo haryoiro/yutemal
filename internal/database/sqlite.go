@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/haryoiro/yutemal/internal/structures"
@@ -19,12 +21,44 @@ type SQLiteDatabase struct {
 
 // OpenSQLite opens or creates a SQLite database
 func OpenSQLite(path string) (*SQLiteDatabase, error) {
+	// Ensure the directory exists with proper permissions
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create database directory: %w", err)
+	}
+
+	// Set directory permissions explicitly
+	if err := os.Chmod(dir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to set directory permissions: %w", err)
+	}
+
+	// Create the file if it doesn't exist with proper permissions
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		file, err := os.Create(path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create database file: %w", err)
+		}
+		file.Close()
+
+		// Set file permissions explicitly
+		if err := os.Chmod(path, 0644); err != nil {
+			return nil, fmt.Errorf("failed to set file permissions: %w", err)
+		}
+	}
+
+	// Open without WAL mode initially to avoid journal file issues
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// Enable foreign keys and set pragmas for performance
+	// Test basic connectivity first
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	// Set pragmas one by one with error handling
 	pragmas := []string{
 		"PRAGMA foreign_keys = ON",
 		"PRAGMA journal_mode = WAL",
@@ -36,7 +70,7 @@ func OpenSQLite(path string) (*SQLiteDatabase, error) {
 	for _, pragma := range pragmas {
 		if _, err := db.Exec(pragma); err != nil {
 			db.Close()
-			return nil, fmt.Errorf("failed to set pragma: %w", err)
+			return nil, fmt.Errorf("failed to set pragma '%s': %w", pragma, err)
 		}
 	}
 
@@ -68,6 +102,7 @@ func (db *SQLiteDatabase) createTables() error {
 			added_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			file_path TEXT,
 			file_size INTEGER DEFAULT 0,
+			thumbnail_path TEXT,
 			play_count INTEGER DEFAULT 0,
 			last_played DATETIME,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -181,6 +216,24 @@ func (db *SQLiteDatabase) runMigrations() error {
 		}
 	}
 
+	// Check if tracks table has thumbnail_path column
+	var thumbnailPathExists bool
+	err = db.db.QueryRow(`
+		SELECT COUNT(*) FROM pragma_table_info('tracks')
+		WHERE name = 'thumbnail_path'
+	`).Scan(&thumbnailPathExists)
+
+	if err != nil {
+		return fmt.Errorf("failed to check thumbnail_path column existence: %w", err)
+	}
+
+	// Add thumbnail_path column if it doesn't exist
+	if !thumbnailPathExists {
+		if _, err := db.db.Exec(`ALTER TABLE tracks ADD COLUMN thumbnail_path TEXT`); err != nil {
+			// Ignore error if column already exists
+		}
+	}
+
 	return nil
 }
 
@@ -201,16 +254,15 @@ func (db *SQLiteDatabase) Add(entry structures.DatabaseEntry) error {
 
 	query := `
 		INSERT OR REPLACE INTO tracks
-		(track_id, title, artists, album, thumbnail, duration, is_available, is_explicit,
+		(track_id, title, artists, thumbnail, duration, is_available, is_explicit,
 		 added_at, file_path, file_size)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err = db.db.Exec(query,
 		entry.Track.TrackID,
 		entry.Track.Title,
 		string(artistsJSON),
-		entry.Track.Album,
 		entry.Track.Thumbnail,
 		entry.Track.Duration,
 		entry.Track.IsAvailable,
@@ -238,7 +290,7 @@ func (db *SQLiteDatabase) Get(trackID string) (*structures.DatabaseEntry, bool) 
 	defer db.mu.RUnlock()
 
 	query := `
-		SELECT track_id, title, artists, album, thumbnail, duration, is_available,
+		SELECT track_id, title, artists, thumbnail, duration, is_available,
 		       is_explicit, added_at, file_path, file_size
 		FROM tracks
 		WHERE track_id = ?
@@ -248,14 +300,13 @@ func (db *SQLiteDatabase) Get(trackID string) (*structures.DatabaseEntry, bool) 
 
 	var entry structures.DatabaseEntry
 	var artistsJSON string
-	var album, thumbnail, filePath sql.NullString
+	var thumbnail, filePath sql.NullString
 	var fileSize sql.NullInt64
 
 	err := row.Scan(
 		&entry.Track.TrackID,
 		&entry.Track.Title,
 		&artistsJSON,
-		&album,
 		&thumbnail,
 		&entry.Track.Duration,
 		&entry.Track.IsAvailable,
@@ -278,11 +329,9 @@ func (db *SQLiteDatabase) Get(trackID string) (*structures.DatabaseEntry, bool) 
 	}
 
 	// Handle nullable fields
-	entry.Track.Album = album.String
 	entry.Track.Thumbnail = thumbnail.String
 	entry.FilePath = filePath.String
 	entry.FileSize = fileSize.Int64
-
 	return &entry, true
 }
 
@@ -292,7 +341,7 @@ func (db *SQLiteDatabase) GetAll() []structures.DatabaseEntry {
 	defer db.mu.RUnlock()
 
 	query := `
-		SELECT track_id, title, artists, album, thumbnail, duration, is_available,
+		SELECT track_id, title, artists, thumbnail, duration, is_available,
 		       is_explicit, added_at, file_path, file_size
 		FROM tracks
 		ORDER BY added_at DESC
@@ -309,14 +358,13 @@ func (db *SQLiteDatabase) GetAll() []structures.DatabaseEntry {
 	for rows.Next() {
 		var entry structures.DatabaseEntry
 		var artistsJSON string
-		var album, thumbnail, filePath sql.NullString
+		var thumbnail, filePath sql.NullString
 		var fileSize sql.NullInt64
 
 		err := rows.Scan(
 			&entry.Track.TrackID,
 			&entry.Track.Title,
 			&artistsJSON,
-			&album,
 			&thumbnail,
 			&entry.Track.Duration,
 			&entry.Track.IsAvailable,
@@ -336,7 +384,6 @@ func (db *SQLiteDatabase) GetAll() []structures.DatabaseEntry {
 		}
 
 		// Handle nullable fields
-		entry.Track.Album = album.String
 		entry.Track.Thumbnail = thumbnail.String
 		entry.FilePath = filePath.String
 		entry.FileSize = fileSize.Int64
