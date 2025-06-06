@@ -366,7 +366,7 @@ func (m Model) renderHome(maxWidth int) string {
 			switch content.Type {
 			case "playlist":
 				if content.Playlist != nil {
-					displayText = fmt.Sprintf("🎵 %s", content.Playlist.Title)
+					displayText = fmt.Sprintf("📁 %s", content.Playlist.Title)
 					if content.Playlist.VideoCount > 0 {
 						displayText += fmt.Sprintf(" (%d tracks)", content.Playlist.VideoCount)
 					}

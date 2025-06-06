@@ -9,7 +9,6 @@ import (
 
 	"github.com/faiface/beep"
 	"github.com/faiface/beep/effects"
-	"github.com/faiface/beep/mp3"
 	"github.com/faiface/beep/speaker"
 	"github.com/haryoiro/yutemal/internal/logger"
 )
@@ -31,6 +30,8 @@ type Player struct {
 	currentSampleRate  beep.SampleRate
 	lastSeekTime       time.Time
 	seekCooldown       time.Duration
+	iseeking           bool // Prevent concurrent seeks
+	streamerLength     int  // Cache streamer length
 }
 
 // New creates a new audio player
@@ -41,6 +42,7 @@ func New() (*Player, error) {
 		ctx:          ctx,
 		cancel:       cancel,
 		seekCooldown: 500 * time.Millisecond, // Prevent immediate end-of-song detection after seek
+		iseeking:     false,
 	}
 
 	// Don't initialize speaker here - do it when we load the first file
@@ -57,7 +59,21 @@ func (p *Player) LoadFile(filepath string) error {
 	// Close previous file if any
 	if p.streamer != nil {
 		p.streamer.Close()
+		p.streamer = nil
 	}
+	
+	// Clear speaker to ensure clean state
+	if p.speakerInitialized {
+		speaker.Clear()
+	}
+	
+	// Reset all player state for new file
+	p.streamerLength = 0
+	p.position = 0
+	p.duration = 0
+	p.iseeking = false
+	p.ctrl = nil
+	p.volume = nil
 
 	// Open file
 	file, err := os.Open(filepath)
@@ -65,8 +81,8 @@ func (p *Player) LoadFile(filepath string) error {
 		return fmt.Errorf("failed to open file: %w", err)
 	}
 
-	// Decode MP3 (you can extend this for other formats)
-	streamer, format, err := mp3.Decode(file)
+	// Decode MP3 using minimp3 decoder
+	streamer, format, err := DecodeMiniMP3(file)
 	if err != nil {
 		file.Close()
 		return fmt.Errorf("failed to decode MP3: %w", err)
@@ -95,6 +111,7 @@ func (p *Player) LoadFile(filepath string) error {
 
 	// Calculate duration
 	length := p.streamer.Len()
+	p.streamerLength = length
 	p.duration = p.format.SampleRate.D(length)
 
 	// Initialize or reinitialize speaker if needed
@@ -180,16 +197,22 @@ func (p *Player) Stop() error {
 		return nil
 	}
 
+	// Clear speaker completely
 	speaker.Clear()
 
+	// Reset streamer position safely
 	if p.streamer != nil {
+		// Try to seek to start, but don't fail if it errors
 		if err := p.streamer.Seek(0); err != nil {
 			logger.Error("Error seeking to start: %v", err)
+			// Reset internal state anyway
 		}
 	}
 
+	// Reset all playback state
 	p.isPlaying = false
 	p.position = 0
+	p.iseeking = false
 
 	return nil
 }
@@ -256,6 +279,13 @@ func (p *Player) Seek(pos time.Duration) error {
 		return fmt.Errorf("no file loaded")
 	}
 
+	// Prevent concurrent seeks
+	if p.iseeking {
+		return fmt.Errorf("seek already in progress")
+	}
+	p.iseeking = true
+	defer func() { p.iseeking = false }()
+
 	// Clamp position to valid range
 	if pos < 0 {
 		pos = 0
@@ -265,8 +295,50 @@ func (p *Player) Seek(pos time.Duration) error {
 	}
 
 	samplePos := p.format.SampleRate.N(pos)
+	
+	// minimp3 handles seeking more robustly, but we still apply some safety
+	streamerLength := p.streamer.Len()
+	if samplePos >= streamerLength {
+		samplePos = streamerLength - 1
+		if samplePos < 0 {
+			samplePos = 0
+		}
+	}
+	
+	// Pause playback and clear speaker to prevent fast-forward audio
+	wasPlaying := p.isPlaying
+	if wasPlaying && p.ctrl != nil {
+		speaker.Lock()
+		p.ctrl.Paused = true
+		speaker.Unlock()
+		speaker.Clear()
+	}
+	
+	// Perform the seek
 	if err := p.streamer.Seek(samplePos); err != nil {
-		return fmt.Errorf("failed to seek: %w", err)
+		logger.Debug("Seek failed at sample %d (of %d total), error: %v", samplePos, streamerLength, err)
+		// minimp3 seek is more limited, so we'll just reset on error
+		if err := p.streamer.Seek(0); err != nil {
+			return fmt.Errorf("failed to reset position: %w", err)
+		}
+		p.position = 0
+		
+		// Resume if was playing
+		if wasPlaying && p.ctrl != nil {
+			speaker.Lock()
+			p.ctrl.Paused = false
+			speaker.Unlock()
+		}
+		return nil
+	}
+	
+	// Resume playback if it was playing
+	if wasPlaying && p.ctrl != nil {
+		// Re-add the stream to speaker after seek
+		speaker.Play(p.ctrl)
+		speaker.Lock()
+		p.ctrl.Paused = false
+		speaker.Unlock()
 	}
 
 	// Record seek operation to avoid immediate end-of-song detection
@@ -286,13 +358,9 @@ func (p *Player) SeekForward(duration time.Duration) error {
 	currentPos := p.GetPositionUnsafe() // Get real-time position
 	newPos := currentPos + duration
 	
-	// Handle boundary: if seeking beyond end, go to 95% to avoid immediate song end
+	// Simple boundary check - minimp3 handles edge cases better
 	if newPos > p.duration {
-		if p.duration > time.Second {
-			newPos = p.duration - (p.duration / 20) // 95% of duration
-		} else {
-			newPos = p.duration
-		}
+		newPos = p.duration
 	}
 	p.mu.RUnlock()
 

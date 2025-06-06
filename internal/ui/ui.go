@@ -444,9 +444,14 @@ func (m *Model) handleEnter() (tea.Model, tea.Cmd) {
 		}
 	case PlaylistDetailView:
 		if len(m.currentList) > 0 && m.selectedIndex < len(m.currentList) {
-			track := m.currentList[m.selectedIndex]
+			// Clear the current queue
 			m.systems.Player.SendAction(structures.CleanupAction{})
-			m.systems.Player.SendAction(structures.AddTrackAction{Track: track})
+			
+			// Add all tracks from the selected position onwards
+			tracksToAdd := m.currentList[m.selectedIndex:]
+			m.systems.Player.SendAction(structures.AddTracksToQueueAction{Tracks: tracksToAdd})
+			
+			// Start playing
 			m.systems.Player.SendAction(structures.PlayAction{})
 		}
 	case SearchView:

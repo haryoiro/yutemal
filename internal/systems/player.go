@@ -24,6 +24,7 @@ type PlayerSystem struct {
 	player           *player.Player
 	cacheDir         string
 	downloadCallback func(track structures.Track)
+	skipUpdate       bool // Flag to skip position updates during critical operations
 }
 
 // NewPlayerSystem creates a new player system
@@ -126,20 +127,34 @@ func (ps *PlayerSystem) updateLoop() {
 		select {
 		case <-ticker.C:
 			ps.mu.Lock()
+			// Skip update if we're in the middle of a critical operation
+			if ps.skipUpdate {
+				ps.mu.Unlock()
+				continue
+			}
 			if ps.player != nil {
 				ps.state.CurrentTime = ps.player.GetPosition()
 				ps.state.IsPlaying = ps.player.IsPlaying()
 
 				// Check if we've reached the end of the current song
-				// Only advance if it's a natural end (not a recent seek operation)
 				if ps.state.IsPlaying && 
 				   ps.state.CurrentTime >= ps.state.TotalTime-time.Millisecond*200 &&
-				   !ps.player.IsRecentSeek() &&
 				   ps.state.TotalTime > 0 {
-					logger.Debug("Song ended naturally, advancing to next song (current: %v, total: %v)", 
-						ps.state.CurrentTime, ps.state.TotalTime)
-					// Auto-advance to next song
-					ps.nextSong()
+					// Check if this is a recent seek to near the end
+					if ps.player.IsRecentSeek() {
+						// If we seeked to near the end, still advance after a short delay
+						// This prevents getting stuck at the end after manual seek
+						if ps.state.CurrentTime >= ps.state.TotalTime-time.Millisecond*100 {
+							logger.Debug("Seeked to end of song, advancing to next (current: %v, total: %v)", 
+								ps.state.CurrentTime, ps.state.TotalTime)
+							ps.nextSong()
+						}
+					} else {
+						// Natural end of song
+						logger.Debug("Song ended naturally, advancing to next song (current: %v, total: %v)", 
+							ps.state.CurrentTime, ps.state.TotalTime)
+						ps.nextSong()
+					}
 				}
 			}
 			ps.mu.Unlock()
@@ -280,20 +295,38 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 
 	case structures.ForwardAction:
 		if ps.validatePlayerState() && ps.state.TotalTime > 0 {
+			// Temporarily disable position updates during seek
+			ps.skipUpdate = true
 			if err := ps.player.SeekForward(time.Duration(ps.config.SeekSeconds) * time.Second); err != nil {
 				logger.Error("Failed to seek forward: %v", err)
 			} else {
 				logger.Debug("Seeked forward by %d seconds", ps.config.SeekSeconds)
 			}
+			// Re-enable updates after a short delay
+			go func() {
+				time.Sleep(200 * time.Millisecond)
+				ps.mu.Lock()
+				ps.skipUpdate = false
+				ps.mu.Unlock()
+			}()
 		}
 
 	case structures.BackwardAction:
 		if ps.validatePlayerState() && ps.state.TotalTime > 0 {
+			// Temporarily disable position updates during seek
+			ps.skipUpdate = true
 			if err := ps.player.SeekBackward(time.Duration(ps.config.SeekSeconds) * time.Second); err != nil {
 				logger.Error("Failed to seek backward: %v", err)
 			} else {
 				logger.Debug("Seeked backward by %d seconds", ps.config.SeekSeconds)
 			}
+			// Re-enable updates after a short delay
+			go func() {
+				time.Sleep(200 * time.Millisecond)
+				ps.mu.Lock()
+				ps.skipUpdate = false
+				ps.mu.Unlock()
+			}()
 		}
 
 	case structures.NextAction:
@@ -367,6 +400,18 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 
 // nextSong advances to the next song
 func (ps *PlayerSystem) nextSong() {
+	// Disable updates during song transition
+	ps.skipUpdate = true
+	defer func() {
+		// Re-enable updates after transition
+		go func() {
+			time.Sleep(300 * time.Millisecond)
+			ps.mu.Lock()
+			ps.skipUpdate = false
+			ps.mu.Unlock()
+		}()
+	}()
+	
 	if ps.state.Current+1 < len(ps.state.List) {
 		wasPlaying := ps.state.IsPlaying
 		ps.state.Current++
