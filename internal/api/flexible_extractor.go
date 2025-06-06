@@ -94,7 +94,6 @@ func findArtists(obj map[string]any) []string {
 	return artists
 }
 
-
 // findDuration searches for duration information
 func findDuration(obj map[string]any) int {
 	// Try different duration paths
@@ -136,8 +135,6 @@ func findThumbnail(obj map[string]any) string {
 
 	return ""
 }
-
-
 
 // getPathString gets a string value from a nested path
 func getPathString(data map[string]any, keys ...string) string {
@@ -251,4 +248,3 @@ func findSubtitle(obj map[string]any) string {
 
 	return ""
 }
-

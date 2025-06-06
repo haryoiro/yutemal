@@ -396,7 +396,6 @@ func (as *APISystem) GetSections() ([]structures.Section, error) {
 	}
 
 	if err == nil && len(libraryPlaylists) > 0 {
-		fmt.Printf("Successfully loaded %d library playlists\n", len(libraryPlaylists))
 		section := structures.Section{
 			ID:       "library",
 			Title:    "Your Library",
