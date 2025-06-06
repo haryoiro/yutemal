@@ -123,6 +123,9 @@ func (p *Player) LoadFile(filepath string) error {
 	if p.volume != nil {
 		currentVolume = p.volume.Volume
 		currentSilent = p.volume.Silent
+		logger.Debug("Preserving volume from previous track: %.2f dB, silent=%v", currentVolume, currentSilent)
+	} else {
+		logger.Debug("No previous volume to preserve, using default: %.2f dB", currentVolume)
 	}
 	
 	// Create volume control
@@ -277,6 +280,8 @@ func (p *Player) SetVolume(volume float64) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	logger.Debug("SetVolume called with: %.2f", volume)
+
 	if p.volume == nil || !p.speakerInitialized {
 		return fmt.Errorf("no file loaded")
 	}
@@ -310,6 +315,7 @@ func (p *Player) SetVolume(volume float64) error {
 	p.volume.Volume = dbVolume
 	speaker.Unlock()
 
+	logger.Debug("Volume set to: %.2f dB (from linear %.2f)", dbVolume, volume)
 	return nil
 }
 

@@ -38,7 +38,7 @@ func NewPlayerSystem(cfg *structures.Config, db database.DB, cacheDir string) *P
 		audioPlayer = nil
 	}
 
-	return &PlayerSystem{
+	ps := &PlayerSystem{
 		config:     cfg,
 		database:   db,
 		actionChan: make(chan structures.SoundAction, 100),
@@ -51,13 +51,19 @@ func NewPlayerSystem(cfg *structures.Config, db database.DB, cacheDir string) *P
 			ListSelector: &structures.ListSelector{},
 		},
 	}
+
+	// Set initial volume once
+	if ps.player != nil {
+		logger.Debug("Setting initial volume to: %.2f", cfg.DefaultVolume)
+		ps.player.SetVolume(cfg.DefaultVolume)
+	}
+
+	return ps
 }
 
 // Start starts the player system
 func (ps *PlayerSystem) Start() error {
-	if ps.player != nil {
-		ps.player.SetVolume(ps.config.DefaultVolume)
-	}
+	// Don't reset volume here - it's already set in NewPlayerSystem
 	go ps.run()
 	go ps.updateLoop()
 	return nil
