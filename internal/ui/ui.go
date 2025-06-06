@@ -81,6 +81,7 @@ func RunSimple(systems *systems.Systems, config *structures.Config) error {
 
 	opts := []tea.ProgramOption{
 		tea.WithMouseCellMotion(), // マウスイベントを有効化
+		tea.WithAltScreen(),       // Use alternate screen
 	}
 	p := tea.NewProgram(&m, opts...)
 	if _, err := p.Run(); err != nil {
@@ -241,6 +242,8 @@ func (m *Model) isKey(msg tea.KeyMsg, key string) bool {
 
 	// Handle special keys
 	switch key {
+	case "ctrl+c":
+		return msg.Type == tea.KeyCtrlC
 	case "ctrl+d":
 		return msg.Type == tea.KeyCtrlD
 	case "space":
@@ -282,7 +285,7 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	kb := m.config.KeyBindings
 
 	// Global controls
-	if m.isKey(msg, kb.Quit) {
+	if m.isKey(msg, kb.Quit) || m.isKey(msg, "ctrl+c") {
 		return m, tea.Quit
 	}
 

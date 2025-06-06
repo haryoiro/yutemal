@@ -96,7 +96,7 @@ Key configuration options:
 - `←/→`: Seek backward/forward
 - `+/=`: Volume up
 - `-/_`: Volume down
-- `Ctrl+D`: Quit application
+- `Ctrl+C` or `Ctrl+D`: Quit application
 
 ### Navigation
 - `↑/k`: Move up

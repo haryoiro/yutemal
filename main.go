@@ -54,7 +54,7 @@ func main() {
 		fmt.Println("    →           - Seek forward")
 		fmt.Println("    + or =      - Volume up")
 		fmt.Println("    - or _      - Volume down")
-		fmt.Println("    Ctrl+D      - Quit application")
+		fmt.Println("    Ctrl+C/D    - Quit application")
 		fmt.Println("")
 		fmt.Println("  Navigation:")
 		fmt.Println("    ↑ or k      - Move selection up")
@@ -182,10 +182,6 @@ func main() {
 		appSystems.Stop()
 	}()
 
-	// Start the application
-	fmt.Println(banner)
-	fmt.Println("\nStarting yutemal...")
-	logger.Info("yutemal application starting...")
 
 	// Run the UI
 	logger.Debug("Starting UI")
