@@ -33,7 +33,7 @@ type Player struct {
 	currentSampleRate  beep.SampleRate
 	lastSeekTime       time.Time
 	seekCooldown       time.Duration
-	iseeking           bool // Prevent concurrent seeks
+	iseeking           bool    // Prevent concurrent seeks
 	savedVolume        float64 // Store volume in linear scale (0.0 to 1.0)
 	savedVolumeSet     bool    // Track if volume has been set
 }
@@ -117,10 +117,10 @@ func (p *Player) LoadFile(filepath string) error {
 
 	// Store original streamer reference before wrapping
 	p.streamer = streamer
-	
+
 	// Wrap streamer in buffered streamer for smoother playback
 	bufferedStreamer := NewBufferedStreamer(streamer, format, 1.0) // 1 second buffer
-	
+
 	// Determine volume to use
 	var volumeToApply float64 = 0.7 // Default to 70%
 	if p.savedVolumeSet {
@@ -150,7 +150,7 @@ func (p *Player) LoadFile(filepath string) error {
 			dbVolume = -60.0
 		}
 	}
-	
+
 	// Create volume control
 	volume := &effects.Volume{
 		Streamer: bufferedStreamer,
@@ -158,7 +158,7 @@ func (p *Player) LoadFile(filepath string) error {
 		Volume:   dbVolume,
 		Silent:   isSilent,
 	}
-	
+
 	logger.Debug("Created volume control with %.2f dB (linear: %.2f)", dbVolume, volumeToApply)
 
 	// Create playback control
