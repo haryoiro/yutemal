@@ -110,9 +110,12 @@ func (p *Player) LoadFile(filepath string) error {
 		return fmt.Errorf("unsupported file format: %s", filepath)
 	}
 
+	// Wrap streamer in buffered streamer for smoother playback
+	bufferedStreamer := NewBufferedStreamer(streamer, format, 1.0) // 1 second buffer
+	
 	// Create volume control
 	volume := &effects.Volume{
-		Streamer: streamer,
+		Streamer: bufferedStreamer,
 		Base:     2,
 		Volume:   0, // Start at normal volume (0 dB)
 		Silent:   false,

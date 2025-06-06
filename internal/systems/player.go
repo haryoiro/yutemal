@@ -148,8 +148,8 @@ func (ps *PlayerSystem) updateLoop() {
 
 				// Simplified debug logging every 5 seconds
 				if int(ps.state.CurrentTime.Seconds())%5 == 0 && ps.state.CurrentTime.Milliseconds()%5000 < 100 {
-					logger.Debug("Position: %v/%v, Playing=%v",
-						ps.state.CurrentTime, ps.state.TotalTime, ps.state.IsPlaying)
+					// logger.Debug("Position: %v/%v, Playing=%v",
+						// ps.state.CurrentTime, ps.state.TotalTime, ps.state.IsPlaying)
 				}
 
 				// Check if we've reached the end of the current song

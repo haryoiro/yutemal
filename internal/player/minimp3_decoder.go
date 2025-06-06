@@ -28,6 +28,9 @@ type minimp3Decoder struct {
 	// Debug fields for detecting buffer issues
 	underrunCount int
 	lastReadTime  time.Time
+	
+	// Pre-allocated buffers to reduce GC pressure
+	readBuffer    []byte
 }
 
 // DecodeMiniMP3 decodes an MP3 file using minimp3
@@ -108,9 +111,12 @@ func (d *minimp3Decoder) Stream(samples [][2]float64) (n int, ok bool) {
 			}
 			d.lastReadTime = now
 
-			// Read more data
-			const readSize = 32768 // 32KB buffer for smoother playback
-			buf := make([]byte, readSize)
+			// Read more data - use pre-allocated buffer to reduce GC pressure
+			const readSize = 65536 // 64KB buffer for smoother playback
+			if d.readBuffer == nil {
+				d.readBuffer = make([]byte, readSize)
+			}
+			buf := d.readBuffer[:readSize]
 
 			startRead := time.Now()
 			n, err := d.decoder.Read(buf)
@@ -140,9 +146,15 @@ func (d *minimp3Decoder) Stream(samples [][2]float64) (n int, ok bool) {
 				return i, i > 0
 			}
 
-			// Convert bytes to int16 samples
-			d.buffer = make([]int16, n/2)
-			for j := 0; j < n/2; j++ {
+			// Convert bytes to int16 samples - reuse buffer if possible
+			requiredSize := n / 2
+			if cap(d.buffer) < requiredSize {
+				d.buffer = make([]int16, requiredSize)
+			} else {
+				d.buffer = d.buffer[:requiredSize]
+			}
+			
+			for j := 0; j < requiredSize; j++ {
 				d.buffer[j] = int16(buf[j*2]) | (int16(buf[j*2+1]) << 8)
 			}
 			d.bufferIndex = 0
