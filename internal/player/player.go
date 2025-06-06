@@ -3,6 +3,7 @@ package player
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"strings"
@@ -279,11 +280,21 @@ func (p *Player) SetVolume(volume float64) error {
 		return nil
 	} else {
 		p.volume.Silent = false
-		// Logarithmic scale: 20 * log10(volume)
-		if volume < 0.01 {
-			dbVolume = -4.0 // Very quiet but not silent
+		// Use a more natural logarithmic curve for volume
+		// Map 0-1 to approximately -60dB to 0dB
+		// This gives a more natural feeling volume control
+		if volume < 0.001 {
+			// Below 0.1%, effectively mute
+			dbVolume = -60.0
 		} else {
-			dbVolume = 20 * (volume - 1) // Simplified approximation
+			// Logarithmic scale that feels more natural
+			// log10(volume) * 20 gives us the dB value
+			// But we want to map 1.0 -> 0dB and have a smoother curve
+			dbVolume = 20.0 * math.Log10(volume)
+			// Clamp to reasonable range
+			if dbVolume < -60.0 {
+				dbVolume = -60.0
+			}
 		}
 	}
 
@@ -308,7 +319,9 @@ func (p *Player) GetVolume() float64 {
 	}
 
 	// Convert from dB back to linear scale
-	return (p.volume.Volume / 20) + 1
+	// dbVolume = 20 * log10(volume)
+	// volume = 10^(dbVolume/20)
+	return math.Pow(10, p.volume.Volume/20.0)
 }
 
 // Seek seeks to a specific position - simplified version
