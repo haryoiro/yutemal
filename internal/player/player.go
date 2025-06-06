@@ -117,12 +117,20 @@ func (p *Player) LoadFile(filepath string) error {
 	// Wrap streamer in buffered streamer for smoother playback
 	bufferedStreamer := NewBufferedStreamer(streamer, format, 1.0) // 1 second buffer
 	
+	// Preserve previous volume setting if exists
+	var currentVolume float64 = 0 // Default to 0 dB
+	var currentSilent bool = false
+	if p.volume != nil {
+		currentVolume = p.volume.Volume
+		currentSilent = p.volume.Silent
+	}
+	
 	// Create volume control
 	volume := &effects.Volume{
 		Streamer: bufferedStreamer,
 		Base:     2,
-		Volume:   0, // Start at normal volume (0 dB)
-		Silent:   false,
+		Volume:   currentVolume, // Preserve previous volume
+		Silent:   currentSilent,
 	}
 
 	// Create playback control
@@ -281,16 +289,16 @@ func (p *Player) SetVolume(volume float64) error {
 	} else {
 		p.volume.Silent = false
 		// Use a more natural logarithmic curve for volume
-		// Map 0-1 to approximately -60dB to 0dB
-		// This gives a more natural feeling volume control
+		// Apply a curve that makes 50% feel more like "half" volume
 		if volume < 0.001 {
 			// Below 0.1%, effectively mute
 			dbVolume = -60.0
 		} else {
-			// Logarithmic scale that feels more natural
-			// log10(volume) * 20 gives us the dB value
-			// But we want to map 1.0 -> 0dB and have a smoother curve
-			dbVolume = 20.0 * math.Log10(volume)
+			// Apply a curve: volume^2 gives a gentler curve
+			// This makes 50% volume = -12dB instead of -6dB
+			// which feels more natural to human hearing
+			adjustedVolume := volume * volume
+			dbVolume = 20.0 * math.Log10(adjustedVolume)
 			// Clamp to reasonable range
 			if dbVolume < -60.0 {
 				dbVolume = -60.0
@@ -319,9 +327,10 @@ func (p *Player) GetVolume() float64 {
 	}
 
 	// Convert from dB back to linear scale
-	// dbVolume = 20 * log10(volume)
-	// volume = 10^(dbVolume/20)
-	return math.Pow(10, p.volume.Volume/20.0)
+	// We applied volume^2, so we need to reverse it
+	// dbVolume = 20 * log10(volume^2) = 40 * log10(volume)
+	// volume = 10^(dbVolume/40)
+	return math.Pow(10, p.volume.Volume/40.0)
 }
 
 // Seek seeks to a specific position - simplified version
