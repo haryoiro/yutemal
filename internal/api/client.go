@@ -218,15 +218,6 @@ func (c *Client) browse(endpoint Endpoint) (*BrowseResponse, error) {
 	return &browseResp, nil
 }
 
-// BrowseRaw makes a raw browse call and returns the response without parsing
-func (c *Client) BrowseRaw(endpoint Endpoint) (BrowseResponse, error) {
-	resp, err := c.browse(endpoint)
-	if err != nil {
-		return nil, err
-	}
-	return *resp, nil
-}
-
 // GetLibrary fetches the user's library
 func (c *Client) GetLibrary(endpoint Endpoint) ([]PlaylistRef, error) {
 	resp, err := c.browse(endpoint)
@@ -235,16 +226,6 @@ func (c *Client) GetLibrary(endpoint Endpoint) ([]PlaylistRef, error) {
 	}
 
 	return extractPlaylists(*resp), nil
-}
-
-// GetPlaylist fetches videos from a playlist
-func (c *Client) GetPlaylist(playlist *PlaylistRef) ([]TrackRef, error) {
-	resp, err := c.browse(PlaylistEndpoint(playlist.BrowseID))
-	if err != nil {
-		return nil, err
-	}
-
-	return extractTracks(*resp), nil
 }
 
 // GetPlaylistByID fetches videos from a playlist by ID
@@ -260,19 +241,6 @@ func (c *Client) GetPlaylistByID(playlistID string) ([]TrackRef, error) {
 // Search performs a search query
 func (c *Client) Search(query string) (*SearchResults, error) {
 	resp, err := c.browse(SearchEndpoint(query))
-	if err != nil {
-		return nil, err
-	}
-
-	return &SearchResults{
-		Tracks:    extractTracks(*resp),
-		Playlists: extractPlaylists(*resp),
-	}, nil
-}
-
-// GetHome fetches the home page content
-func (c *Client) GetHome() (*SearchResults, error) {
-	resp, err := c.browse(MusicHomeEndpoint())
 	if err != nil {
 		return nil, err
 	}

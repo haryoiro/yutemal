@@ -6,7 +6,7 @@ import (
 )
 
 // findTrackID searches for track ID in various possible locations
-func findTrackID(obj map[string]interface{}) string {
+func findTrackID(obj map[string]any) string {
 	// Direct videoId field
 	if trackID, ok := obj["videoId"].(string); ok {
 		return trackID
@@ -30,7 +30,7 @@ func findTrackID(obj map[string]interface{}) string {
 }
 
 // findTitle searches for title in various possible locations
-func findTitle(obj map[string]interface{}) string {
+func findTitle(obj map[string]any) string {
 	// Try different title paths
 	paths := [][]string{
 		{"title", "runs", "0", "text"},
@@ -48,17 +48,17 @@ func findTitle(obj map[string]interface{}) string {
 }
 
 // findArtists searches for artist information
-func findArtists(obj map[string]interface{}) []string {
+func findArtists(obj map[string]any) []string {
 	var artists []string
 
 	// Try flexColumns approach (common in music lists)
-	if flexCols, ok := obj["flexColumns"].([]interface{}); ok && len(flexCols) > 1 {
-		if col, ok := flexCols[1].(map[string]interface{}); ok {
-			if renderer, ok := col["musicResponsiveListItemFlexColumnRenderer"].(map[string]interface{}); ok {
-				if text, ok := renderer["text"].(map[string]interface{}); ok {
-					if runs, ok := text["runs"].([]interface{}); ok {
+	if flexCols, ok := obj["flexColumns"].([]any); ok && len(flexCols) > 1 {
+		if col, ok := flexCols[1].(map[string]any); ok {
+			if renderer, ok := col["musicResponsiveListItemFlexColumnRenderer"].(map[string]any); ok {
+				if text, ok := renderer["text"].(map[string]any); ok {
+					if runs, ok := text["runs"].([]any); ok {
 						for _, run := range runs {
-							if runObj, ok := run.(map[string]interface{}); ok {
+							if runObj, ok := run.(map[string]any); ok {
 								if runText, ok := runObj["text"].(string); ok && runText != " • " {
 									artists = append(artists, runText)
 								}
@@ -114,7 +114,7 @@ func findDuration(obj map[string]any) int {
 }
 
 // findThumbnail searches for thumbnail URL
-func findThumbnail(obj map[string]interface{}) string {
+func findThumbnail(obj map[string]any) string {
 	// Try different thumbnail paths
 	paths := [][]string{
 		{"thumbnail", "musicThumbnailRenderer", "thumbnail", "thumbnails"},
@@ -123,9 +123,9 @@ func findThumbnail(obj map[string]interface{}) string {
 
 	for _, path := range paths {
 		if thumbnails := getPath(obj, convertToInterface(path)...); thumbnails != nil {
-			if thumbArray, ok := thumbnails.([]interface{}); ok && len(thumbArray) > 0 {
+			if thumbArray, ok := thumbnails.([]any); ok && len(thumbArray) > 0 {
 				// Get the largest thumbnail (usually the last one)
-				if lastThumb, ok := thumbArray[len(thumbArray)-1].(map[string]interface{}); ok {
+				if lastThumb, ok := thumbArray[len(thumbArray)-1].(map[string]any); ok {
 					if url, ok := lastThumb["url"].(string); ok {
 						return url
 					}
@@ -140,7 +140,7 @@ func findThumbnail(obj map[string]interface{}) string {
 
 
 // getPathString gets a string value from a nested path
-func getPathString(data map[string]interface{}, keys ...string) string {
+func getPathString(data map[string]any, keys ...string) string {
 	if result := getPath(data, convertToInterface(keys)...); result != nil {
 		if s, ok := result.(string); ok {
 			return s
@@ -150,8 +150,8 @@ func getPathString(data map[string]interface{}, keys ...string) string {
 }
 
 // convertToInterface converts string slice to interface slice
-func convertToInterface(strings []string) []interface{} {
-	interfaces := make([]interface{}, len(strings))
+func convertToInterface(strings []string) []any {
+	interfaces := make([]any, len(strings))
 	for i, s := range strings {
 		// Try to convert to int if it's a number
 		if num, err := strconv.Atoi(s); err == nil {
@@ -191,7 +191,7 @@ func parseDurationString(duration string) int {
 }
 
 // Enhanced playlist extraction
-func extractPlaylistFromObject(obj map[string]interface{}) *PlaylistRef {
+func extractPlaylistFromObject(obj map[string]any) *PlaylistRef {
 	// Check if this looks like a playlist object
 	browseID := findPlaylistBrowseID(obj)
 	if browseID == "" {
@@ -221,7 +221,7 @@ func extractPlaylistFromObject(obj map[string]interface{}) *PlaylistRef {
 }
 
 // findPlaylistBrowseID searches for playlist browse ID
-func findPlaylistBrowseID(obj map[string]interface{}) string {
+func findPlaylistBrowseID(obj map[string]any) string {
 	paths := [][]string{
 		{"navigationEndpoint", "browseEndpoint", "browseId"},
 		{"browseId"},
@@ -237,7 +237,7 @@ func findPlaylistBrowseID(obj map[string]interface{}) string {
 }
 
 // findSubtitle searches for subtitle text
-func findSubtitle(obj map[string]interface{}) string {
+func findSubtitle(obj map[string]any) string {
 	paths := [][]string{
 		{"subtitle", "runs", "0", "text"},
 		{"subtitle", "simpleText"},
@@ -252,29 +252,3 @@ func findSubtitle(obj map[string]interface{}) string {
 	return ""
 }
 
-// Enhanced playlist extraction with recursion
-func extractPlaylistsRecursive(data interface{}) []PlaylistRef {
-	var playlists []PlaylistRef
-
-	switch v := data.(type) {
-	case map[string]interface{}:
-		// Check if this object is a playlist
-		if playlist := extractPlaylistFromObject(v); playlist != nil {
-			playlists = append(playlists, *playlist)
-			return playlists // Don't recurse further if we found a playlist
-		}
-
-		// Recurse into object values
-		for _, value := range v {
-			playlists = append(playlists, extractPlaylistsRecursive(value)...)
-		}
-
-	case []interface{}:
-		// Recurse into array elements
-		for _, item := range v {
-			playlists = append(playlists, extractPlaylistsRecursive(item)...)
-		}
-	}
-
-	return playlists
-}

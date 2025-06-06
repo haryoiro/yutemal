@@ -1,9 +1,5 @@
 package api
 
-import (
-	"strconv"
-)
-
 // fromJSON applies a transformer function recursively to extract data from JSON
 // This matches the Rust implementation's approach
 func fromJSON[T any](data any, transformer func(any) *T, keyFunc func(T) string) []T {
@@ -73,14 +69,8 @@ func extractPlaylistFromAny(value any) *PlaylistRef {
 		playlistObj = obj
 	}
 
-	// Convert to map[string]interface{} for flexible_extractor functions
-	objInterface := make(map[string]interface{})
-	for k, v := range playlistObj {
-		objInterface[k] = v
-	}
-
 	// Use flexible_extractor function
-	return extractPlaylistFromObject(objInterface)
+	return extractPlaylistFromObject(playlistObj)
 }
 
 // extractTrackFromItem tries to extract a video from any JSON value
@@ -90,26 +80,20 @@ func extractTrackFromItem(value any) *TrackRef {
 		return nil
 	}
 
-	// Convert map[string]any to map[string]interface{} for flexible_extractor functions
-	objInterface := make(map[string]interface{})
-	for k, v := range obj {
-		objInterface[k] = v
-	}
-
 	// Use flexible_extractor functions for better extraction
-	trackID := findTrackID(objInterface)
+	trackID := findTrackID(obj)
 	if trackID == "" {
 		return nil
 	}
 
-	title := findTitle(objInterface)
+	title := findTitle(obj)
 	if title == "" {
 		return nil
 	}
 
-	artists := findArtists(objInterface)
-	duration := findDuration(objInterface)
-	thumbnail := findThumbnail(objInterface)
+	artists := findArtists(obj)
+	duration := findDuration(obj)
+	thumbnail := findThumbnail(obj)
 
 	return &TrackRef{
 		TrackID:     trackID,
@@ -119,36 +103,6 @@ func extractTrackFromItem(value any) *TrackRef {
 		Thumbnail:   thumbnail,
 		IsAvailable: true,
 	}
-}
-
-// getText extracts text from a nested path in JSON
-func getText(obj any, path []string) string {
-	current := obj
-
-	for _, key := range path {
-		switch curr := current.(type) {
-		case map[string]any:
-			current = curr[key]
-		case []any:
-			// Try to parse key as index
-			if idx, err := strconv.Atoi(key); err == nil && idx < len(curr) {
-				current = curr[idx]
-			} else {
-				return ""
-			}
-		default:
-			return ""
-		}
-
-		if current == nil {
-			return ""
-		}
-	}
-
-	if str, ok := current.(string); ok {
-		return str
-	}
-	return ""
 }
 
 // Utility functions
@@ -271,15 +225,6 @@ func extractGridItems(content map[string]any) []map[string]any {
 	return nil
 }
 
-func extractPlaylistPanelItems(content map[string]any) []map[string]any {
-	if panel, ok := content["musicPlaylistShelfRenderer"].(map[string]any); ok {
-		if contents, ok := panel["contents"].([]any); ok {
-			return interfaceSliceToMapSlice(contents)
-		}
-	}
-	return nil
-}
-
 func extractPlaylistFromItem(item map[string]any) *PlaylistRef {
 	// Try different renderer types
 	renderers := []string{
@@ -317,25 +262,13 @@ func extractPlaylistFromItem(item map[string]any) *PlaylistRef {
 }
 
 func extractTitle(data map[string]any) string {
-	objInterface := make(map[string]interface{})
-	for k, v := range data {
-		objInterface[k] = v
-	}
-	return findTitle(objInterface)
+	return findTitle(data)
 }
 
 func extractSubtitle(data map[string]any) string {
-	objInterface := make(map[string]interface{})
-	for k, v := range data {
-		objInterface[k] = v
-	}
-	return findSubtitle(objInterface)
+	return findSubtitle(data)
 }
 
 func extractBrowseID(data map[string]any) string {
-	objInterface := make(map[string]interface{})
-	for k, v := range data {
-		objInterface[k] = v
-	}
-	return findPlaylistBrowseID(objInterface)
+	return findPlaylistBrowseID(data)
 }

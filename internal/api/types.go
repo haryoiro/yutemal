@@ -95,12 +95,6 @@ func SearchEndpoint(query string) Endpoint {
 // BrowseResponse represents the raw API response
 type BrowseResponse map[string]interface{}
 
-// Continuation represents pagination info
-type Continuation struct {
-	Token               string `json:"continuation"`
-	ClickTrackingParams string `json:"clickTrackingParams"`
-}
-
 // Section represents a content section on the home page
 type Section struct {
 	Title    string        `json:"title"`
