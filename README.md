@@ -25,6 +25,12 @@ yutemal is a terminal-based YouTube Music client that allows you to browse, sear
 
 ## Installation
 
+### Install with Go
+
+```bash
+go install github.com/haryoiro/yutemal@latest
+```
+
 ### Build from source
 
 ```bash
