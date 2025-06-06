@@ -27,3 +27,5 @@ logs/
 config.toml
 !config.example.toml
 cookies.txt
+# Added by goreleaser init:
+dist/

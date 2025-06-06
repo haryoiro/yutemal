@@ -65,7 +65,7 @@ jobs:
           go build -ldflags "-X github.com/haryoiro/yutemal/internal/version.Version=$VERSION \
             -X github.com/haryoiro/yutemal/internal/version.Commit=$COMMIT \
             -X github.com/haryoiro/yutemal/internal/version.Date=$DATE" \
-            -o yutemal-${{ matrix.suffix }} cmd/yutemal/main.go
+            -o yutemal-${{ matrix.suffix }} .
         shell: bash
 
       - name: Create archive
