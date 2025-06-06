@@ -9,29 +9,9 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build and Release
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            goos: linux
-            goarch: amd64
-            suffix: linux-amd64
-          - os: ubuntu-latest
-            goos: linux
-            goarch: arm64
-            suffix: linux-arm64
-          - os: macos-latest
-            goos: darwin
-            goarch: amd64
-            suffix: darwin-amd64
-          - os: macos-latest
-            goos: darwin
-            goarch: arm64
-            suffix: darwin-arm64
-
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -41,8 +21,7 @@ jobs:
         with:
           go-version: '1.24.3'
 
-      - name: Install dependencies (Linux)
-        if: matrix.goos == 'linux'
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libasound2-dev libdbus-1-dev pkg-config
@@ -50,12 +29,11 @@ jobs:
       - name: Get version
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-        shell: bash
 
-      - name: Build
+      - name: Build Linux AMD64
         env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
+          GOOS: linux
+          GOARCH: amd64
           CGO_ENABLED: 1
         run: |
           VERSION=${{ steps.version.outputs.VERSION }}
@@ -65,23 +43,72 @@ jobs:
           go build -ldflags "-X github.com/haryoiro/yutemal/internal/version.Version=$VERSION \
             -X github.com/haryoiro/yutemal/internal/version.Commit=$COMMIT \
             -X github.com/haryoiro/yutemal/internal/version.Date=$DATE" \
-            -o yutemal-${{ matrix.suffix }} .
-        shell: bash
+            -o yutemal-linux-amd64 .
 
       - name: Create archive
         run: |
-          tar -czf yutemal-${{ matrix.suffix }}.tar.gz yutemal-${{ matrix.suffix }} README.md LICENSE config.example.toml
-        shell: bash
+          tar -czf yutemal-linux-amd64.tar.gz yutemal-linux-amd64 README.md LICENSE config.example.toml
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: yutemal-${{ matrix.suffix }}
-          path: yutemal-${{ matrix.suffix }}.tar.gz
+          name: yutemal-linux-amd64
+          path: yutemal-linux-amd64.tar.gz
+
+  build-macos:
+    name: Build macOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.3'
+
+      - name: Get version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Build macOS Universal Binary
+        env:
+          CGO_ENABLED: 1
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          COMMIT=$(git rev-parse --short HEAD)
+          DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          
+          # Build for AMD64
+          GOOS=darwin GOARCH=amd64 go build -ldflags "-X github.com/haryoiro/yutemal/internal/version.Version=$VERSION \
+            -X github.com/haryoiro/yutemal/internal/version.Commit=$COMMIT \
+            -X github.com/haryoiro/yutemal/internal/version.Date=$DATE" \
+            -o yutemal-darwin-amd64 .
+          
+          # Build for ARM64
+          GOOS=darwin GOARCH=arm64 go build -ldflags "-X github.com/haryoiro/yutemal/internal/version.Version=$VERSION \
+            -X github.com/haryoiro/yutemal/internal/version.Commit=$COMMIT \
+            -X github.com/haryoiro/yutemal/internal/version.Date=$DATE" \
+            -o yutemal-darwin-arm64 .
+          
+          # Create universal binary
+          lipo -create -output yutemal-darwin-universal yutemal-darwin-amd64 yutemal-darwin-arm64
+
+      - name: Create archives
+        run: |
+          tar -czf yutemal-darwin-amd64.tar.gz yutemal-darwin-amd64 README.md LICENSE config.example.toml
+          tar -czf yutemal-darwin-arm64.tar.gz yutemal-darwin-arm64 README.md LICENSE config.example.toml
+          tar -czf yutemal-darwin-universal.tar.gz yutemal-darwin-universal README.md LICENSE config.example.toml
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: yutemal-darwin
+          path: yutemal-darwin-*.tar.gz
 
   release:
     name: Create Release
-    needs: build
+    needs: [build-linux, build-macos]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
