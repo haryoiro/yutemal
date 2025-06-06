@@ -38,7 +38,8 @@ func Default() *structures.Config {
 		MaxConcurrentDownloads: 4,
 		DefaultVolume:          0.7,
 		SeekSeconds:            5,
-		MaxCacheSize:           1024, // 1GB
+		MaxCacheSize:           1024,   // 1GB
+		AudioQuality:           "high", // Default to medium quality
 		Theme: structures.Theme{
 			Background:       "#1a1b26",  // Tokyo Night Storm background
 			Foreground:       "#c0caf5",  // Tokyo Night foreground

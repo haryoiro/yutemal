@@ -5,6 +5,7 @@
 download_dir = ""  # Empty means use default cache directory
 max_concurrent_downloads = 4
 max_cache_size = 1024  # in MB
+audio_quality = "medium"  # Audio quality: low/medium/high/best
 
 # Player Configuration
 default_volume = 0.7
