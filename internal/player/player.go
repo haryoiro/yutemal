@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/faiface/beep"
 	"github.com/faiface/beep/effects"
 	"github.com/faiface/beep/speaker"
+	"github.com/faiface/beep/wav"
 	"github.com/haryoiro/yutemal/internal/logger"
 )
 
@@ -22,7 +25,6 @@ type Player struct {
 	format             beep.Format
 	isPlaying          bool
 	currentFile        string
-	position           time.Duration
 	duration           time.Duration
 	ctx                context.Context
 	cancel             context.CancelFunc
@@ -31,7 +33,6 @@ type Player struct {
 	lastSeekTime       time.Time
 	seekCooldown       time.Duration
 	iseeking           bool // Prevent concurrent seeks
-	streamerLength     int  // Cache streamer length
 }
 
 // New creates a new audio player
@@ -41,12 +42,11 @@ func New() (*Player, error) {
 	player := &Player{
 		ctx:          ctx,
 		cancel:       cancel,
-		seekCooldown: 500 * time.Millisecond, // Prevent immediate end-of-song detection after seek
+		seekCooldown: 500 * time.Millisecond, // Reduced cooldown for more responsive seeking
 		iseeking:     false,
 	}
 
-	// Don't initialize speaker here - do it when we load the first file
-	logger.Debug("Audio player created (speaker will be initialized on first file load)")
+	logger.Info("Audio player created (speaker will be initialized on first file load)")
 
 	return player, nil
 }
@@ -61,15 +61,13 @@ func (p *Player) LoadFile(filepath string) error {
 		p.streamer.Close()
 		p.streamer = nil
 	}
-	
+
 	// Clear speaker to ensure clean state
 	if p.speakerInitialized {
 		speaker.Clear()
 	}
-	
+
 	// Reset all player state for new file
-	p.streamerLength = 0
-	p.position = 0
 	p.duration = 0
 	p.iseeking = false
 	p.ctrl = nil
@@ -81,11 +79,35 @@ func (p *Player) LoadFile(filepath string) error {
 		return fmt.Errorf("failed to open file: %w", err)
 	}
 
-	// Decode MP3 using minimp3 decoder
-	streamer, format, err := DecodeMiniMP3(file)
-	if err != nil {
+	// Decode audio file based on extension
+	var streamer beep.StreamSeekCloser
+	var format beep.Format
+
+	if strings.HasSuffix(strings.ToLower(filepath), ".mp3") {
+		// Decode MP3 using minimp3 decoder
+		logger.Debug("Loading MP3 file: %s", filepath)
+		streamer, format, err = DecodeMiniMP3(file)
+		if err != nil {
+			file.Close()
+			return fmt.Errorf("failed to decode MP3: %w", err)
+		}
+
+		// Set duration update callback for dynamic duration correction
+		if minimp3Dec, ok := streamer.(*minimp3Decoder); ok {
+			minimp3Dec.durationUpdateCallback = p.UpdateActualDuration
+		}
+
+		logger.Debug("MP3 decode successful")
+	} else if strings.HasSuffix(strings.ToLower(filepath), ".wav") {
+		// Decode WAV using beep's wav decoder
+		streamer, format, err = wav.Decode(file)
+		if err != nil {
+			file.Close()
+			return fmt.Errorf("failed to decode WAV: %w", err)
+		}
+	} else {
 		file.Close()
-		return fmt.Errorf("failed to decode MP3: %w", err)
+		return fmt.Errorf("unsupported file format: %s", filepath)
 	}
 
 	// Create volume control
@@ -109,10 +131,24 @@ func (p *Player) LoadFile(filepath string) error {
 	p.currentFile = filepath
 	p.isPlaying = false
 
-	// Calculate duration
-	length := p.streamer.Len()
-	p.streamerLength = length
-	p.duration = p.format.SampleRate.D(length)
+	// Calculate duration - prefer ffprobe for accuracy
+	actualDuration := p.getActualDuration(filepath)
+	if actualDuration > 0 {
+		p.duration = actualDuration
+		logger.Info("Using ffprobe duration: %v", actualDuration)
+
+		// Update decoder with accurate sample count
+		if minimp3Dec, ok := streamer.(*minimp3Decoder); ok {
+			actualSamples := p.format.SampleRate.N(actualDuration)
+			minimp3Dec.TotalSamples = actualSamples
+			logger.Info("Updated minimp3 decoder with ffprobe sample count: %d", actualSamples)
+		}
+	} else {
+		// Fallback to decoder's estimate
+		length := p.streamer.Len()
+		p.duration = p.format.SampleRate.D(length)
+		logger.Debug("Using decoder estimated duration: %v (%d samples)", p.duration, length)
+	}
 
 	// Initialize or reinitialize speaker if needed
 	if !p.speakerInitialized || p.currentSampleRate != format.SampleRate {
@@ -135,7 +171,14 @@ func (p *Player) LoadFile(filepath string) error {
 	speaker.Clear()
 	speaker.Play(ctrl)
 
-	logger.Debug("Loaded file: %s, duration: %v, format: %v", filepath, p.duration, format)
+	// Log file information
+	fileInfo, err := os.Stat(filepath)
+	if err == nil {
+		fileSizeMB := float64(fileInfo.Size()) / (1024 * 1024)
+		fileExt := strings.ToLower(filepath[strings.LastIndex(filepath, ".")+1:])
+		logger.Info("Loaded %s file: %s (%.2f MB), duration: %v, sample rate: %d Hz, channels: %d",
+			fileExt, filepath, fileSizeMB, p.duration, format.SampleRate, format.NumChannels)
+	}
 
 	return nil
 }
@@ -202,16 +245,13 @@ func (p *Player) Stop() error {
 
 	// Reset streamer position safely
 	if p.streamer != nil {
-		// Try to seek to start, but don't fail if it errors
 		if err := p.streamer.Seek(0); err != nil {
 			logger.Error("Error seeking to start: %v", err)
-			// Reset internal state anyway
 		}
 	}
 
-	// Reset all playback state
+	// Reset playback state
 	p.isPlaying = false
-	p.position = 0
 	p.iseeking = false
 
 	return nil
@@ -226,20 +266,17 @@ func (p *Player) SetVolume(volume float64) error {
 		return fmt.Errorf("no file loaded")
 	}
 
-	// Convert to dB scale: 0.0 -> -∞ dB, 0.5 -> -6 dB, 1.0 -> 0 dB
+	// Convert to dB scale
 	var dbVolume float64
 	if volume <= 0 {
 		p.volume.Silent = true
 		return nil
 	} else {
 		p.volume.Silent = false
-		// Use logarithmic scale for more natural volume control
-		// volume: 0.0 to 1.0
-		// dB: -∞ to 0
+		// Logarithmic scale: 20 * log10(volume)
 		if volume < 0.01 {
 			dbVolume = -4.0 // Very quiet but not silent
 		} else {
-			// Logarithmic scale: 20 * log10(volume)
 			dbVolume = 20 * (volume - 1) // Simplified approximation
 		}
 	}
@@ -265,12 +302,10 @@ func (p *Player) GetVolume() float64 {
 	}
 
 	// Convert from dB back to linear scale
-	// dbVolume = 20 * (volume - 1)
-	// volume = (dbVolume / 20) + 1
 	return (p.volume.Volume / 20) + 1
 }
 
-// Seek seeks to a specific position
+// Seek seeks to a specific position - simplified version
 func (p *Player) Seek(pos time.Duration) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -295,17 +330,8 @@ func (p *Player) Seek(pos time.Duration) error {
 	}
 
 	samplePos := p.format.SampleRate.N(pos)
-	
-	// minimp3 handles seeking more robustly, but we still apply some safety
-	streamerLength := p.streamer.Len()
-	if samplePos >= streamerLength {
-		samplePos = streamerLength - 1
-		if samplePos < 0 {
-			samplePos = 0
-		}
-	}
-	
-	// Pause playback and clear speaker to prevent fast-forward audio
+
+	// Pause during seek for cleaner operation
 	wasPlaying := p.isPlaying
 	if wasPlaying && p.ctrl != nil {
 		speaker.Lock()
@@ -313,91 +339,87 @@ func (p *Player) Seek(pos time.Duration) error {
 		speaker.Unlock()
 		speaker.Clear()
 	}
-	
+
 	// Perform the seek
 	if err := p.streamer.Seek(samplePos); err != nil {
-		logger.Debug("Seek failed at sample %d (of %d total), error: %v", samplePos, streamerLength, err)
-		// minimp3 seek is more limited, so we'll just reset on error
+		logger.Debug("Seek failed at sample %d, resetting to start: %v", samplePos, err)
+		// Reset on failure
 		if err := p.streamer.Seek(0); err != nil {
 			return fmt.Errorf("failed to reset position: %w", err)
 		}
-		p.position = 0
-		
-		// Resume if was playing
-		if wasPlaying && p.ctrl != nil {
-			speaker.Lock()
-			p.ctrl.Paused = false
-			speaker.Unlock()
-		}
-		return nil
+		pos = 0
 	}
-	
+
 	// Resume playback if it was playing
 	if wasPlaying && p.ctrl != nil {
-		// Re-add the stream to speaker after seek
 		speaker.Play(p.ctrl)
 		speaker.Lock()
 		p.ctrl.Paused = false
 		speaker.Unlock()
 	}
 
-	// Record seek operation to avoid immediate end-of-song detection
+	// Record seek operation
 	p.lastSeekTime = time.Now()
-	
-	// Update position based on actual streamer position after seek
-	actualSample := p.streamer.Position()
-	p.position = p.format.SampleRate.D(actualSample)
-	
-	logger.Debug("Seeked to %v (requested: %v)", p.position, pos)
+
+	logger.Debug("Seek completed to position: %v", pos)
 	return nil
 }
 
 // SeekForward seeks forward by the specified duration
 func (p *Player) SeekForward(duration time.Duration) error {
-	p.mu.RLock()
-	currentPos := p.GetPositionUnsafe() // Get real-time position
+	currentPos := p.GetPosition()
 	newPos := currentPos + duration
-	
-	// Simple boundary check - minimp3 handles edge cases better
+
 	if newPos > p.duration {
 		newPos = p.duration
 	}
-	p.mu.RUnlock()
 
 	return p.Seek(newPos)
 }
 
 // SeekBackward seeks backward by the specified duration
 func (p *Player) SeekBackward(duration time.Duration) error {
-	p.mu.RLock()
-	currentPos := p.GetPositionUnsafe() // Get real-time position
+	currentPos := p.GetPosition()
 	newPos := currentPos - duration
 	if newPos < 0 {
 		newPos = 0
 	}
-	p.mu.RUnlock()
 
 	return p.Seek(newPos)
 }
 
-// GetPosition returns the current playback position
+// GetPosition returns the current playback position using stream position only
 func (p *Player) GetPosition() time.Duration {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	return p.GetPositionUnsafe()
-}
 
-// GetPositionUnsafe returns the current playback position without locking
-// Should only be called when already holding the lock
-func (p *Player) GetPositionUnsafe() time.Duration {
 	if p.streamer == nil {
 		return 0
 	}
 
-	// Calculate position based on current stream position
-	currentSample := p.streamer.Position()
-	p.position = p.format.SampleRate.D(currentSample)
-	return p.position
+	// Use stream position as single source of truth
+	streamPos := p.streamer.Position()
+	return p.format.SampleRate.D(streamPos)
+}
+
+// HasEnded checks if playback has reached the end
+func (p *Player) HasEnded() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	if p.streamer == nil || !p.isPlaying {
+		return false
+	}
+
+	// Simple end detection using stream position
+	currentPos := p.streamer.Position()
+	totalLen := p.streamer.Len()
+
+	// Consider ended if we're very close to the end (within 100 samples)
+	threshold := 100
+	hasEnded := currentPos >= totalLen-threshold
+
+	return hasEnded
 }
 
 // GetDuration returns the total duration
@@ -419,6 +441,52 @@ func (p *Player) GetCurrentFile() string {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.currentFile
+}
+
+// GetRawPosition returns the current sample position
+func (p *Player) GetRawPosition() int {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.streamer == nil {
+		return 0
+	}
+	return p.streamer.Position()
+}
+
+// GetRawLength returns the total samples
+func (p *Player) GetRawLength() int {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.streamer == nil {
+		return 0
+	}
+	return p.streamer.Len()
+}
+
+// GetSampleRate returns the current sample rate
+func (p *Player) GetSampleRate() int {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return int(p.format.SampleRate)
+}
+
+// UpdateActualDuration updates the duration based on actual EOF detection
+func (p *Player) UpdateActualDuration(actualSamples int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.format.SampleRate == 0 || actualSamples <= 0 {
+		return
+	}
+
+	actualDuration := p.format.SampleRate.D(actualSamples)
+	if actualDuration != p.duration {
+		oldDuration := p.duration
+		p.duration = actualDuration
+
+		logger.Info("Duration corrected from %v to %v (difference: %v)",
+			oldDuration, actualDuration, oldDuration-actualDuration)
+	}
 }
 
 // IsRecentSeek returns true if a seek operation was performed recently
@@ -465,4 +533,35 @@ func (p *Player) VolumeDown() error {
 		newVol = 0.0
 	}
 	return p.SetVolume(newVol)
+}
+
+// getActualDuration uses ffprobe to get the exact duration of the file
+func (p *Player) getActualDuration(filepath string) time.Duration {
+	// Use ffprobe to get accurate duration
+	cmd := exec.Command("ffprobe",
+		"-v", "error",
+		"-show_entries", "format=duration",
+		"-of", "default=noprint_wrappers=1:nokey=1",
+		filepath,
+	)
+
+	output, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+
+	// Parse duration
+	durationStr := strings.TrimSpace(string(output))
+	if durationStr == "" || durationStr == "N/A" {
+		return 0
+	}
+
+	var seconds float64
+	fmt.Sscanf(durationStr, "%f", &seconds)
+
+	if seconds > 0 {
+		return time.Duration(seconds * float64(time.Second))
+	}
+
+	return 0
 }
