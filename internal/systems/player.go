@@ -155,7 +155,7 @@ func (ps *PlayerSystem) updateLoop() {
 				// Simplified debug logging every 5 seconds
 				if int(ps.state.CurrentTime.Seconds())%5 == 0 && ps.state.CurrentTime.Milliseconds()%5000 < 100 {
 					// logger.Debug("Position: %v/%v, Playing=%v",
-						// ps.state.CurrentTime, ps.state.TotalTime, ps.state.IsPlaying)
+					// ps.state.CurrentTime, ps.state.TotalTime, ps.state.IsPlaying)
 				}
 
 				// Check if we've reached the end of the current song
@@ -413,6 +413,14 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 	case structures.RestartPlayerAction:
 		// Restart the current song
 		ps.loadCurrentSong()
+
+	case structures.SeekAction:
+		// Seek to specific position
+		if ps.player != nil && ps.validatePlayerState() {
+			if err := ps.player.Seek(a.Position); err != nil {
+				logger.Error("Failed to seek: %v", err)
+			}
+		}
 	}
 }
 
