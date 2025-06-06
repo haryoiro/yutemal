@@ -47,30 +47,51 @@ func (m *Model) renderPlayer() string {
 		title := video.Title
 		artists := formatArtists(video.Artists)
 
-		// タイトルとアーティストの幅計算（コンテンツ幅を使用）
+		// タイトルとアーティストの表示を最適化
+		prefixWidth := runewidth.StringWidth("🎵 ")
+		separatorWidth := runewidth.StringWidth(" - ")
 		artistsWidth := runewidth.StringWidth(artists)
-		prefixWidth := runewidth.StringWidth("🎵  - ")
-		maxTitleWidth := contentWidth - artistsWidth - prefixWidth
 
-		if maxTitleWidth < 10 {
-			maxTitleWidth = 10
+		// 利用可能な全体幅からアーティスト名とセパレータの分を引いてタイトル幅を決定
+		// 少し余裕を持たせる（-2）
+		maxTitleWidth := contentWidth - prefixWidth - separatorWidth - artistsWidth - 2
+
+		// 最小幅を確保
+		if maxTitleWidth < 20 {
+			// タイトルが短すぎる場合はアーティスト名を短縮
+			maxTitleWidth = contentWidth * 2 / 3 // 全体の2/3をタイトルに
+			maxArtistWidth := contentWidth - prefixWidth - separatorWidth - maxTitleWidth - 2
+			if maxArtistWidth > 0 {
+				artists = truncate(artists, maxArtistWidth)
+			}
 		}
 
+		// タイトルが長い場合はマーキー表示
 		titleWidth := runewidth.StringWidth(title)
 		if titleWidth > maxTitleWidth {
 			title = m.applyMarquee(title, maxTitleWidth)
 		}
 
-		// 全体の行が利用可能幅に収まるように調整
-		fullLine := fmt.Sprintf("🎵 %s - %s", title, artists)
-		if runewidth.StringWidth(fullLine) > contentWidth {
-			maxArtistsWidth := contentWidth - runewidth.StringWidth(fmt.Sprintf("🎵 %s - ", title))
-			if maxArtistsWidth > 0 {
-				artists = truncate(artists, maxArtistsWidth)
+		// 最終的な表示文字列を構築
+		displayString := fmt.Sprintf("🎵 %s - %s", title, artists)
+
+		// 幅が超過している場合の最終調整
+		actualWidth := runewidth.StringWidth(displayString)
+		if actualWidth > contentWidth {
+			// オーバーフローしている分を計算
+			overflow := actualWidth - contentWidth
+			// アーティスト名から削る
+			newArtistWidth := runewidth.StringWidth(artists) - overflow - 2
+			if newArtistWidth > 0 {
+				artists = truncate(artists, newArtistWidth)
+				displayString = fmt.Sprintf("🎵 %s - %s", title, artists)
+			} else {
+				// アーティスト名を完全に省略
+				displayString = truncate(fmt.Sprintf("🎵 %s", title), contentWidth)
 			}
 		}
 
-		content.WriteString(playerInfoStyle.Render(fmt.Sprintf("🎵 %s - %s", title, artists)))
+		content.WriteString(playerInfoStyle.Render(displayString))
 	} else {
 		content.WriteString(dimStyle.Render("NO SONG PLAYING"))
 	}
@@ -82,8 +103,8 @@ func (m *Model) renderPlayer() string {
 		totalTime := formatDuration(int(m.playerState.TotalTime.Seconds()))
 
 		// Calculate exact width needed for time displays and spacing
-		timeWidth := runewidth.StringWidth(currentTime) + runewidth.StringWidth(totalTime) + 2 // 2 spaces
-		barWidth := contentWidth - timeWidth*2
+		timeWidth := runewidth.StringWidth(currentTime) + runewidth.StringWidth(totalTime) // 2 spaces
+		barWidth := contentWidth - timeWidth*2 + 6
 		if barWidth < 10 {
 			barWidth = 10
 		}
@@ -105,8 +126,8 @@ func (m *Model) renderPlayer() string {
 		}
 
 		// Calculate exact width for empty progress bar
-		timeWidth := runewidth.StringWidth("--:--")*2 + 2 // 2 time displays + 2 spaces
-		barWidth := contentWidth - timeWidth*2
+		timeWidth := runewidth.StringWidth("--:--") * 2 // 2 time displays + 2 spaces
+		barWidth := contentWidth - timeWidth*2 + 6
 		if barWidth < 10 {
 			barWidth = 10
 		}
