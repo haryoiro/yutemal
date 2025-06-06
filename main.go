@@ -34,7 +34,7 @@ func main() {
 		showHelp    = flag.Bool("help", false, "Show help message")
 		showFiles   = flag.Bool("files", false, "Show file locations")
 		fixDB       = flag.Bool("fix-db", false, "Fix database issues")
-		clearCache  = flag.Bool("clear-cache", false, "Clear cache directory")
+		clearCache  = flag.Bool("clear-cache", false, "Clear all cache data (downloads, database, logs)")
 		showVersion = flag.Bool("version", false, "Show version")
 		debugMode   = flag.Bool("debug", false, "Enable debug logging")
 	)
@@ -100,40 +100,52 @@ func main() {
 	}
 
 	if *clearCache {
-		fmt.Println("Clearing cache...")
-		// Initialize minimal logging for cache clearing operation
-		_, _, dataDir := getDirectories()
-		logFile := filepath.Join(dataDir, "yutemal.log")
-		if err := logger.InitLogger(logFile, logger.INFO, false); err != nil {
-			fmt.Printf("Warning: Failed to initialize logger: %v\n", err)
-		}
-		defer logger.CloseLogger()
+		// Ask for confirmation
+		fmt.Println("⚠️  WARNING: This will delete all cached data including:")
+		fmt.Println("  - Downloaded audio files")
+		fmt.Println("  - Database (playlists, tracks)")
+		fmt.Println("  - Logs")
+		fmt.Println("  - Cookies")
+		fmt.Println("\nAre you sure you want to continue? (y/N): ")
 
-		// Only clear the downloads directory, not the entire cache
-		downloadsDir := filepath.Join(cacheDir, "downloads")
-		if err := os.RemoveAll(downloadsDir); err != nil {
-			logger.Fatal("Failed to clear downloads cache: %v", err)
+		var confirm string
+		fmt.Scanln(&confirm)
+		if confirm != "y" && confirm != "Y" {
+			fmt.Println("Cache clearing cancelled.")
+			return
 		}
-		// Also clear the SQLite database
-		dbPath := filepath.Join(dataDir, "yutemal.db")
-		if err := os.Remove(dbPath); err != nil && !os.IsNotExist(err) {
-			logger.Warn("Failed to remove database: %v", err)
+
+		fmt.Println("Clearing all cache data...")
+
+		// Clear cache directory (includes downloads)
+		if err := os.RemoveAll(cacheDir); err != nil {
+			fmt.Printf("Failed to clear cache directory: %v\n", err)
+		} else {
+			fmt.Printf("✓ Cleared cache directory: %s\n", cacheDir)
 		}
-		dbWalPath := dbPath + "-wal"
-		if err := os.Remove(dbWalPath); err != nil && !os.IsNotExist(err) {
-			logger.Warn("Failed to remove database WAL file: %v", err)
+
+		// Clear data directory (includes database and logs)
+		if err := os.RemoveAll(dataDir); err != nil {
+			fmt.Printf("Failed to clear data directory: %v\n", err)
+		} else {
+			fmt.Printf("✓ Cleared data directory: %s\n", dataDir)
 		}
-		dbShmPath := dbPath + "-shm"
-		if err := os.Remove(dbShmPath); err != nil && !os.IsNotExist(err) {
-			logger.Warn("Failed to remove database SHM file: %v", err)
-		}
-		fmt.Println("Cache cleared successfully")
+
+		// Note: We don't clear the config directory as it contains user preferences
+		fmt.Println("\n✅ All cache data cleared successfully")
+		fmt.Printf("Note: Configuration files in %s were preserved\n", configDir)
 		return
 	}
 
 	// Check if yt-dlp is installed
 	if err := checkYtDlp(); err != nil {
 		showYtDlpError()
+		return
+	}
+
+	// Check if ffprobe is installed
+	if err := checkFfprobe(); err != nil {
+		showFfprobeError()
 		return
 	}
 
@@ -257,6 +269,30 @@ func checkYtDlp() error {
 	return nil
 }
 
+func checkFfprobe() error {
+	// Try to find ffprobe in PATH
+	path, err := exec.LookPath("ffprobe")
+	if err != nil {
+		return fmt.Errorf("ffprobe not found in PATH")
+	}
+
+	// Verify it's executable
+	cmd := exec.Command(path, "-version")
+	output, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("failed to run ffprobe: %w", err)
+	}
+
+	// Extract version info from first line
+	lines := strings.Split(string(output), "\n")
+	if len(lines) > 0 {
+		version := strings.TrimSpace(lines[0])
+		logger.Info("Found ffprobe: %s", version)
+		logger.Debug("ffprobe path: %s", path)
+	}
+	return nil
+}
+
 // Helper functions for main
 
 func showYtDlpError() {
@@ -269,6 +305,17 @@ func showYtDlpError() {
 	fmt.Println("  Windows:  winget install yt-dlp")
 	fmt.Println("  Python:   pip install yt-dlp")
 	fmt.Println("\nFor more information, visit: https://github.com/yt-dlp/yt-dlp")
+}
+
+func showFfprobeError() {
+	fmt.Println(banner)
+	fmt.Println("\n❌ ffprobe is not installed!")
+	fmt.Println("\nffprobe (part of FFmpeg) is required for audio file analysis.")
+	fmt.Println("\nInstallation instructions:")
+	fmt.Println("  macOS:    brew install ffmpeg")
+	fmt.Println("  Linux:    sudo apt install ffmpeg")
+	fmt.Println("  Windows:  winget install ffmpeg")
+	fmt.Println("\nFor more information, visit: https://ffmpeg.org/download.html")
 }
 
 func loadConfiguration(configPath string) *structures.Config {

@@ -8,10 +8,10 @@ import (
 var (
 	// Version is the version string set by ldflags
 	Version = "dev"
-	
+
 	// Commit is the git commit hash set by ldflags
 	Commit = "unknown"
-	
+
 	// Date is the build date set by ldflags
 	Date = "unknown"
 )
