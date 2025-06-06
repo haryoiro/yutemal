@@ -202,7 +202,17 @@ func (ds *DownloadSystem) downloadTrack(track structures.Track) error {
 		return ds.updateDatabase(track, outputPath)
 	}
 
-	logger.Info("Starting download for track %s (%s by %s)", track.TrackID, track.Title, strings.Join(track.Artists, ", "))
+	// Get current audio quality setting
+	audioQuality := ds.config.AudioQuality
+	if audioQuality == "" {
+		audioQuality = constants.AudioQualityMedium
+	}
+	track.AudioQuality = audioQuality
+
+	// Estimate file size based on quality and duration
+	estimatedSizeMB := estimateFileSize(track.Duration, audioQuality)
+	logger.Info("Starting download for track %s (%s by %s) - Quality: %s, Estimated size: %.1f MB",
+		track.TrackID, track.Title, strings.Join(track.Artists, ", "), audioQuality, estimatedSizeMB)
 
 	// Retry up to MaxDownloadRetries times
 	maxRetries := constants.MaxDownloadRetries
@@ -216,10 +226,22 @@ func (ds *DownloadSystem) downloadTrack(track structures.Track) error {
 		}
 
 		// Build yt-dlp command with cookies if available
+		// Get audio quality from config or use default
+		audioQuality := ds.config.AudioQuality
+		if audioQuality == "" {
+			audioQuality = constants.AudioQualityMedium
+		}
+
+		// Get yt-dlp quality value
+		ytdlpQuality, ok := constants.AudioQualityMap[audioQuality]
+		if !ok {
+			ytdlpQuality = constants.AudioQualityMap[constants.AudioQualityMedium]
+		}
+
 		args := []string{
 			"--extract-audio",
 			"--audio-format", "mp3",
-			"--audio-quality", constants.AudioQuality, // Best quality
+			"--audio-quality", ytdlpQuality,
 			"--no-playlist",
 			"--no-check-certificates", // Add this to avoid SSL issues
 			"--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -254,8 +276,13 @@ func (ds *DownloadSystem) downloadTrack(track structures.Track) error {
 			continue
 		}
 
-		// Success
-		logger.Info("Successfully downloaded %s", track.TrackID)
+		// Success - get actual file size
+		if fileInfo, err := os.Stat(outputPath); err == nil {
+			actualSizeMB := float64(fileInfo.Size()) / 1024.0 / 1024.0
+			logger.Info("Successfully downloaded %s - Actual size: %.1f MB", track.TrackID, actualSizeMB)
+		} else {
+			logger.Info("Successfully downloaded %s", track.TrackID)
+		}
 
 		// Update database
 		return ds.updateDatabase(track, outputPath)
@@ -272,6 +299,20 @@ func (ds *DownloadSystem) updateDatabase(track structures.Track, filePath string
 		return fmt.Errorf("failed to stat file: %w", err)
 	}
 
+	// Get actual bitrate using ffprobe
+	bitrate := ds.getFileBitrate(filePath)
+	if bitrate > 0 {
+		track.AudioBitrate = bitrate
+		logger.Debug("Detected bitrate for %s: %d kbps", track.TrackID, bitrate)
+	}
+
+	// Get actual duration using ffprobe
+	duration := ds.getFileDuration(filePath)
+	if duration > 0 {
+		track.Duration = duration
+		logger.Debug("Detected actual duration for %s: %d seconds (was %d)", track.TrackID, duration, track.Duration)
+	}
+
 	// Create database entry
 	entry := structures.DatabaseEntry{
 		Track:    track,
@@ -286,6 +327,40 @@ func (ds *DownloadSystem) updateDatabase(track structures.Track, filePath string
 	}
 
 	return nil
+}
+
+// getFileBitrate uses ffprobe to get the actual bitrate of an audio file
+func (ds *DownloadSystem) getFileBitrate(filePath string) int {
+	// Build ffprobe command
+	cmd := exec.Command("ffprobe",
+		"-v", "error",
+		"-select_streams", "a:0",
+		"-show_entries", "stream=bit_rate",
+		"-of", "default=noprint_wrappers=1:nokey=1",
+		filePath,
+	)
+
+	output, err := cmd.Output()
+	if err != nil {
+		logger.Debug("ffprobe failed for %s: %v", filePath, err)
+		return 0
+	}
+
+	// Parse bitrate (in bits per second)
+	bitrateStr := strings.TrimSpace(string(output))
+	if bitrateStr == "" || bitrateStr == "N/A" {
+		return 0
+	}
+
+	bitrate := 0
+	fmt.Sscanf(bitrateStr, "%d", &bitrate)
+
+	// Convert to kbps
+	if bitrate > 0 {
+		return bitrate / 1000
+	}
+
+	return 0
 }
 
 // IsDownloading checks if a track is currently downloading
@@ -378,3 +453,58 @@ func (ds *DownloadSystem) GetCacheSize() (int64, error) {
 	return totalSize, nil
 }
 
+// getFileDuration uses ffprobe to get the actual duration of an audio file
+func (ds *DownloadSystem) getFileDuration(filePath string) int {
+	// Build ffprobe command
+	cmd := exec.Command("ffprobe",
+		"-v", "error",
+		"-show_entries", "format=duration",
+		"-of", "default=noprint_wrappers=1:nokey=1",
+		filePath,
+	)
+
+	output, err := cmd.Output()
+	if err != nil {
+		logger.Debug("ffprobe failed for duration of %s: %v", filePath, err)
+		return 0
+	}
+
+	// Parse duration (in seconds as float)
+	durationStr := strings.TrimSpace(string(output))
+	if durationStr == "" || durationStr == "N/A" {
+		return 0
+	}
+
+	var duration float64
+	fmt.Sscanf(durationStr, "%f", &duration)
+
+	// Convert to seconds (ceiling - round up)
+	if duration > 0 {
+		return int(duration + 0.999) // Round up to next second
+	}
+
+	return 0
+}
+
+// estimateFileSize estimates the file size based on duration and quality
+func estimateFileSize(durationSeconds int, quality string) float64 {
+	// Estimate bitrates for each quality level
+	var bitrateKbps int
+	switch quality {
+	case constants.AudioQualityBest:
+		bitrateKbps = 256
+	case constants.AudioQualityHigh:
+		bitrateKbps = 192
+	case constants.AudioQualityMedium:
+		bitrateKbps = 128
+	case constants.AudioQualityLow:
+		bitrateKbps = 96
+	default:
+		bitrateKbps = 128
+	}
+
+	// Calculate estimated size in MB
+	// Formula: (bitrate in kbps * duration in seconds) / 8 / 1024
+	sizeMB := float64(bitrateKbps*durationSeconds) / 8.0 / 1024.0
+	return sizeMB
+}
