@@ -85,6 +85,9 @@ type TrackStatusUpdateAction struct {
 	TrackID string
 	Status  MusicDownloadStatus
 }
+type SeekAction struct {
+	Position time.Duration
+}
 
 // PlayerState represents the current state of the music player
 type PlayerState struct {
