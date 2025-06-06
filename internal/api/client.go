@@ -218,6 +218,11 @@ func (c *Client) browse(endpoint Endpoint) (*BrowseResponse, error) {
 	return &browseResp, nil
 }
 
+// BrowseRaw makes a browse API request and returns raw response
+func (c *Client) BrowseRaw(endpoint Endpoint) (*BrowseResponse, error) {
+	return c.browse(endpoint)
+}
+
 // GetLibrary fetches the user's library
 func (c *Client) GetLibrary(endpoint Endpoint) ([]PlaylistRef, error) {
 	resp, err := c.browse(endpoint)
@@ -323,6 +328,70 @@ func (c *Client) GetHomeEnhanced() (*SearchResults, error) {
 	}, nil
 }
 
+// GetStreamingData fetches streaming information for a video/track
+func (c *Client) GetStreamingData(videoID string) (*StreamingData, error) {
+	url := fmt.Sprintf("%s/youtubei/v1/player?key=%s&prettyPrint=false",
+		YTMDomain, c.innertubeAPIKey)
+
+	// Build request body
+	context := map[string]interface{}{
+		"client": map[string]interface{}{
+			"clientName":    "WEB_REMIX",
+			"clientVersion": c.clientVersion,
+		},
+	}
+
+	if c.accountID != "" {
+		context["user"] = map[string]interface{}{
+			"onBehalfOfUser": c.accountID,
+		}
+	}
+
+	body := map[string]interface{}{
+		"context": context,
+		"videoId": videoID,
+	}
+
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewReader(jsonBody))
+	if err != nil {
+		return nil, err
+	}
+
+	// Set headers
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("SAPISIDHASH %s", c.computeSAPIHash()))
+	req.Header.Set("X-Origin", YTMDomain)
+	req.Header.Set("Cookie", c.cookies)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var playerResp PlayerResponse
+	if err := json.Unmarshal(respBody, &playerResp); err != nil {
+		return nil, err
+	}
+
+	// Check playability
+	if playerResp.PlayabilityStatus.Status != "OK" {
+		return nil, fmt.Errorf("video not playable: %s", playerResp.PlayabilityStatus.Reason)
+	}
+
+	return &playerResp.StreamingData, nil
+}
+
 // Helper functions
 
 func extractSAPISID(cookies string) string {
@@ -335,8 +404,6 @@ func extractSAPISID(cookies string) string {
 	}
 	return ""
 }
-
-
 
 func extractBetween(s, start, end string) string {
 	startIdx := strings.Index(s, start)

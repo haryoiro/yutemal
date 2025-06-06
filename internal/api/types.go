@@ -92,6 +92,15 @@ func SearchEndpoint(query string) Endpoint {
 	}
 }
 
+// VideoEndpoint returns a video/player endpoint
+func VideoEndpoint(videoId string) Endpoint {
+	return musicEndpoint{
+		key:   "videoId",
+		param: videoId,
+		route: "player",
+	}
+}
+
 // BrowseResponse represents the raw API response
 type BrowseResponse map[string]interface{}
 
@@ -106,4 +115,68 @@ type ContentItem struct {
 	Type     string       `json:"type"` // "track", "playlist", "album", etc.
 	Track    *TrackRef    `json:"track,omitempty"`
 	Playlist *PlaylistRef `json:"playlist,omitempty"`
+}
+
+// StreamingData represents streaming information from the player endpoint
+type StreamingData struct {
+	VideoID         string       `json:"videoId"`
+	Title           string       `json:"title"`
+	LengthSeconds   string       `json:"lengthSeconds"`
+	ChannelID       string       `json:"channelId"`
+	IsLive          bool         `json:"isLive"`
+	AdaptiveFormats []FormatInfo `json:"adaptiveFormats"`
+	Formats         []FormatInfo `json:"formats"`
+}
+
+// FormatInfo represents audio/video format information
+type FormatInfo struct {
+	ITag             int    `json:"itag"`
+	URL              string `json:"url"`
+	MimeType         string `json:"mimeType"`
+	Bitrate          int    `json:"bitrate"`
+	Width            int    `json:"width,omitempty"`
+	Height           int    `json:"height,omitempty"`
+	ContentLength    string `json:"contentLength,omitempty"`
+	Quality          string `json:"quality"`
+	QualityLabel     string `json:"qualityLabel,omitempty"`
+	AudioQuality     string `json:"audioQuality,omitempty"`
+	AudioSampleRate  string `json:"audioSampleRate,omitempty"`
+	AudioChannels    int    `json:"audioChannels,omitempty"`
+	ApproxDurationMs string `json:"approxDurationMs,omitempty"`
+}
+
+// PlayerResponse represents the response from the player endpoint
+type PlayerResponse struct {
+	VideoDetails      VideoDetails      `json:"videoDetails"`
+	StreamingData     StreamingData     `json:"streamingData"`
+	PlayabilityStatus PlayabilityStatus `json:"playabilityStatus"`
+}
+
+// VideoDetails contains detailed video information
+type VideoDetails struct {
+	VideoID          string    `json:"videoId"`
+	Title            string    `json:"title"`
+	LengthSeconds    string    `json:"lengthSeconds"`
+	ChannelID        string    `json:"channelId"`
+	ShortDescription string    `json:"shortDescription"`
+	Thumbnail        Thumbnail `json:"thumbnail"`
+	Author           string    `json:"author"`
+}
+
+// PlayabilityStatus indicates if the video is playable
+type PlayabilityStatus struct {
+	Status string `json:"status"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// Thumbnail represents thumbnail information
+type Thumbnail struct {
+	Thumbnails []ThumbnailInfo `json:"thumbnails"`
+}
+
+// ThumbnailInfo represents a single thumbnail
+type ThumbnailInfo struct {
+	URL    string `json:"url"`
+	Width  int    `json:"width"`
+	Height int    `json:"height"`
 }
