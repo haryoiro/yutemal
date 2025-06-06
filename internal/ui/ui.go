@@ -55,6 +55,10 @@ type Model struct {
 	marqueeOffset int
 	marqueeTicker *time.Ticker
 	lastUpdate    time.Time
+
+	// Mouse wheel throttling
+	lastScrollTime time.Time
+	scrollCooldown time.Duration
 }
 
 type tickMsg time.Time
@@ -72,9 +76,12 @@ func RunSimple(systems *systems.Systems, config *structures.Config) error {
 		state:         HomeView,
 		playerHeight:  5,
 		marqueeTicker: time.NewTicker(150 * time.Millisecond),
+		scrollCooldown: 20 * time.Millisecond, // 50ms between scroll events
 	}
 
-	opts := []tea.ProgramOption{}
+	opts := []tea.ProgramOption{
+		tea.WithMouseCellMotion(), // マウスイベントを有効化
+	}
 	p := tea.NewProgram(&m, opts...)
 	if _, err := p.Run(); err != nil {
 		return err
@@ -106,6 +113,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		return m.handleKeyPress(msg)
+
+	case tea.MouseMsg:
+		return m.handleMouseEvent(msg)
 
 	case tickMsg:
 		m.lastUpdate = time.Time(msg)
@@ -312,10 +322,60 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	if m.isKeyInList(msg, kb.MoveDown) {
 		maxIndex := m.getMaxIndex()
-		if m.selectedIndex < maxIndex {
+		if maxIndex >= 0 && m.selectedIndex < maxIndex {
 			m.selectedIndex++
 			m.adjustScroll()
 		}
+		return m, nil
+	}
+
+	// Page Up/Down handling
+	if msg.Type == tea.KeyPgUp {
+		// View毎に異なる高さ調整
+		visibleItems := m.contentHeight - 4
+		switch m.state {
+		case HomeView:
+			visibleItems = m.contentHeight - 8
+		case PlaylistDetailView:
+			visibleItems = m.contentHeight - 4
+		case SearchView:
+			visibleItems = m.contentHeight - 4
+		}
+		if visibleItems < 1 {
+			visibleItems = 1
+		}
+
+		// 1ページ分上にスクロール
+		m.selectedIndex -= visibleItems
+		if m.selectedIndex < 0 {
+			m.selectedIndex = 0
+		}
+		m.adjustScroll()
+		return m, nil
+	}
+
+	if msg.Type == tea.KeyPgDown {
+		// View毎に異なる高さ調整
+		visibleItems := m.contentHeight - 4
+		switch m.state {
+		case HomeView:
+			visibleItems = m.contentHeight - 8
+		case PlaylistDetailView:
+			visibleItems = m.contentHeight - 4
+		case SearchView:
+			visibleItems = m.contentHeight - 4
+		}
+		if visibleItems < 1 {
+			visibleItems = 1
+		}
+
+		// 1ページ分下にスクロール
+		maxIndex := m.getMaxIndex()
+		m.selectedIndex += visibleItems
+		if m.selectedIndex > maxIndex {
+			m.selectedIndex = maxIndex
+		}
+		m.adjustScroll()
 		return m, nil
 	}
 
@@ -403,7 +463,17 @@ func (m *Model) getMaxIndex() int {
 }
 
 func (m *Model) adjustScroll() {
-	visibleItems := m.contentHeight - 4 // Account for borders/padding/title
+	// View毎に異なる高さ調整
+	visibleItems := m.contentHeight - 4 // Default adjustment
+	switch m.state {
+	case HomeView:
+		visibleItems = m.contentHeight - 8 // タブとタイトル用のスペースを確保
+	case PlaylistDetailView:
+		visibleItems = m.contentHeight - 4
+	case SearchView:
+		visibleItems = m.contentHeight - 4
+	}
+
 	if visibleItems < 1 {
 		visibleItems = 1
 	}
@@ -464,7 +534,7 @@ func (m *Model) handleEnter() (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) tickCmd() tea.Cmd {
-	return tea.Tick(150*time.Millisecond, func(t time.Time) tea.Msg {
+	return tea.Tick(300*time.Millisecond, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }
