@@ -234,6 +234,31 @@ func (db *SQLiteDatabase) runMigrations() error {
 		}
 	}
 
+	// Check if tracks table has audio_bitrate column
+	var audioBitrateExists bool
+	err = db.db.QueryRow(`
+		SELECT COUNT(*) FROM pragma_table_info('tracks')
+		WHERE name = 'audio_bitrate'
+	`).Scan(&audioBitrateExists)
+
+	if err != nil {
+		return fmt.Errorf("failed to check audio_bitrate column existence: %w", err)
+	}
+
+	// Add audio_bitrate and audio_quality columns if they don't exist
+	if !audioBitrateExists {
+		migrations := []string{
+			`ALTER TABLE tracks ADD COLUMN audio_bitrate INTEGER`,
+			`ALTER TABLE tracks ADD COLUMN audio_quality TEXT`,
+		}
+
+		for _, migration := range migrations {
+			if _, err := db.db.Exec(migration); err != nil {
+				// Ignore error if column already exists
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -255,8 +280,8 @@ func (db *SQLiteDatabase) Add(entry structures.DatabaseEntry) error {
 	query := `
 		INSERT OR REPLACE INTO tracks
 		(track_id, title, artists, thumbnail, duration, is_available, is_explicit,
-		 added_at, file_path, file_size)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 added_at, file_path, file_size, audio_bitrate, audio_quality)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err = db.db.Exec(query,
@@ -270,6 +295,8 @@ func (db *SQLiteDatabase) Add(entry structures.DatabaseEntry) error {
 		entry.AddedAt,
 		entry.FilePath,
 		entry.FileSize,
+		entry.Track.AudioBitrate,
+		entry.Track.AudioQuality,
 	)
 
 	return err
@@ -291,7 +318,7 @@ func (db *SQLiteDatabase) Get(trackID string) (*structures.DatabaseEntry, bool) 
 
 	query := `
 		SELECT track_id, title, artists, thumbnail, duration, is_available,
-		       is_explicit, added_at, file_path, file_size
+		       is_explicit, added_at, file_path, file_size, audio_bitrate, audio_quality
 		FROM tracks
 		WHERE track_id = ?
 	`
@@ -302,6 +329,8 @@ func (db *SQLiteDatabase) Get(trackID string) (*structures.DatabaseEntry, bool) 
 	var artistsJSON string
 	var thumbnail, filePath sql.NullString
 	var fileSize sql.NullInt64
+	var audioBitrate sql.NullInt64
+	var audioQuality sql.NullString
 
 	err := row.Scan(
 		&entry.Track.TrackID,
@@ -314,6 +343,8 @@ func (db *SQLiteDatabase) Get(trackID string) (*structures.DatabaseEntry, bool) 
 		&entry.AddedAt,
 		&filePath,
 		&fileSize,
+		&audioBitrate,
+		&audioQuality,
 	)
 
 	if err != nil {
@@ -332,6 +363,8 @@ func (db *SQLiteDatabase) Get(trackID string) (*structures.DatabaseEntry, bool) 
 	entry.Track.Thumbnail = thumbnail.String
 	entry.FilePath = filePath.String
 	entry.FileSize = fileSize.Int64
+	entry.Track.AudioBitrate = int(audioBitrate.Int64)
+	entry.Track.AudioQuality = audioQuality.String
 	return &entry, true
 }
 
@@ -342,7 +375,7 @@ func (db *SQLiteDatabase) GetAll() []structures.DatabaseEntry {
 
 	query := `
 		SELECT track_id, title, artists, thumbnail, duration, is_available,
-		       is_explicit, added_at, file_path, file_size
+		       is_explicit, added_at, file_path, file_size, audio_bitrate, audio_quality
 		FROM tracks
 		ORDER BY added_at DESC
 	`
@@ -360,6 +393,8 @@ func (db *SQLiteDatabase) GetAll() []structures.DatabaseEntry {
 		var artistsJSON string
 		var thumbnail, filePath sql.NullString
 		var fileSize sql.NullInt64
+		var audioBitrate sql.NullInt64
+		var audioQuality sql.NullString
 
 		err := rows.Scan(
 			&entry.Track.TrackID,
@@ -372,6 +407,8 @@ func (db *SQLiteDatabase) GetAll() []structures.DatabaseEntry {
 			&entry.AddedAt,
 			&filePath,
 			&fileSize,
+			&audioBitrate,
+			&audioQuality,
 		)
 
 		if err != nil {
@@ -387,6 +424,8 @@ func (db *SQLiteDatabase) GetAll() []structures.DatabaseEntry {
 		entry.Track.Thumbnail = thumbnail.String
 		entry.FilePath = filePath.String
 		entry.FileSize = fileSize.Int64
+		entry.Track.AudioBitrate = int(audioBitrate.Int64)
+		entry.Track.AudioQuality = audioQuality.String
 
 		entries = append(entries, entry)
 	}

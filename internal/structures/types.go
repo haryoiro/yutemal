@@ -16,13 +16,15 @@ const (
 
 // Track represents a music track
 type Track struct {
-	TrackID     string   `json:"track_id"`
-	Title       string   `json:"title"`
-	Artists     []string `json:"artists"`
-	Thumbnail   string   `json:"thumbnail,omitempty"`
-	Duration    int      `json:"duration"` // in seconds
-	IsAvailable bool     `json:"is_available"`
-	IsExplicit  bool     `json:"is_explicit"`
+	TrackID      string   `json:"track_id"`
+	Title        string   `json:"title"`
+	Artists      []string `json:"artists"`
+	Thumbnail    string   `json:"thumbnail,omitempty"`
+	Duration     int      `json:"duration"` // in seconds
+	IsAvailable  bool     `json:"is_available"`
+	IsExplicit   bool     `json:"is_explicit"`
+	AudioBitrate int      `json:"audio_bitrate,omitempty"` // Actual bitrate in kbps
+	AudioQuality string   `json:"audio_quality,omitempty"` // Quality level used for download
 }
 
 // Section represents a content section on the home page
@@ -122,11 +124,12 @@ type Config struct {
 	DownloadDir            string `toml:"download_dir"`
 	MaxConcurrentDownloads int    `toml:"max_concurrent_downloads"`
 	MaxCacheSize           int64  `toml:"max_cache_size"` // in MB
+	AudioQuality           string `toml:"audio_quality"`  // Audio quality: low/medium/high/best
 
 	// Player Configuration
 	DefaultVolume float64 `toml:"default_volume"`
 	SeekSeconds   int     `toml:"seek_seconds"`
-	
+
 	// UI Configuration
 	DisableAltScreen bool `toml:"disable_alt_screen"` // Disable alternate screen for Kitty graphics compatibility
 }
@@ -170,8 +173,8 @@ type KeyBindings struct {
 
 // Database entry structure
 type DatabaseEntry struct {
-	Track         Track
-	AddedAt       time.Time
-	FilePath      string
-	FileSize      int64
+	Track    Track
+	AddedAt  time.Time
+	FilePath string
+	FileSize int64
 }
