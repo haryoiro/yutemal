@@ -116,10 +116,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.playerState = structures.PlayerState(msg)
 		return m, m.listenToPlayer()
 
-
 	case sectionsLoadedMsg:
 		m.sections = msg
-		
+
 		// Find "Your Library" section and set it as default, or use first section
 		m.currentSectionIndex = 0
 		for i, section := range m.sections {
@@ -128,7 +127,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				break
 			}
 		}
-		
+
 		m.selectedIndex = 0
 		m.scrollOffset = 0
 		return m, nil
@@ -220,7 +219,6 @@ func (m *Model) View() string {
 		mainStyle.Render(content),
 		playerStyle.Render(player),
 	)
-
 
 	return result
 }
@@ -446,11 +444,11 @@ func (m *Model) handleEnter() (tea.Model, tea.Cmd) {
 		if len(m.currentList) > 0 && m.selectedIndex < len(m.currentList) {
 			// Clear the current queue
 			m.systems.Player.SendAction(structures.CleanupAction{})
-			
+
 			// Add all tracks from the selected position onwards
 			tracksToAdd := m.currentList[m.selectedIndex:]
 			m.systems.Player.SendAction(structures.AddTracksToQueueAction{Tracks: tracksToAdd})
-			
+
 			// Start playing
 			m.systems.Player.SendAction(structures.PlayAction{})
 		}

@@ -252,7 +252,6 @@ func (m *Model) createGradientBar(width int, startColor, endColor string) string
 	return result
 }
 
-
 func (m *Model) renderControls(availableWidth int) string {
 	// Get dimStyle
 	var dimStyle lipgloss.Style
@@ -284,6 +283,16 @@ func (m *Model) renderControls(availableWidth int) string {
 		volumeIcon = "🔉"
 	}
 	parts = append(parts, fmt.Sprintf("%s %d%%", volumeIcon, volume))
+
+	// Bitrate info
+	if m.playerState.Current < len(m.playerState.List) && m.playerState.Current >= 0 {
+		track := m.playerState.List[m.playerState.Current]
+		if track.AudioBitrate > 0 {
+			parts = append(parts, fmt.Sprintf("🎵 %d kbps", track.AudioBitrate))
+		} else if track.AudioQuality != "" {
+			parts = append(parts, fmt.Sprintf("🎵 %s", track.AudioQuality))
+		}
+	}
 
 	// Download status
 	if m.playerState.Current < len(m.playerState.List) && m.playerState.Current >= 0 {
