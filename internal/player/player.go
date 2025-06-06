@@ -110,6 +110,9 @@ func (p *Player) LoadFile(filepath string) error {
 		return fmt.Errorf("unsupported file format: %s", filepath)
 	}
 
+	// Store original streamer reference before wrapping
+	p.streamer = streamer
+	
 	// Wrap streamer in buffered streamer for smoother playback
 	bufferedStreamer := NewBufferedStreamer(streamer, format, 1.0) // 1 second buffer
 	
@@ -127,7 +130,7 @@ func (p *Player) LoadFile(filepath string) error {
 		Paused:   true,
 	}
 
-	p.streamer = streamer
+	// p.streamer already set above
 	p.ctrl = ctrl
 	p.volume = volume
 	p.format = format

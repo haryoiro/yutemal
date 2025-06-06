@@ -2,6 +2,7 @@ package player
 
 import (
 	"sync"
+	"time"
 
 	"github.com/faiface/beep"
 	"github.com/haryoiro/yutemal/internal/logger"
@@ -50,6 +51,12 @@ func NewBufferedStreamer(source beep.Streamer, format beep.Format, bufferSeconds
 func (bs *BufferedStreamer) fillLoop() {
 	tempBuffer := make([][2]float64, 1024)
 	
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error("Panic in BufferedStreamer fillLoop: %v", r)
+		}
+	}()
+	
 	for {
 		bs.mu.Lock()
 		if bs.closed {
@@ -61,13 +68,17 @@ func (bs *BufferedStreamer) fillLoop() {
 		available := bs.bufferSize - bs.filled
 		if available < len(tempBuffer) {
 			// Buffer is nearly full, wait
+			// Important: cond.Wait() releases the mutex and reacquires it on wake
 			bs.cond.Wait()
-			bs.mu.Unlock()
-			continue
+			// After Wait returns, we still hold the lock
+			if bs.closed {
+				bs.mu.Unlock()
+				return
+			}
 		}
 		bs.mu.Unlock()
 		
-		// Read from source
+		// Read from source (outside of lock to prevent deadlock)
 		n, ok := bs.source.Stream(tempBuffer)
 		if n == 0 && !ok {
 			// Source exhausted
@@ -154,9 +165,16 @@ func (bs *BufferedStreamer) Err() error {
 // Close closes the buffered streamer
 func (bs *BufferedStreamer) Close() error {
 	bs.mu.Lock()
+	if bs.closed {
+		bs.mu.Unlock()
+		return nil
+	}
 	bs.closed = true
 	bs.cond.Broadcast()
 	bs.mu.Unlock()
+	
+	// Wait a bit for fillLoop to exit cleanly
+	time.Sleep(10 * time.Millisecond)
 	
 	// Log final stats
 	if bs.underruns > 0 {
@@ -165,8 +183,6 @@ func (bs *BufferedStreamer) Close() error {
 			float64(bs.maxFilled)/float64(bs.bufferSize)*100)
 	}
 	
-	if closer, ok := bs.source.(beep.StreamCloser); ok {
-		return closer.Close()
-	}
+	// Don't close the source here - let the player handle that
 	return nil
 }
