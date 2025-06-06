@@ -34,6 +34,8 @@ type Player struct {
 	lastSeekTime       time.Time
 	seekCooldown       time.Duration
 	iseeking           bool // Prevent concurrent seeks
+	savedVolume        float64 // Store volume in linear scale (0.0 to 1.0)
+	savedVolumeSet     bool    // Track if volume has been set
 }
 
 // New creates a new audio player
@@ -41,10 +43,12 @@ func New() (*Player, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	player := &Player{
-		ctx:          ctx,
-		cancel:       cancel,
-		seekCooldown: 500 * time.Millisecond, // Reduced cooldown for more responsive seeking
-		iseeking:     false,
+		ctx:            ctx,
+		cancel:         cancel,
+		seekCooldown:   500 * time.Millisecond, // Reduced cooldown for more responsive seeking
+		iseeking:       false,
+		savedVolume:    0.7, // Default to 70%
+		savedVolumeSet: false,
 	}
 
 	logger.Info("Audio player created (speaker will be initialized on first file load)")
@@ -117,24 +121,45 @@ func (p *Player) LoadFile(filepath string) error {
 	// Wrap streamer in buffered streamer for smoother playback
 	bufferedStreamer := NewBufferedStreamer(streamer, format, 1.0) // 1 second buffer
 	
-	// Preserve previous volume setting if exists
-	var currentVolume float64 = 0 // Default to 0 dB
-	var currentSilent bool = false
-	if p.volume != nil {
-		currentVolume = p.volume.Volume
-		currentSilent = p.volume.Silent
-		logger.Debug("Preserving volume from previous track: %.2f dB, silent=%v", currentVolume, currentSilent)
+	// Determine volume to use
+	var volumeToApply float64 = 0.7 // Default to 70%
+	if p.savedVolumeSet {
+		// Use saved volume from SetVolume calls
+		volumeToApply = p.savedVolume
+		logger.Debug("Using saved volume: %.2f", volumeToApply)
+	} else if p.volume != nil {
+		// Preserve volume from previous track
+		volumeToApply = p.GetVolume()
+		logger.Debug("Preserving volume from previous track: %.2f", volumeToApply)
 	} else {
-		logger.Debug("No previous volume to preserve, using default: %.2f dB", currentVolume)
+		logger.Debug("Using default volume: %.2f", volumeToApply)
+	}
+
+	// Convert to dB scale for the Volume object
+	var dbVolume float64
+	var isSilent bool = false
+	if volumeToApply <= 0 {
+		isSilent = true
+		dbVolume = -60.0
+	} else if volumeToApply < 0.001 {
+		dbVolume = -60.0
+	} else {
+		adjustedVolume := volumeToApply * volumeToApply
+		dbVolume = 20.0 * math.Log10(adjustedVolume)
+		if dbVolume < -60.0 {
+			dbVolume = -60.0
+		}
 	}
 	
 	// Create volume control
 	volume := &effects.Volume{
 		Streamer: bufferedStreamer,
 		Base:     2,
-		Volume:   currentVolume, // Preserve previous volume
-		Silent:   currentSilent,
+		Volume:   dbVolume,
+		Silent:   isSilent,
 	}
+	
+	logger.Debug("Created volume control with %.2f dB (linear: %.2f)", dbVolume, volumeToApply)
 
 	// Create playback control
 	ctrl := &beep.Ctrl{
@@ -282,8 +307,13 @@ func (p *Player) SetVolume(volume float64) error {
 
 	logger.Debug("SetVolume called with: %.2f", volume)
 
+	// Always save the volume for later use
+	p.savedVolume = volume
+	p.savedVolumeSet = true
+
 	if p.volume == nil || !p.speakerInitialized {
-		return fmt.Errorf("no file loaded")
+		logger.Debug("Volume object not ready, saving volume %.2f for later", volume)
+		return nil // Don't return error, just save for later
 	}
 
 	// Convert to dB scale
@@ -324,8 +354,12 @@ func (p *Player) GetVolume() float64 {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
+	// If we have a saved volume and no volume object yet, return saved volume
 	if p.volume == nil {
-		return 0.5
+		if p.savedVolumeSet {
+			return p.savedVolume
+		}
+		return 0.7 // Default
 	}
 
 	if p.volume.Silent {
