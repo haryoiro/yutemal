@@ -116,7 +116,7 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 		return b.String()
 	}
 
-	visibleItems := m.contentHeight
+	visibleItems := m.contentHeight - 4 // タイトルとヘッダー分を引く
 	if visibleItems < 1 {
 		visibleItems = 1
 	}
@@ -312,7 +312,7 @@ func (m Model) renderSearch(maxWidth int) string {
 
 // renderHome renders the home view with sections
 func (m Model) renderHome(maxWidth int) string {
-	titleStyle, selectedStyle, normalStyle, dimStyle, errorStyle := m.getStyles()
+	_, selectedStyle, normalStyle, dimStyle, errorStyle := m.getStyles()
 
 	var b strings.Builder
 
@@ -333,8 +333,6 @@ func (m Model) renderHome(maxWidth int) string {
 	// 現在のセクションのコンテンツをレンダリング
 	if m.currentSectionIndex < len(m.sections) {
 		section := m.sections[m.currentSectionIndex]
-		b.WriteString(titleStyle.Render(fmt.Sprintf("📁 %s", section.Title)))
-		b.WriteString("\n")
 
 		if len(section.Contents) == 0 {
 			b.WriteString(dimStyle.Render("No content in this section"))
@@ -460,26 +458,35 @@ func (m Model) applyMarquee(text string, maxLen int) string {
 
 	// Convert to runes for proper Unicode handling
 	runes := []rune(text)
-	spacer := []rune("   ")
+	spacer := []rune("     ") // 5スペースのセパレータ
 
 	// Create padded text with spacer
 	paddedRunes := append(append([]rune{}, runes...), spacer...)
-	paddedRunes = append(paddedRunes, runes...)
+	paddedRunes = append(paddedRunes, runes...) // タイトルを繰り返す
+
+	// スクロール速度を調整（2回に1回のみオフセットを増やす）
+	effectiveOffset := m.marqueeOffset / 2
 
 	// Calculate offset based on rune count
 	totalRunes := len(paddedRunes)
-	offset := m.marqueeOffset % totalRunes
+	offset := effectiveOffset % totalRunes
 
 	// Build result string with proper width calculation
 	var result []rune
 	currentWidth := 0
 
+	// Start from offset position
 	for i := offset; currentWidth < maxLen && i < totalRunes; i++ {
 		r := paddedRunes[i]
 		w := runewidth.RuneWidth(r)
 
 		// Check if adding this rune would exceed maxLen
 		if currentWidth+w > maxLen {
+			// 最後の文字が切れる場合はスペースで埋める
+			for currentWidth < maxLen {
+				result = append(result, ' ')
+				currentWidth++
+			}
 			break
 		}
 
@@ -494,6 +501,11 @@ func (m Model) applyMarquee(text string, maxLen int) string {
 			w := runewidth.RuneWidth(r)
 
 			if currentWidth+w > maxLen {
+				// 最後の文字が切れる場合はスペースで埋める
+				for currentWidth < maxLen {
+					result = append(result, ' ')
+					currentWidth++
+				}
 				break
 			}
 
