@@ -157,7 +157,7 @@ func (p *Player) LoadFile(filepath string) error {
 			time.Sleep(100 * time.Millisecond) // Give it time to close
 		}
 
-		err = speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
+		err = speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/4))
 		if err != nil {
 			return fmt.Errorf("failed to initialize speaker for sample rate %d: %w", format.SampleRate, err)
 		}

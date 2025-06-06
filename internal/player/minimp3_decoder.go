@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/faiface/beep"
 	"github.com/haryoiro/yutemal/internal/logger"
@@ -23,6 +24,10 @@ type minimp3Decoder struct {
 
 	// Callback to notify player of actual duration changes
 	durationUpdateCallback func(actualSamples int)
+
+	// Debug fields for detecting buffer issues
+	underrunCount int
+	lastReadTime  time.Time
 }
 
 // DecodeMiniMP3 decodes an MP3 file using minimp3
@@ -90,11 +95,29 @@ func (d *minimp3Decoder) Stream(samples [][2]float64) (n int, ok bool) {
 	for i := range samples {
 		// Need more data?
 		if d.bufferIndex >= len(d.buffer) {
+			// Detect potential buffer underrun
+			now := time.Now()
+			if !d.lastReadTime.IsZero() {
+				elapsed := now.Sub(d.lastReadTime)
+				if elapsed < time.Millisecond*10 {
+					d.underrunCount++
+					if d.underrunCount%10 == 0 {
+						logger.Debug("Potential buffer underrun detected: %d occurrences", d.underrunCount)
+					}
+				}
+			}
+			d.lastReadTime = now
+
 			// Read more data
-			const readSize = 4096
+			const readSize = 32768 // 32KB buffer for smoother playback
 			buf := make([]byte, readSize)
 
+			startRead := time.Now()
 			n, err := d.decoder.Read(buf)
+			readDuration := time.Since(startRead)
+			if readDuration > time.Millisecond*50 {
+				logger.Debug("Slow MP3 decode: took %v to read %d bytes", readDuration, n)
+			}
 			if err == io.EOF || n == 0 {
 				// We've reached the end - update total samples to actual length
 				actualTotalSamples := d.position
