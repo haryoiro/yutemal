@@ -182,7 +182,6 @@ func main() {
 		appSystems.Stop()
 	}()
 
-
 	// Run the UI
 	logger.Debug("Starting UI")
 	if err := ui.RunSimple(appSystems, cfg); err != nil {

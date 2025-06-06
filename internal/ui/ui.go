@@ -70,12 +70,12 @@ type errorMsg error
 
 func RunSimple(systems *systems.Systems, config *structures.Config) error {
 	m := Model{
-		systems:       systems,
-		config:        config,
-		themeManager:  NewThemeManager(config.Theme),
-		state:         HomeView,
-		playerHeight:  5,
-		marqueeTicker: time.NewTicker(150 * time.Millisecond),
+		systems:        systems,
+		config:         config,
+		themeManager:   NewThemeManager(config.Theme),
+		state:          HomeView,
+		playerHeight:   5,
+		marqueeTicker:  time.NewTicker(150 * time.Millisecond),
 		scrollCooldown: 20 * time.Millisecond, // 50ms between scroll events
 	}
 
