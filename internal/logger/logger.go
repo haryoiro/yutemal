@@ -134,7 +134,7 @@ func NewLogger(logPath string, level LogLevel) (*Logger, error) {
 		logger:       log.New(multiWriter, "", 0),
 		level:        level,
 		file:         file,
-		enableCaller: true,
+		enableCaller: false,
 		debugMode:    false,
 	}
 
@@ -157,7 +157,7 @@ func NewFileOnlyLogger(logPath string, level LogLevel) (*Logger, error) {
 		logger:       log.New(file, "", 0),
 		level:        level,
 		file:         file,
-		enableCaller: true,
+		enableCaller: false,
 		debugMode:    false,
 	}
 
