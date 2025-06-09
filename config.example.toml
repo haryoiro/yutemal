@@ -11,9 +11,6 @@ audio_quality = "medium"  # Audio quality: low/medium/high/best
 default_volume = 0.7
 seek_seconds = 5
 
-# UI Configuration
-disable_alt_screen = false  # Set to true if you're using Kitty terminal for better compatibility
-
 # Theme Configuration
 [theme]
 # Note: The 'background' field is not used to avoid partial background coloring.
