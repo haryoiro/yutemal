@@ -164,12 +164,16 @@ func (m *Model) pageDown() (tea.Model, tea.Cmd) {
 
 // navigateBack handles back navigation between views
 func (m *Model) navigateBack() (tea.Model, tea.Cmd) {
+	logger.Debug("navigateBack called: current state=%s, focused pane=%d", m.state, m.getFocusedPane())
+	
+	// If queue is focused, just unfocus it without changing views
 	if m.getFocusedPane() == FocusQueue {
-		// Queue画面からフォーカスを外す
+		logger.Debug("navigateBack: Unfocusing queue, staying in current view")
 		m.setFocus(FocusMain)
 		return m, nil
 	}
 
+	// Only change views if we're in the main focus area
 	switch m.state {
 	case PlaylistDetailView:
 		// Return to HomeView, keeping the section selection
@@ -181,6 +185,11 @@ func (m *Model) navigateBack() (tea.Model, tea.Cmd) {
 		logger.Debug("navigateBack: Returning from SearchView to HomeView")
 		m.state = HomeView
 		m.setFocus(FocusMain)
+	case HomeView:
+		// Already at home, do nothing
+		logger.Debug("navigateBack: Already at HomeView, ignoring")
+	default:
+		logger.Debug("navigateBack: Unknown state %s, ignoring", m.state)
 	}
 
 	return m, nil

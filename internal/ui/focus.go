@@ -1,5 +1,9 @@
 package ui
 
+import (
+	"github.com/haryoiro/yutemal/internal/logger"
+)
+
 // FocusPane represents which pane currently has focus
 type FocusPane int
 
@@ -24,6 +28,7 @@ func (m *Model) getFocusedPane() FocusPane {
 
 // setFocus sets the focus to a specific pane
 func (m *Model) setFocus(pane FocusPane) {
+	oldFocus := m.getFocusedPane()
 	switch pane {
 	case FocusMain:
 		m.queueFocused = false
@@ -38,6 +43,11 @@ func (m *Model) setFocus(pane FocusPane) {
 	case FocusSearch:
 		// Search view automatically gets focus when active
 		m.queueFocused = false
+	}
+	newFocus := m.getFocusedPane()
+	if oldFocus != newFocus {
+		logger.Debug("Focus changed: %d -> %d (state=%s, showQueue=%t, queueFocused=%t)", 
+			oldFocus, newFocus, m.state, m.showQueue, m.queueFocused)
 	}
 }
 

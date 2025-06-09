@@ -2,6 +2,7 @@ package ui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/haryoiro/yutemal/internal/logger"
 	"github.com/haryoiro/yutemal/internal/structures"
 )
 
@@ -69,9 +70,11 @@ func (m *Model) toggleQueue() (tea.Model, tea.Cmd) {
 	if m.showQueue {
 		// When opening queue, automatically focus it
 		m.setFocus(FocusQueue)
+		logger.Debug("toggleQueue: Queue shown, focus set to queue")
 	} else {
 		// When closing queue, return focus to main
 		m.setFocus(FocusMain)
+		logger.Debug("toggleQueue: Queue hidden, focus returned to main")
 	}
 	return m, nil
 }
