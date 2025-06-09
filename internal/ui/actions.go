@@ -18,8 +18,14 @@ func (m *Model) handleEnter() (tea.Model, tea.Cmd) {
 			content := m.sections[m.currentSectionIndex].Contents[m.selectedIndex]
 			if content.Type == "playlist" && content.Playlist != nil {
 				playlist := content.Playlist
-				m.currentList = []structures.Track{} // Reset current list
+				// Reset playlist view state
+				m.playlistTracks = []structures.Track{}
+				m.playlistName = playlist.Title
+				m.playlistSelectedIndex = 0
+				m.playlistScrollOffset = 0
 				m.state = PlaylistDetailView
+				// Keep backward compatibility
+				m.currentList = []structures.Track{}
 				m.currentListName = playlist.Title
 				return m, m.loadPlaylistTracks(playlist.ID)
 			} else if content.Type == "track" && content.Track != nil {
@@ -31,12 +37,12 @@ func (m *Model) handleEnter() (tea.Model, tea.Cmd) {
 			}
 		}
 	case PlaylistDetailView:
-		if len(m.currentList) > 0 && m.selectedIndex < len(m.currentList) {
+		if len(m.playlistTracks) > 0 && m.playlistSelectedIndex < len(m.playlistTracks) {
 			// Clear the current queue
 			m.systems.Player.SendAction(structures.CleanupAction{})
 
 			// Add all tracks from the selected position onwards
-			tracksToAdd := m.currentList[m.selectedIndex:]
+			tracksToAdd := m.playlistTracks[m.playlistSelectedIndex:]
 			m.systems.Player.SendAction(structures.AddTracksToQueueAction{Tracks: tracksToAdd})
 
 			// Start playing
@@ -52,8 +58,14 @@ func (m *Model) handleEnter() (tea.Model, tea.Cmd) {
 	case PlaylistListView:
 		if len(m.playlists) > 0 && m.selectedIndex < len(m.playlists) {
 			playlist := m.playlists[m.selectedIndex]
-			m.currentList = []structures.Track{}
+			// Reset playlist view state
+			m.playlistTracks = []structures.Track{}
+			m.playlistName = playlist.Title
+			m.playlistSelectedIndex = 0
+			m.playlistScrollOffset = 0
 			m.state = PlaylistDetailView
+			// Keep backward compatibility
+			m.currentList = []structures.Track{}
 			m.currentListName = playlist.Title
 			return m, m.loadPlaylistTracks(playlist.ID)
 		}

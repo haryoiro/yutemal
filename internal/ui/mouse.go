@@ -111,12 +111,11 @@ func (m *Model) handleContentClick(x, y int) (tea.Model, tea.Cmd) {
 
 		// 表示範囲内かチェック
 		if relativeY >= 0 && relativeY < m.contentHeight {
-			clickedIndex := m.scrollOffset + relativeY
+			clickedIndex := m.playlistScrollOffset + relativeY
 
 			// 最大選択可能インデックスを取得
-			maxIndex := m.getMaxIndex()
-			if clickedIndex >= 0 && clickedIndex <= maxIndex && clickedIndex < len(m.currentList) {
-				m.selectedIndex = clickedIndex
+			if clickedIndex >= 0 && clickedIndex < len(m.playlistTracks) {
+				m.playlistSelectedIndex = clickedIndex
 				// 即座に再生
 				return m.playSelectedTrack()
 			}
@@ -158,8 +157,14 @@ func (m *Model) handleContentClick(x, y int) (tea.Model, tea.Cmd) {
 					if content.Type == "playlist" && content.Playlist != nil {
 						// プレイリストを開く
 						playlist := content.Playlist
-						m.currentList = []structures.Track{}
+						// Reset playlist view state
+						m.playlistTracks = []structures.Track{}
+						m.playlistName = playlist.Title
+						m.playlistSelectedIndex = 0
+						m.playlistScrollOffset = 0
 						m.state = PlaylistDetailView
+						// Keep backward compatibility
+						m.currentList = []structures.Track{}
 						m.currentListName = playlist.Title
 						return m, m.loadPlaylistTracks(playlist.ID)
 					} else if content.Type == "track" && content.Track != nil {
@@ -187,8 +192,14 @@ func (m *Model) handleContentClick(x, y int) (tea.Model, tea.Cmd) {
 				m.selectedIndex = clickedIndex
 				// プレイリストを開く
 				playlist := m.playlists[m.selectedIndex]
-				m.currentList = []structures.Track{}
+				// Reset playlist view state
+				m.playlistTracks = []structures.Track{}
+				m.playlistName = playlist.Title
+				m.playlistSelectedIndex = 0
+				m.playlistScrollOffset = 0
 				m.state = PlaylistDetailView
+				// Keep backward compatibility
+				m.currentList = []structures.Track{}
 				m.currentListName = playlist.Title
 				return m, m.loadPlaylistTracks(playlist.ID)
 			}
@@ -220,9 +231,17 @@ func (m *Model) handleScrollUp() (tea.Model, tea.Cmd) {
 	}
 
 	// 通常のコンテンツスクロール
-	if m.selectedIndex > 0 {
-		m.selectedIndex--
-		m.adjustScroll()
+	switch m.state {
+	case PlaylistDetailView:
+		if m.playlistSelectedIndex > 0 {
+			m.playlistSelectedIndex--
+			m.adjustPlaylistScroll()
+		}
+	default:
+		if m.selectedIndex > 0 {
+			m.selectedIndex--
+			m.adjustScroll()
+		}
 	}
 	return m, nil
 }
@@ -260,10 +279,18 @@ func (m *Model) handleScrollDown() (tea.Model, tea.Cmd) {
 	}
 
 	// 通常のコンテンツスクロール
-	maxIndex := m.getMaxIndex()
-	if m.selectedIndex < maxIndex {
-		m.selectedIndex++
-		m.adjustScroll()
+	switch m.state {
+	case PlaylistDetailView:
+		if m.playlistSelectedIndex < len(m.playlistTracks)-1 {
+			m.playlistSelectedIndex++
+			m.adjustPlaylistScroll()
+		}
+	default:
+		maxIndex := m.getMaxIndex()
+		if m.selectedIndex < maxIndex {
+			m.selectedIndex++
+			m.adjustScroll()
+		}
 	}
 	return m, nil
 }
@@ -272,7 +299,7 @@ func (m *Model) handleScrollDown() (tea.Model, tea.Cmd) {
 func (m *Model) getMaxItems() int {
 	switch m.state {
 	case PlaylistDetailView:
-		return len(m.currentList)
+		return len(m.playlistTracks)
 	case SearchView:
 		return len(m.searchResults)
 	case HomeView:
@@ -291,12 +318,12 @@ func (m *Model) getMaxItems() int {
 func (m *Model) playSelectedTrack() (tea.Model, tea.Cmd) {
 	switch m.state {
 	case PlaylistDetailView:
-		if len(m.currentList) > 0 && m.selectedIndex < len(m.currentList) {
+		if len(m.playlistTracks) > 0 && m.playlistSelectedIndex < len(m.playlistTracks) {
 			// Clear the current queue
 			m.systems.Player.SendAction(structures.CleanupAction{})
 
 			// Add all tracks from the selected position onwards
-			tracksToAdd := m.currentList[m.selectedIndex:]
+			tracksToAdd := m.playlistTracks[m.playlistSelectedIndex:]
 			m.systems.Player.SendAction(structures.AddTracksToQueueAction{Tracks: tracksToAdd})
 
 			// Start playing

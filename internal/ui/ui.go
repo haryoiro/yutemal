@@ -36,11 +36,17 @@ type Model struct {
 	contentHeight      int
 	playerContentWidth int
 
-	// Section-related fields
+	// Section-related fields (HomeView)
 	sections            []structures.Section
 	currentSectionIndex int
 	selectedIndex       int
 	scrollOffset        int
+
+	// PlaylistDetailView fields
+	playlistTracks      []structures.Track
+	playlistName        string
+	playlistSelectedIndex int
+	playlistScrollOffset  int
 
 	// Legacy fields for compatibility
 	playlists       []systems.Playlist
@@ -184,9 +190,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tracksLoadedMsg:
+		// Update both new and legacy fields
+		m.playlistTracks = msg
 		m.currentList = msg
-		m.selectedIndex = 0
-		m.scrollOffset = 0
+		// Use playlist-specific indices when in PlaylistDetailView
+		if m.state == PlaylistDetailView {
+			// Already reset in handleEnter, but ensure consistency
+			if m.playlistSelectedIndex >= len(msg) {
+				m.playlistSelectedIndex = 0
+			}
+			if m.playlistScrollOffset > 0 && m.playlistScrollOffset >= len(msg) {
+				m.playlistScrollOffset = 0
+			}
+		} else {
+			// For other views, use the general indices
+			m.selectedIndex = 0
+			m.scrollOffset = 0
+		}
 		// Download all songs in the playlist when loaded
 		return m, m.downloadAllSongs(msg)
 

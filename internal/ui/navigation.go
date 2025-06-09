@@ -22,7 +22,12 @@ func (m *Model) moveUp() (tea.Model, tea.Cmd) {
 				m.selectedIndex--
 				m.adjustScroll()
 			}
-		case PlaylistDetailView, SearchView, PlaylistListView:
+		case PlaylistDetailView:
+			if m.playlistSelectedIndex > 0 {
+				m.playlistSelectedIndex--
+				m.adjustPlaylistScroll()
+			}
+		case SearchView, PlaylistListView:
 			if m.selectedIndex > 0 {
 				m.selectedIndex--
 				m.adjustScroll()
@@ -42,10 +47,18 @@ func (m *Model) moveDown() (tea.Model, tea.Cmd) {
 		}
 	} else {
 		// Navigate in main content
-		maxIndex := m.getMaxIndex()
-		if m.selectedIndex < maxIndex {
-			m.selectedIndex++
-			m.adjustScroll()
+		switch m.state {
+		case PlaylistDetailView:
+			if m.playlistSelectedIndex < len(m.playlistTracks)-1 {
+				m.playlistSelectedIndex++
+				m.adjustPlaylistScroll()
+			}
+		default:
+			maxIndex := m.getMaxIndex()
+			if m.selectedIndex < maxIndex {
+				m.selectedIndex++
+				m.adjustScroll()
+			}
 		}
 	}
 	return m, nil
@@ -57,8 +70,14 @@ func (m *Model) jumpToTop() (tea.Model, tea.Cmd) {
 		m.queueSelectedIndex = 0
 		m.queueScrollOffset = 0
 	} else {
-		m.selectedIndex = 0
-		m.scrollOffset = 0
+		switch m.state {
+		case PlaylistDetailView:
+			m.playlistSelectedIndex = 0
+			m.playlistScrollOffset = 0
+		default:
+			m.selectedIndex = 0
+			m.scrollOffset = 0
+		}
 	}
 	return m, nil
 }
@@ -69,9 +88,15 @@ func (m *Model) jumpToBottom() (tea.Model, tea.Cmd) {
 		m.queueSelectedIndex = len(m.playerState.List) - 1
 		m.adjustQueueScroll()
 	} else {
-		maxIndex := m.getMaxIndex()
-		m.selectedIndex = maxIndex
-		m.adjustScroll()
+		switch m.state {
+		case PlaylistDetailView:
+			m.playlistSelectedIndex = len(m.playlistTracks) - 1
+			m.adjustPlaylistScroll()
+		default:
+			maxIndex := m.getMaxIndex()
+			m.selectedIndex = maxIndex
+			m.adjustScroll()
+		}
 	}
 	return m, nil
 }
@@ -87,11 +112,20 @@ func (m *Model) pageUp() (tea.Model, tea.Cmd) {
 		m.adjustQueueScroll()
 	} else {
 		visibleItems := m.getVisibleItems()
-		m.selectedIndex -= visibleItems
-		if m.selectedIndex < 0 {
-			m.selectedIndex = 0
+		switch m.state {
+		case PlaylistDetailView:
+			m.playlistSelectedIndex -= visibleItems
+			if m.playlistSelectedIndex < 0 {
+				m.playlistSelectedIndex = 0
+			}
+			m.adjustPlaylistScroll()
+		default:
+			m.selectedIndex -= visibleItems
+			if m.selectedIndex < 0 {
+				m.selectedIndex = 0
+			}
+			m.adjustScroll()
 		}
-		m.adjustScroll()
 	}
 	return m, nil
 }
@@ -108,12 +142,21 @@ func (m *Model) pageDown() (tea.Model, tea.Cmd) {
 		m.adjustQueueScroll()
 	} else {
 		visibleItems := m.getVisibleItems()
-		maxIndex := m.getMaxIndex()
-		m.selectedIndex += visibleItems
-		if m.selectedIndex > maxIndex {
-			m.selectedIndex = maxIndex
+		switch m.state {
+		case PlaylistDetailView:
+			m.playlistSelectedIndex += visibleItems
+			if m.playlistSelectedIndex >= len(m.playlistTracks) {
+				m.playlistSelectedIndex = len(m.playlistTracks) - 1
+			}
+			m.adjustPlaylistScroll()
+		default:
+			maxIndex := m.getMaxIndex()
+			m.selectedIndex += visibleItems
+			if m.selectedIndex > maxIndex {
+				m.selectedIndex = maxIndex
+			}
+			m.adjustScroll()
 		}
-		m.adjustScroll()
 	}
 	return m, nil
 }
@@ -128,9 +171,10 @@ func (m *Model) navigateBack() (tea.Model, tea.Cmd) {
 
 	switch m.state {
 	case PlaylistDetailView:
+		// Return to HomeView, keeping the section selection
 		m.state = HomeView
-		m.selectedIndex = 0
-		m.scrollOffset = 0
+		// Don't reset the selectedIndex and scrollOffset for HomeView
+		// so user returns to where they were
 	case SearchView:
 		m.state = HomeView
 		m.setFocus(FocusMain)
@@ -208,5 +252,15 @@ func (m *Model) adjustQueueScroll() {
 		m.queueScrollOffset = m.queueSelectedIndex
 	} else if m.queueSelectedIndex >= m.queueScrollOffset+visibleLines {
 		m.queueScrollOffset = m.queueSelectedIndex - visibleLines + 1
+	}
+}
+
+// adjustPlaylistScroll adjusts the playlist scroll offset to keep the selected item visible
+func (m *Model) adjustPlaylistScroll() {
+	visibleItems := m.getVisibleItems()
+	if m.playlistSelectedIndex < m.playlistScrollOffset {
+		m.playlistScrollOffset = m.playlistSelectedIndex
+	} else if m.playlistSelectedIndex >= m.playlistScrollOffset+visibleItems {
+		m.playlistScrollOffset = m.playlistSelectedIndex - visibleItems + 1
 	}
 }

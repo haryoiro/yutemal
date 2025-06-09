@@ -114,11 +114,11 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 	var b strings.Builder
 	
 	// Header with title and shortcuts
-	b.WriteString(titleStyle.Render(fmt.Sprintf("🎶 %s", m.currentListName)))
+	b.WriteString(titleStyle.Render(fmt.Sprintf("🎶 %s", m.playlistName)))
 	b.WriteString(" " + dimStyle.Render("[Enter: play] [d: delete] [q: queue]"))
 	b.WriteString("\n\n")
 
-	if len(m.currentList) == 0 {
+	if len(m.playlistTracks) == 0 {
 		b.WriteString(dimStyle.Render("No tracks in this playlist"))
 		return b.String()
 	}
@@ -127,10 +127,10 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 	if visibleItems < 1 {
 		visibleItems = 1
 	}
-	start := m.scrollOffset
+	start := m.playlistScrollOffset
 	end := start + visibleItems
-	if end > len(m.currentList) {
-		end = len(m.currentList)
+	if end > len(m.playlistTracks) {
+		end = len(m.playlistTracks)
 	}
 
 	// 最小幅の確保と動的レイアウト調整
@@ -142,7 +142,7 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 		}
 
 		for i := start; i < end; i++ {
-			track := m.currentList[i]
+			track := m.playlistTracks[i]
 			status := " "
 
 			// ダウンロード状態チェック
@@ -167,7 +167,7 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 			
 			// Apply style based on selection
 			style := normalStyle
-			if i == m.selectedIndex {
+			if i == m.playlistSelectedIndex {
 				trackNum = " → "
 				style = selectedStyle
 			}
@@ -182,7 +182,7 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 		
 		// Simple footer for small screens
 		b.WriteString("\n\n")
-		positionInfo := fmt.Sprintf("%d/%d", m.selectedIndex+1, len(m.currentList))
+		positionInfo := fmt.Sprintf("%d/%d", m.playlistSelectedIndex+1, len(m.playlistTracks))
 		b.WriteString(dimStyle.Render(positionInfo))
 		
 		return b.String()
@@ -202,7 +202,7 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 	}
 
 	for i := start; i < end; i++ {
-		track := m.currentList[i]
+		track := m.playlistTracks[i]
 		status := " "
 
 		// ダウンロード状態チェック
@@ -234,7 +234,7 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 
 		// Apply style based on selection
 		style := normalStyle
-		if i == m.selectedIndex {
+		if i == m.playlistSelectedIndex {
 			trackNum = "  → "
 			style = selectedStyle
 		}
@@ -252,7 +252,7 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 	var footerInfo []string
 	
 	// Position info
-	footerInfo = append(footerInfo, fmt.Sprintf("%d/%d", m.selectedIndex+1, len(m.currentList)))
+	footerInfo = append(footerInfo, fmt.Sprintf("%d/%d", m.playlistSelectedIndex+1, len(m.playlistTracks)))
 	
 	// Navigation help
 	footerInfo = append(footerInfo, "[↑↓: nav] [Enter: play from here]")
