@@ -106,17 +106,24 @@ func (m Model) renderPlaylistList(maxWidth int) string {
 func (m Model) renderPlaylistDetail(maxWidth int) string {
 	titleStyle, selectedStyle, normalStyle, dimStyle, _ := m.getStyles()
 
+	// Apply focus style if this view has focus
+	if m.hasFocus("playlist") {
+		titleStyle = titleStyle.Underline(true)
+	}
+
 	var b strings.Builder
-	b.WriteString(titleStyle.Render("🎶 PLAYLIST: " + m.currentListName))
-	b.WriteString("\n")
+	
+	// Header with title and shortcuts
+	b.WriteString(titleStyle.Render(fmt.Sprintf("🎶 %s", m.currentListName)))
+	b.WriteString(" " + dimStyle.Render("[Enter: play] [d: delete] [q: queue]"))
+	b.WriteString("\n\n")
 
 	if len(m.currentList) == 0 {
-		emptyMessage := dimStyle.Render("No songs in this playlist")
-		b.WriteString(emptyMessage)
+		b.WriteString(dimStyle.Render("No tracks in this playlist"))
 		return b.String()
 	}
 
-	visibleItems := m.contentHeight - 4 // タイトルとヘッダー分を引く
+	visibleItems := m.contentHeight - 6 // Header and footer space
 	if visibleItems < 1 {
 		visibleItems = 1
 	}
@@ -154,14 +161,30 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 			titleStr := truncate(track.Title, titleWidth)
 			durationStr := formatDuration(track.Duration)
 
+			// Track number or selection indicator
+			trackNum := fmt.Sprintf("%2d. ", i+1)
 			line := fmt.Sprintf("%s %s %s", status, titleStr, durationStr)
-
+			
+			// Apply style based on selection
+			style := normalStyle
 			if i == m.selectedIndex {
-				b.WriteString(selectedStyle.Render(line))
-			} else {
-				b.WriteString(normalStyle.Render(line))
+				trackNum = " → "
+				style = selectedStyle
+			}
+			
+			line = trackNum + line
+			b.WriteString(style.Render(line))
+			
+			if i < end-1 {
+				b.WriteString("\n")
 			}
 		}
+		
+		// Simple footer for small screens
+		b.WriteString("\n\n")
+		positionInfo := fmt.Sprintf("%d/%d", m.selectedIndex+1, len(m.currentList))
+		b.WriteString(dimStyle.Render(positionInfo))
+		
 		return b.String()
 	}
 
@@ -199,22 +222,48 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 		artistStr := padToWidth(truncate(formatArtists(track.Artists), artistWidth), artistWidth)
 		durationStr := formatDuration(track.Duration)
 
-		// 固定フォーマットで行を構築
-		line := fmt.Sprintf("%s %s %s %s",
+		// Track number or selection indicator
+		trackNum := fmt.Sprintf("%3d. ", i+1)
+		
+		// Build line with fixed format
+		line := fmt.Sprintf("%s%s %s %s",
 			status,
 			titleStr,
 			artistStr,
 			durationStr)
 
+		// Apply style based on selection
+		style := normalStyle
 		if i == m.selectedIndex {
-			b.WriteString(selectedStyle.Render(line))
-		} else {
-			b.WriteString(normalStyle.Render(line))
+			trackNum = "  → "
+			style = selectedStyle
 		}
+		
+		line = trackNum + line
+		b.WriteString(style.Render(line))
+		
 		if i < end-1 {
 			b.WriteString("\n")
 		}
 	}
+
+	// Footer with position info and help
+	b.WriteString("\n\n")
+	var footerInfo []string
+	
+	// Position info
+	footerInfo = append(footerInfo, fmt.Sprintf("%d/%d", m.selectedIndex+1, len(m.currentList)))
+	
+	// Navigation help
+	footerInfo = append(footerInfo, "[↑↓: nav] [Enter: play from here]")
+	
+	// Focus help
+	focusHelp := m.getFocusHelpText()
+	if focusHelp != "" {
+		footerInfo = append(footerInfo, focusHelp)
+	}
+	
+	b.WriteString(dimStyle.Render(strings.Join(footerInfo, "  ")))
 
 	return b.String()
 }
@@ -421,7 +470,12 @@ func (m Model) renderHome(maxWidth int) string {
 
 // renderSectionTabs renders the section tabs at the top
 func (m Model) renderSectionTabs(maxWidth int) string {
-	_, selectedStyle, normalStyle, dimStyle, _ := m.getStyles()
+	titleStyle, selectedStyle, normalStyle, dimStyle, _ := m.getStyles()
+	
+	// Apply focus style if home view has focus
+	if m.hasFocus("home") {
+		titleStyle = titleStyle.Underline(true)
+	}
 
 	if len(m.sections) <= 1 {
 		return ""
@@ -447,7 +501,10 @@ func (m Model) renderSectionTabs(maxWidth int) string {
 		return currentTab + dimStyle.Render(" (Tab/Shift+Tab to switch)")
 	}
 
-	return tabsStr + "\n" + dimStyle.Render("Tab/Shift+Tab to switch sections")
+	if m.showQueue {
+		return tabsStr + "\n" + dimStyle.Render("Tab to switch sections disabled (queue is shown)")
+	}
+	return tabsStr + "\n" + dimStyle.Render("Tab to switch sections")
 }
 
 func (m Model) applyMarquee(text string, maxLen int) string {
@@ -611,4 +668,145 @@ func padToWidth(s string, width int) string {
 	// 不足分をスペースで埋める
 	padding := width - currentWidth
 	return s + strings.Repeat(" ", padding)
+}
+
+// renderQueue renders the queue panel on the right side
+func (m *Model) renderQueue(maxWidth int, maxHeight int) string {
+	titleStyle, selectedStyle, normalStyle, dimStyle, _ := m.getStyles()
+
+	// Apply focus style
+	if m.hasFocus("queue") {
+		titleStyle = titleStyle.Underline(true)
+	}
+
+	var b strings.Builder
+
+	// Header
+	b.WriteString(titleStyle.Render("🎵 Queue"))
+	if m.hasFocus("queue") {
+		b.WriteString(" " + dimStyle.Render("[Tab: back to main]"))
+	} else {
+		b.WriteString(" " + dimStyle.Render("[Tab: focus queue]"))
+	}
+	b.WriteString("\n\n")
+
+	// If no tracks in queue
+	if len(m.playerState.List) == 0 {
+		b.WriteString(dimStyle.Render("No tracks in queue"))
+		return b.String()
+	}
+
+	// Calculate visible lines (excluding header)
+	visibleLines := maxHeight - 4 // Header, spacing, and scroll indicator
+	if visibleLines < 1 {
+		visibleLines = 1
+	}
+
+	// Ensure current track is visible
+	if m.playerState.Current < m.queueScrollOffset {
+		m.queueScrollOffset = m.playerState.Current
+	} else if m.playerState.Current >= m.queueScrollOffset+visibleLines {
+		m.queueScrollOffset = m.playerState.Current - visibleLines/2
+		if m.queueScrollOffset < 0 {
+			m.queueScrollOffset = 0
+		}
+	}
+
+	// Ensure scroll offset is valid
+	maxScrollOffset := len(m.playerState.List) - visibleLines
+	if maxScrollOffset < 0 {
+		maxScrollOffset = 0
+	}
+	if m.queueScrollOffset > maxScrollOffset {
+		m.queueScrollOffset = maxScrollOffset
+	}
+
+	// Render tracks
+	startIndex := m.queueScrollOffset
+	endIndex := startIndex + visibleLines
+	if endIndex > len(m.playerState.List) {
+		endIndex = len(m.playerState.List)
+	}
+
+	// Get actual track indices
+	getTrackIndex := func(displayIndex int) int {
+		return displayIndex
+	}
+
+	for displayIdx := startIndex; displayIdx < endIndex; displayIdx++ {
+		actualIdx := getTrackIndex(displayIdx)
+		if actualIdx >= len(m.playerState.List) {
+			continue
+		}
+
+		track := m.playerState.List[actualIdx]
+
+		// Format track info
+		artists := formatArtists(track.Artists)
+		title := track.Title
+
+		// Add status icon
+		var statusIcon string
+		if status, ok := m.playerState.MusicStatus[track.TrackID]; ok {
+			switch status {
+			case structures.Downloaded:
+				statusIcon = "✓ "
+			case structures.Downloading:
+				statusIcon = "⬇ "
+			case structures.DownloadFailed:
+				statusIcon = "✗ "
+			default:
+				statusIcon = "○ "
+			}
+		} else {
+			statusIcon = "○ "
+		}
+
+		// Format line with track number
+		trackNum := fmt.Sprintf("%2d. ", displayIdx+1)
+		line := fmt.Sprintf("%s%s - %s", statusIcon, title, artists)
+
+		// Truncate if too long
+		availableWidth := maxWidth - runewidth.StringWidth(trackNum) - 4 // Track number and padding
+		line = truncate(line, availableWidth)
+
+		// Apply style based on selection and current track
+		style := normalStyle
+		isCurrentTrack := actualIdx == m.playerState.Current
+
+		if isCurrentTrack {
+			// Current playing track
+			trackNum = "▶  "
+			style = selectedStyle
+		} else if m.hasFocus("queue") && displayIdx == m.queueSelectedIndex {
+			// Selected track in queue (when focused)
+			trackNum = "→  "
+			style = selectedStyle.Background(lipgloss.Color("#44475A"))
+		}
+
+		line = trackNum + line
+
+		b.WriteString(style.Render(line))
+		if displayIdx < endIndex-1 {
+			b.WriteString("\n")
+		}
+	}
+
+	// Scroll indicator and help
+	if len(m.playerState.List) > visibleLines || m.queueFocused {
+		b.WriteString("\n\n")
+		var info []string
+
+		// Position info
+		info = append(info, fmt.Sprintf("%d/%d", m.playerState.Current+1, len(m.playerState.List)))
+
+		// Help text when focused
+		if m.hasFocus("queue") {
+			info = append(info, "[↑↓: nav] [Enter: play] [d: delete]")
+		}
+
+		b.WriteString(dimStyle.Render(strings.Join(info, " ")))
+	}
+
+	return b.String()
 }

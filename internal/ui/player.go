@@ -326,7 +326,7 @@ func (m *Model) renderControls(availableWidth int) string {
 	}
 
 	// Controls hint
-	hint := "[Space: Play/Pause] [←/→: Seek] [+/-: Volume] [Ctrl+D: Quit]"
+	hint := "[Space: Play/Pause] [←/→: Seek] [s: Shuffle] [q: Queue] [Ctrl+D: Quit]"
 	parts = append(parts, dimStyle.Render(hint))
 
 	// 利用可能幅に収まるように調整

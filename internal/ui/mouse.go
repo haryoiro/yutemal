@@ -207,6 +207,19 @@ func (m *Model) handleScrollUp() (tea.Model, tea.Cmd) {
 	}
 	m.lastScrollTime = now
 
+	// Queue画面がフォーカスされている場合
+	if m.queueFocused && m.showQueue {
+		if m.queueSelectedIndex > 0 {
+			m.queueSelectedIndex--
+			// Adjust scroll to keep selection visible
+			if m.queueSelectedIndex < m.queueScrollOffset {
+				m.queueScrollOffset = m.queueSelectedIndex
+			}
+		}
+		return m, nil
+	}
+
+	// 通常のコンテンツスクロール
 	if m.selectedIndex > 0 {
 		m.selectedIndex--
 		m.adjustScroll()
@@ -223,6 +236,30 @@ func (m *Model) handleScrollDown() (tea.Model, tea.Cmd) {
 	}
 	m.lastScrollTime = now
 
+	// Queue画面がフォーカスされている場合
+	if m.queueFocused && m.showQueue {
+		maxQueueIndex := len(m.playerState.List) - 1
+		if m.queueSelectedIndex < maxQueueIndex {
+			m.queueSelectedIndex++
+			// Adjust scroll to keep selection visible
+			// Queue表示の高さを計算（コンテンツエリアの1/3）
+			contentAreaHeight := m.height - m.playerHeight
+			queueHeight := contentAreaHeight / 3
+			if queueHeight < 5 {
+				queueHeight = 5
+			}
+			visibleLines := queueHeight - 4 // Header, spacing, and scroll indicator
+			if visibleLines < 1 {
+				visibleLines = 1
+			}
+			if m.queueSelectedIndex >= m.queueScrollOffset+visibleLines {
+				m.queueScrollOffset = m.queueSelectedIndex - visibleLines + 1
+			}
+		}
+		return m, nil
+	}
+
+	// 通常のコンテンツスクロール
 	maxIndex := m.getMaxIndex()
 	if m.selectedIndex < maxIndex {
 		m.selectedIndex++

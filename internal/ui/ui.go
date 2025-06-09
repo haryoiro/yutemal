@@ -47,6 +47,13 @@ type Model struct {
 	currentList     []structures.Track
 	currentListName string
 
+	// Queue display
+	showQueue         bool
+	queueWidth        int
+	queueScrollOffset int
+	queueFocused      bool
+	queueSelectedIndex int
+
 	// Other fields
 	playerState   structures.PlayerState
 	searchQuery   string
@@ -59,6 +66,9 @@ type Model struct {
 	// Mouse wheel throttling
 	lastScrollTime time.Time
 	scrollCooldown time.Duration
+
+	// Key repeat prevention
+	keyDebouncer *KeyDebouncer
 }
 
 type tickMsg time.Time
@@ -77,6 +87,7 @@ func RunSimple(systems *systems.Systems, config *structures.Config) error {
 		playerHeight:   5,
 		marqueeTicker:  time.NewTicker(150 * time.Millisecond),
 		scrollCooldown: 20 * time.Millisecond, // 50ms between scroll events
+		keyDebouncer:   NewKeyDebouncer(),
 	}
 
 	opts := []tea.ProgramOption{
@@ -125,6 +136,29 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case playerUpdateMsg:
 		m.playerState = structures.PlayerState(msg)
+		// Auto-scroll queue to show current track when it changes
+		if m.showQueue && len(m.playerState.List) > 0 {
+			visibleLines := m.contentHeight - 4
+			if visibleLines < 1 {
+				visibleLines = 1
+			}
+			// Check if current track is out of view
+			if m.playerState.Current < m.queueScrollOffset ||
+			   m.playerState.Current >= m.queueScrollOffset+visibleLines {
+				// Center the current track in the view
+				m.queueScrollOffset = m.playerState.Current - visibleLines/2
+				if m.queueScrollOffset < 0 {
+					m.queueScrollOffset = 0
+				}
+				maxScrollOffset := len(m.playerState.List) - visibleLines
+				if maxScrollOffset < 0 {
+					maxScrollOffset = 0
+				}
+				if m.queueScrollOffset > maxScrollOffset {
+					m.queueScrollOffset = maxScrollOffset
+				}
+			}
+		}
 		return m, m.listenToPlayer()
 
 	case sectionsLoadedMsg:
@@ -185,17 +219,41 @@ func (m *Model) View() string {
 		BorderForeground(borderColor).
 		Padding(0, 1)
 
+	queueStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(borderColor).
+		Padding(0, 1)
+
 	// GetFrameSize()でフレームサイズを取得
 	mainV, mainH := mainStyle.GetFrameSize()
 	playerV, playerH := playerStyle.GetFrameSize()
+	queueV, queueH := queueStyle.GetFrameSize()
+
+	// Queue width calculation
+	if m.showQueue {
+		m.queueWidth = m.width / 3 // 33% of width
+		if m.queueWidth < 40 {
+			m.queueWidth = 40 // Minimum width
+		}
+		if m.queueWidth > 80 {
+			m.queueWidth = 80 // Maximum width
+		}
+	} else {
+		m.queueWidth = 0
+	}
 
 	// 実際のコンテンツ幅を計算
-	contentWidth := m.width - mainH
+	mainContentWidth := m.width - mainH - m.queueWidth
+	queueContentWidth := m.queueWidth - queueH
 	playerContentWidth := m.width - playerH
 
 	// 正確な幅と高さを設定
 	mainStyle = mainStyle.
-		Width(contentWidth).
+		Width(mainContentWidth).
+		Height(m.contentHeight)
+
+	queueStyle = queueStyle.
+		Width(queueContentWidth).
 		Height(m.contentHeight)
 
 	playerStyle = playerStyle.
@@ -206,11 +264,11 @@ func (m *Model) View() string {
 	var content string
 	switch m.state {
 	case HomeView:
-		content = m.renderHome(contentWidth)
+		content = m.renderHome(mainContentWidth)
 	case PlaylistDetailView:
-		content = m.renderPlaylistDetail(contentWidth)
+		content = m.renderPlaylistDetail(mainContentWidth)
 	case SearchView:
-		content = m.renderSearch(contentWidth)
+		content = m.renderSearch(mainContentWidth)
 	}
 
 	// プレイヤーに正しい幅を渡す
@@ -225,370 +283,34 @@ func (m *Model) View() string {
 	}
 	content = strings.Join(contentLines, "\n")
 
+	// Render main content and queue side by side if queue is shown
+	var topContent string
+	if m.showQueue {
+		queue := m.renderQueue(queueContentWidth, m.contentHeight-queueV)
+		topContent = lipgloss.JoinHorizontal(
+			lipgloss.Left,
+			mainStyle.Render(content),
+			queueStyle.Render(queue),
+		)
+	} else {
+		topContent = mainStyle.Render(content)
+	}
+
 	result := lipgloss.JoinVertical(
 		lipgloss.Top,
-		mainStyle.Render(content),
+		topContent,
 		playerStyle.Render(player),
 	)
 
 	return result
 }
 
-// Helper functions for key binding checks
-func (m *Model) isKey(msg tea.KeyMsg, key string) bool {
-	if key == "" {
-		return false
-	}
+// Key binding functions moved to keybindings.go
 
-	// Handle special keys
-	switch key {
-	case "ctrl+c":
-		return msg.Type == tea.KeyCtrlC
-	case "ctrl+d":
-		return msg.Type == tea.KeyCtrlD
-	case "space":
-		return msg.Type == tea.KeySpace
-	case "enter":
-		return msg.Type == tea.KeyEnter
-	case "esc":
-		return msg.Type == tea.KeyEsc
-	case "backspace":
-		return msg.Type == tea.KeyBackspace
-	case "tab":
-		return msg.Type == tea.KeyTab
-	case "shift+tab":
-		return msg.Type == tea.KeyShiftTab
-	case "up":
-		return msg.Type == tea.KeyUp
-	case "down":
-		return msg.Type == tea.KeyDown
-	case "left":
-		return msg.Type == tea.KeyLeft
-	case "right":
-		return msg.Type == tea.KeyRight
-	default:
-		// Handle regular character keys
-		return msg.Type == tea.KeyRunes && msg.String() == key
-	}
-}
+// handleKeyPress has been moved to keybindings.go
 
-func (m *Model) isKeyInList(msg tea.KeyMsg, keys []string) bool {
-	for _, key := range keys {
-		if m.isKey(msg, key) {
-			return true
-		}
-	}
-	return false
-}
+// Navigation helper functions moved to navigation.go
 
-func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	kb := m.config.KeyBindings
+// Action handler functions moved to actions.go
 
-	// Global controls
-	if m.isKey(msg, kb.Quit) || m.isKey(msg, "ctrl+c") {
-		return m, tea.Quit
-	}
-
-	if m.isKey(msg, kb.PlayPause) {
-		m.systems.Player.SendAction(structures.PlayPauseAction{})
-		return m, nil
-	}
-
-	if m.isKey(msg, kb.SeekBackward) {
-		m.systems.Player.SendAction(structures.BackwardAction{})
-		return m, nil
-	}
-
-	if m.isKey(msg, kb.SeekForward) {
-		m.systems.Player.SendAction(structures.ForwardAction{})
-		return m, nil
-	}
-
-	if m.isKeyInList(msg, kb.VolumeUp) {
-		m.systems.Player.SendAction(structures.VolumeUpAction{})
-		return m, nil
-	}
-
-	if m.isKeyInList(msg, kb.VolumeDown) {
-		m.systems.Player.SendAction(structures.VolumeDownAction{})
-		return m, nil
-	}
-
-	// Navigation
-	if m.isKeyInList(msg, kb.MoveUp) {
-		if m.selectedIndex > 0 {
-			m.selectedIndex--
-			m.adjustScroll()
-		}
-		return m, nil
-	}
-
-	if m.isKeyInList(msg, kb.MoveDown) {
-		maxIndex := m.getMaxIndex()
-		if maxIndex >= 0 && m.selectedIndex < maxIndex {
-			m.selectedIndex++
-			m.adjustScroll()
-		}
-		return m, nil
-	}
-
-	// Page Up/Down handling
-	if msg.Type == tea.KeyPgUp {
-		// View毎に異なる高さ調整
-		visibleItems := m.contentHeight - 4
-		switch m.state {
-		case HomeView:
-			visibleItems = m.contentHeight - 8
-		case PlaylistDetailView:
-			visibleItems = m.contentHeight - 4
-		case SearchView:
-			visibleItems = m.contentHeight - 4
-		}
-		if visibleItems < 1 {
-			visibleItems = 1
-		}
-
-		// 1ページ分上にスクロール
-		m.selectedIndex -= visibleItems
-		if m.selectedIndex < 0 {
-			m.selectedIndex = 0
-		}
-		m.adjustScroll()
-		return m, nil
-	}
-
-	if msg.Type == tea.KeyPgDown {
-		// View毎に異なる高さ調整
-		visibleItems := m.contentHeight - 4
-		switch m.state {
-		case HomeView:
-			visibleItems = m.contentHeight - 8
-		case PlaylistDetailView:
-			visibleItems = m.contentHeight - 4
-		case SearchView:
-			visibleItems = m.contentHeight - 4
-		}
-		if visibleItems < 1 {
-			visibleItems = 1
-		}
-
-		// 1ページ分下にスクロール
-		maxIndex := m.getMaxIndex()
-		m.selectedIndex += visibleItems
-		if m.selectedIndex > maxIndex {
-			m.selectedIndex = maxIndex
-		}
-		m.adjustScroll()
-		return m, nil
-	}
-
-	if m.isKeyInList(msg, kb.Select) {
-		return m.handleEnter()
-	}
-
-	if m.isKeyInList(msg, kb.Back) {
-		if m.state == PlaylistDetailView {
-			m.state = HomeView
-			m.selectedIndex = 0
-			m.scrollOffset = 0
-		} else if m.state == SearchView {
-			m.state = HomeView
-		}
-		return m, nil
-	}
-
-	if m.isKey(msg, kb.NextSection) {
-		if m.state == HomeView && len(m.sections) > 0 {
-			m.currentSectionIndex = (m.currentSectionIndex + 1) % len(m.sections)
-			m.selectedIndex = 0
-			m.scrollOffset = 0
-		}
-		return m, nil
-	}
-
-	if m.isKey(msg, kb.PrevSection) {
-		if m.state == HomeView && len(m.sections) > 0 {
-			m.currentSectionIndex = (m.currentSectionIndex - 1 + len(m.sections)) % len(m.sections)
-			m.selectedIndex = 0
-			m.scrollOffset = 0
-		}
-		return m, nil
-	}
-
-	// Actions
-	if m.isKey(msg, kb.Search) {
-		m.state = SearchView
-		m.searchQuery = ""
-		m.selectedIndex = 0
-		return m, nil
-	}
-
-	if m.isKey(msg, kb.Shuffle) {
-		// Shuffle is not implemented in the Go version yet
-		return m, nil
-	}
-
-	if m.isKey(msg, kb.RemoveTrack) {
-		if m.state == PlaylistDetailView && len(m.currentList) > 0 {
-			// Remove current song action
-			m.systems.Player.SendAction(structures.DeleteTrackAction{})
-		}
-		return m, nil
-	}
-
-	if m.isKey(msg, kb.Home) {
-		if m.state == PlaylistDetailView {
-			m.state = HomeView
-			m.selectedIndex = 0
-			m.scrollOffset = 0
-		}
-		return m, nil
-	}
-
-	return m, nil
-}
-
-func (m *Model) getMaxIndex() int {
-	switch m.state {
-	case HomeView:
-		if len(m.sections) > 0 && m.currentSectionIndex < len(m.sections) {
-			return len(m.sections[m.currentSectionIndex].Contents) - 1
-		}
-		return 0
-	case PlaylistListView:
-		return len(m.playlists) - 1
-	case PlaylistDetailView:
-		return len(m.currentList) - 1
-	case SearchView:
-		return len(m.searchResults) - 1
-	}
-	return 0
-}
-
-func (m *Model) adjustScroll() {
-	// View毎に異なる高さ調整
-	visibleItems := m.contentHeight - 4 // Default adjustment
-	switch m.state {
-	case HomeView:
-		visibleItems = m.contentHeight - 8 // タブとタイトル用のスペースを確保
-	case PlaylistDetailView:
-		visibleItems = m.contentHeight - 4
-	case SearchView:
-		visibleItems = m.contentHeight - 4
-	}
-
-	if visibleItems < 1 {
-		visibleItems = 1
-	}
-	if m.selectedIndex < m.scrollOffset {
-		m.scrollOffset = m.selectedIndex
-	} else if m.selectedIndex >= m.scrollOffset+visibleItems {
-		m.scrollOffset = m.selectedIndex - visibleItems + 1
-	}
-}
-
-func (m *Model) handleEnter() (tea.Model, tea.Cmd) {
-	switch m.state {
-	case HomeView:
-		if len(m.sections) > 0 && m.currentSectionIndex < len(m.sections) && m.selectedIndex < len(m.sections[m.currentSectionIndex].Contents) {
-			content := m.sections[m.currentSectionIndex].Contents[m.selectedIndex]
-			if content.Type == "playlist" && content.Playlist != nil {
-				playlist := content.Playlist
-				m.currentList = []structures.Track{} // Reset current list
-				m.state = PlaylistDetailView
-				m.currentListName = playlist.Title
-				return m, m.loadPlaylistTracks(playlist.ID)
-			} else if content.Type == "track" && content.Track != nil {
-				track := content.Track
-				m.systems.Player.SendAction(structures.CleanupAction{})
-				m.systems.Player.SendAction(structures.AddTrackAction{Track: *track})
-				m.systems.Player.SendAction(structures.PlayAction{})
-			}
-		}
-	case PlaylistListView:
-		if len(m.playlists) > 0 && m.selectedIndex < len(m.playlists) {
-			playlist := m.playlists[m.selectedIndex]
-			m.currentList = []structures.Track{} // Reset current list
-			m.state = PlaylistDetailView
-			m.currentListName = playlist.Title
-			return m, m.loadPlaylistTracks(playlist.ID)
-		}
-	case PlaylistDetailView:
-		if len(m.currentList) > 0 && m.selectedIndex < len(m.currentList) {
-			// Clear the current queue
-			m.systems.Player.SendAction(structures.CleanupAction{})
-
-			// Add all tracks from the selected position onwards
-			tracksToAdd := m.currentList[m.selectedIndex:]
-			m.systems.Player.SendAction(structures.AddTracksToQueueAction{Tracks: tracksToAdd})
-
-			// Start playing
-			m.systems.Player.SendAction(structures.PlayAction{})
-		}
-	case SearchView:
-		if len(m.searchResults) > 0 && m.selectedIndex < len(m.searchResults) {
-			track := m.searchResults[m.selectedIndex]
-			m.systems.Player.SendAction(structures.CleanupAction{})
-			m.systems.Player.SendAction(structures.AddTrackAction{Track: track})
-			m.systems.Player.SendAction(structures.PlayAction{})
-		}
-	}
-	return m, nil
-}
-
-func (m *Model) tickCmd() tea.Cmd {
-	return tea.Tick(300*time.Millisecond, func(t time.Time) tea.Msg {
-		return tickMsg(t)
-	})
-}
-
-func (m *Model) listenToPlayer() tea.Cmd {
-	return func() tea.Msg {
-		// Get player state
-		state := m.systems.Player.GetState()
-		return playerUpdateMsg(state)
-	}
-}
-
-func (m *Model) loadPlaylists() tea.Cmd {
-	return func() tea.Msg {
-		playlists, err := m.systems.API.GetLibraryPlaylists()
-		if err != nil {
-			return errorMsg(err)
-		}
-
-		return playlistsLoadedMsg(playlists)
-	}
-}
-
-func (m *Model) loadPlaylistTracks(playlistID string) tea.Cmd {
-	return func() tea.Msg {
-		tracks, err := m.systems.API.GetPlaylistTracks(playlistID)
-		if err != nil {
-			return errorMsg(err)
-		}
-
-		return tracksLoadedMsg(tracks)
-	}
-}
-
-func (m *Model) loadSections() tea.Cmd {
-	return func() tea.Msg {
-		sections, err := m.systems.API.GetSections()
-		if err != nil {
-			return errorMsg(err)
-		}
-
-		return sectionsLoadedMsg(sections)
-	}
-}
-
-func (m *Model) downloadAllSongs(videos []structures.Track) tea.Cmd {
-	return func() tea.Msg {
-		// Send download requests for all videos in the playlist
-		for _, video := range videos {
-			m.systems.Download.QueueDownload(video)
-		}
-		return nil
-	}
-}
+// downloadAllSongs has been moved to actions.go
