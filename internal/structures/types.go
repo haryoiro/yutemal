@@ -80,6 +80,7 @@ type CleanupAction struct{}
 type AddTracksToQueueAction struct{ Tracks []Track }
 type AddTrackAction struct{ Track Track }
 type DeleteTrackAction struct{}
+type DeleteTrackAtIndexAction struct{ Index int }
 type ReplaceQueueAction struct{ Tracks []Track }
 type TrackStatusUpdateAction struct {
 	TrackID string
@@ -88,17 +89,18 @@ type TrackStatusUpdateAction struct {
 type SeekAction struct {
 	Position time.Duration
 }
+type ShuffleQueueAction struct{}
 
 // PlayerState represents the current state of the music player
 type PlayerState struct {
-	List         []Track
-	Current      int
-	MusicStatus  map[string]MusicDownloadStatus
-	Volume       float64
-	IsPlaying    bool
-	CurrentTime  time.Duration
-	TotalTime    time.Duration
-	ListSelector *ListSelector
+	List               []Track
+	Current            int
+	MusicStatus        map[string]MusicDownloadStatus
+	Volume             float64
+	IsPlaying          bool
+	CurrentTime        time.Duration
+	TotalTime          time.Duration
+	ListSelector       *ListSelector
 }
 
 // ListSelector manages list navigation

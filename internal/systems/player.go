@@ -1,6 +1,7 @@
 package systems
 
 import (
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -402,6 +403,9 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 	case structures.DeleteTrackAction:
 		ps.deleteCurrentTrack()
 
+	case structures.DeleteTrackAtIndexAction:
+		ps.deleteTrackAtIndex(a.Index)
+
 	case structures.CleanupAction:
 		ps.state.List = nil
 		ps.state.Current = 0
@@ -421,8 +425,40 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 				logger.Error("Failed to seek: %v", err)
 			}
 		}
+
+	case structures.ShuffleQueueAction:
+		// Shuffle the queue after the current song
+		ps.shuffleQueue()
+		logger.Info("Queue shuffled")
 	}
 }
+
+// shuffleQueue shuffles the tracks after the current position
+func (ps *PlayerSystem) shuffleQueue() {
+	if len(ps.state.List) <= ps.state.Current+1 {
+		// No tracks after the current one to shuffle
+		return
+	}
+
+	// Get the tracks after the current position
+	trackCount := len(ps.state.List) - ps.state.Current - 1
+	if trackCount <= 0 {
+		return
+	}
+
+	// Shuffle the remaining tracks using Fisher-Yates algorithm
+	remainingTracks := ps.state.List[ps.state.Current+1:]
+	for i := len(remainingTracks) - 1; i > 0; i-- {
+		j := rand.Intn(i + 1)
+		remainingTracks[i], remainingTracks[j] = remainingTracks[j], remainingTracks[i]
+	}
+
+	// Rebuild the list: keep tracks up to current, then add shuffled tracks
+	newList := make([]structures.Track, ps.state.Current+1, len(ps.state.List))
+	copy(newList, ps.state.List[:ps.state.Current+1])
+	ps.state.List = append(newList, remainingTracks...)
+}
+
 
 // nextSong advances to the next song - simplified version
 func (ps *PlayerSystem) nextSong() {
@@ -436,8 +472,9 @@ func (ps *PlayerSystem) nextSong() {
 		}()
 	}()
 
+	wasPlaying := ps.state.IsPlaying
+
 	if ps.state.Current+1 < len(ps.state.List) {
-		wasPlaying := ps.state.IsPlaying
 		ps.state.Current++
 		ps.loadCurrentSong()
 		// Maintain playing state
@@ -461,8 +498,9 @@ func (ps *PlayerSystem) nextSong() {
 
 // previousSong goes back to the previous song
 func (ps *PlayerSystem) previousSong() {
+	wasPlaying := ps.state.IsPlaying
+
 	if ps.state.Current > 0 {
-		wasPlaying := ps.state.IsPlaying
 		ps.state.Current--
 		ps.loadCurrentSong()
 		// Maintain playing state
@@ -663,6 +701,8 @@ func (ps *PlayerSystem) deleteCurrentTrack() {
 	// Remove from playlist
 	ps.state.List = append(ps.state.List[:ps.state.Current], ps.state.List[ps.state.Current+1:]...)
 
+	// No need to update shuffle order anymore
+
 	// Update list selector
 	if ps.state.ListSelector != nil && ps.state.ListSelector.ListSize > 0 {
 		ps.state.ListSelector.ListSize--
@@ -678,6 +718,55 @@ func (ps *PlayerSystem) deleteCurrentTrack() {
 		ps.loadCurrentSong()
 	}
 }
+
+// deleteTrackAtIndex removes a track at the specified index
+func (ps *PlayerSystem) deleteTrackAtIndex(index int) {
+	if index < 0 || index >= len(ps.state.List) {
+		return
+	}
+
+	track := ps.state.List[index]
+	wasPlaying := ps.state.IsPlaying && index == ps.state.Current
+
+	// If deleting the current track, stop playback
+	if index == ps.state.Current && ps.player != nil {
+		ps.player.Stop()
+		ps.state.IsPlaying = false
+	}
+
+	// Remove from music status
+	delete(ps.state.MusicStatus, track.TrackID)
+
+	// Remove from playlist
+	ps.state.List = append(ps.state.List[:index], ps.state.List[index+1:]...)
+
+	// No need to update shuffle order anymore
+
+	// Update list selector
+	if ps.state.ListSelector != nil && ps.state.ListSelector.ListSize > 0 {
+		ps.state.ListSelector.ListSize--
+	}
+
+	// Adjust current position
+	if index < ps.state.Current {
+		// Deleted before current, shift current back
+		ps.state.Current--
+	} else if index == ps.state.Current {
+		// Deleted current track
+		if ps.state.Current >= len(ps.state.List) && ps.state.Current > 0 {
+			ps.state.Current--
+		}
+		// Load and play new current track if was playing
+		if len(ps.state.List) > 0 && wasPlaying {
+			ps.loadCurrentSong()
+			if ps.player != nil {
+				ps.player.Play()
+				ps.state.IsPlaying = true
+			}
+		}
+	}
+}
+
 
 // fetchAndUpdateBitrate fetches bitrate information from API and updates the database
 func (ps *PlayerSystem) fetchAndUpdateBitrate(track structures.Track) {
