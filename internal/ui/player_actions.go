@@ -82,7 +82,12 @@ func (m *Model) toggleQueue() (tea.Model, tea.Cmd) {
 // toggleQueueFocus toggles focus between main content and queue
 func (m *Model) toggleQueueFocus() (tea.Model, tea.Cmd) {
 	if m.showQueue {
-		m.cycleFocus(true)
+		// Toggle focus based on current state
+		if m.getFocusedPane() == FocusQueue {
+			m.setFocus(FocusMain)
+		} else {
+			m.setFocus(FocusQueue)
+		}
 	}
 	return m, nil
 }
