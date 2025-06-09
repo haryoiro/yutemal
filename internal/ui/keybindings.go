@@ -2,6 +2,7 @@ package ui
 
 import (
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/haryoiro/yutemal/internal/logger"
@@ -26,6 +27,7 @@ func (m *Model) isKey(msg tea.KeyMsg, key string) bool {
 	case "enter":
 		return msg.Type == tea.KeyEnter
 	case "esc":
+		// Only accept actual ESC key type, not string matches
 		return msg.Type == tea.KeyEsc
 	case "backspace":
 		return msg.Type == tea.KeyBackspace
@@ -54,7 +56,18 @@ func (m *Model) isKey(msg tea.KeyMsg, key string) bool {
 // isKeyInList checks if the pressed key matches any of the configured keybindings
 func (m *Model) isKeyInList(msg tea.KeyMsg, bindings []string) bool {
 	key := msg.String()
+	
+	// Filter out mouse event escape sequences that might be mistaken for keys
+	if len(key) > 1 && (key[0] == '[' || key[0] == 27) {
+		logger.Debug("Ignoring potential mouse escape sequence: %s", key)
+		return false
+	}
+	
 	for _, binding := range bindings {
+		// For backspace key, only accept actual backspace key type
+		if binding == "backspace" {
+			return msg.Type == tea.KeyBackspace
+		}
 		if key == binding {
 			return true
 		}
@@ -62,9 +75,14 @@ func (m *Model) isKeyInList(msg tea.KeyMsg, bindings []string) bool {
 	return false
 }
 
+
 // handleKeyPress processes keyboard input and delegates to appropriate handlers
 func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	kb := m.config.KeyBindings
+	
+	// Log all key events for debugging
+	logger.Debug("Raw key event: type=%d, string=%s, alt=%t, runes=%v", 
+		msg.Type, msg.String(), msg.Alt, msg.Runes)
 
 	// Global quit command (always process without debouncing)
 	if m.isKey(msg, kb.Quit) {
@@ -142,7 +160,24 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Back navigation
+	// Skip backspace as Back key in SearchView (it's used for text deletion)
 	if m.isKeyInList(msg, kb.Back) {
+		if m.state == SearchView && msg.String() == "backspace" {
+			// Let SearchView handle backspace for text deletion
+			logger.Debug("Skipping backspace as Back key in SearchView")
+			return m, nil
+		}
+		
+		// Add strict debouncing for back keys to prevent rapid double-presses
+		now := time.Now()
+		if m.lastBackKeyTime != nil && now.Sub(*m.lastBackKeyTime) < 500*time.Millisecond {
+			logger.Debug("Back key debounced: %s (last processed %.0fms ago)", 
+				msg.String(), now.Sub(*m.lastBackKeyTime).Seconds()*1000)
+			return m, nil
+		}
+		m.lastBackKeyTime = &now
+		
+		logger.Debug("Back key pressed: %s in state %s with focus %d", msg.String(), m.state, m.getFocusedPane())
 		return m.navigateBack()
 	}
 
@@ -204,7 +239,7 @@ func (m *Model) handleSearchKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // handlePlaylistDetailKeys handles keys specific to the playlist detail view
-func (m *Model) handlePlaylistDetailKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handlePlaylistDetailKeys(_ tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Add playlist-specific key handling here if needed
 	return m, nil
 }

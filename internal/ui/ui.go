@@ -91,6 +91,7 @@ type Model struct {
 
 	// Key repeat prevention
 	keyDebouncer *KeyDebouncer
+	lastBackKeyTime *time.Time // Strict debouncing for back navigation keys
 	
 	// Debug state tracking
 	debugStateChanges []string
@@ -276,7 +277,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// 状態変更を検出して記録
-	newModel := m
 	if m.state != oldState {
 		stateChange := fmt.Sprintf("%s -> %s", oldState.String(), m.state.String())
 		m.debugStateChanges = append(m.debugStateChanges, stateChange)
@@ -286,7 +286,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		logger.Debug("STATE CHANGE: %s", stateChange)
 	}
 
-	return newModel, nil
+	return m, nil
 }
 
 func (m *Model) View() string {

@@ -63,7 +63,7 @@ func Default() *structures.Config {
 			MoveUp:      []string{"up", "k"},
 			MoveDown:    []string{"down", "j"},
 			Select:      []string{"enter", "l"},
-			Back:        []string{"esc", "backspace"},
+			Back:        []string{"backspace", "b"},  // ESC removed to prevent mouse-triggered navigation
 			NextSection: "tab",
 			PrevSection: "shift+tab",
 
