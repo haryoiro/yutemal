@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/haryoiro/yutemal/internal/logger"
 )
 
 // キーバインド関連のヘルパー関数
@@ -127,6 +128,12 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.isKey(msg, "tab") {
 		return m.toggleQueueFocus()
+	}
+	// デバッグ情報の表示切り替え（Ctrl+D）
+	if msg.String() == "ctrl+d" {
+		m.showDebugInfo = !m.showDebugInfo
+		logger.Debug("Debug info toggled: %v", m.showDebugInfo)
+		return m, nil
 	}
 
 	// Selection/Enter

@@ -2,6 +2,7 @@ package ui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/haryoiro/yutemal/internal/logger"
 )
 
 // ナビゲーション関連の共通処理
@@ -172,10 +173,12 @@ func (m *Model) navigateBack() (tea.Model, tea.Cmd) {
 	switch m.state {
 	case PlaylistDetailView:
 		// Return to HomeView, keeping the section selection
+		logger.Debug("navigateBack: Returning from PlaylistDetailView to HomeView")
 		m.state = HomeView
 		// Don't reset the selectedIndex and scrollOffset for HomeView
 		// so user returns to where they were
 	case SearchView:
+		logger.Debug("navigateBack: Returning from SearchView to HomeView")
 		m.state = HomeView
 		m.setFocus(FocusMain)
 	}

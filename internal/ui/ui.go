@@ -2,11 +2,12 @@ package ui
 
 import (
 	"time"
-
+	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/haryoiro/yutemal/internal/logger"
 	"github.com/haryoiro/yutemal/internal/structures"
 	"github.com/haryoiro/yutemal/internal/systems"
 	"github.com/mattn/go-runewidth"
@@ -24,6 +25,21 @@ const (
 	PlaylistDetailView
 	SearchView
 )
+
+func (v ViewState) String() string {
+	switch v {
+	case HomeView:
+		return "HomeView"
+	case PlaylistListView:
+		return "PlaylistListView"
+	case PlaylistDetailView:
+		return "PlaylistDetailView"
+	case SearchView:
+		return "SearchView"
+	default:
+		return "Unknown"
+	}
+}
 
 type Model struct {
 	systems            *systems.Systems
@@ -75,6 +91,11 @@ type Model struct {
 
 	// Key repeat prevention
 	keyDebouncer *KeyDebouncer
+	
+	// Debug state tracking
+	debugStateChanges []string
+	debugMessageLog   []string
+	showDebugInfo     bool // デバッグ情報表示フラグ
 }
 
 type tickMsg time.Time
@@ -108,6 +129,7 @@ func RunSimple(systems *systems.Systems, config *structures.Config) error {
 }
 
 func (m *Model) Init() tea.Cmd {
+	logger.Debug("Init called, starting with state: %v", m.state)
 	return tea.Batch(
 		m.loadSections(),
 		m.tickCmd(),
@@ -116,6 +138,38 @@ func (m *Model) Init() tea.Cmd {
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// デバッグ用メッセージログ記録
+	oldState := m.state
+	
+	// メッセージ種別によるログ記録
+	msgType := ""
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		msgType = "KeyMsg: " + msg.String()
+		logger.Debug("KeyMsg received: %v, current state: %v", msg, m.state)
+	case sectionsLoadedMsg:
+		msgType = "sectionsLoadedMsg"
+		logger.Debug("sectionsLoadedMsg received, current state: %v", m.state)
+	case tracksLoadedMsg:
+		msgType = "tracksLoadedMsg"
+		logger.Debug("tracksLoadedMsg received, current state: %v", m.state)
+	case errorMsg:
+		msgType = "errorMsg"
+		logger.Debug("errorMsg received: %v, current state: %v", msg, m.state)
+	case tickMsg:
+		// Tickメッセージは多すぎるので記録しない
+	default:
+		msgType = "other"
+	}
+	
+	if msgType != "" && msgType != "other" {
+		// デバッグメッセージをリングバッファに記録
+		m.debugMessageLog = append(m.debugMessageLog, msgType + " @ " + m.state.String())
+		if len(m.debugMessageLog) > 20 {
+			m.debugMessageLog = m.debugMessageLog[1:]
+		}
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -168,19 +222,25 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.listenToPlayer()
 
 	case sectionsLoadedMsg:
-		m.sections = msg
+		logger.Debug("Processing sectionsLoadedMsg: %d sections, previous state: %v", len(msg), m.state)
+		// Only update sections if we're in HomeView or just starting
+		if m.state == HomeView {
+			m.sections = msg
 
-		// Find "Your Library" section and set it as default, or use first section
-		m.currentSectionIndex = 0
-		for i, section := range m.sections {
-			if section.ID == "library" || section.Title == "Your Library" {
-				m.currentSectionIndex = i
-				break
+			// Find "Your Library" section and set it as default, or use first section
+			m.currentSectionIndex = 0
+			for i, section := range m.sections {
+				if section.ID == "library" || section.Title == "Your Library" {
+					m.currentSectionIndex = i
+					break
+				}
 			}
-		}
 
-		m.selectedIndex = 0
-		m.scrollOffset = 0
+			m.selectedIndex = 0
+			m.scrollOffset = 0
+		} else {
+			logger.Debug("Ignoring sectionsLoadedMsg because state is %v", m.state)
+		}
 		return m, nil
 
 	case playlistsLoadedMsg:
@@ -215,7 +275,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	return m, nil
+	// 状態変更を検出して記録
+	newModel := m
+	if m.state != oldState {
+		stateChange := fmt.Sprintf("%s -> %s", oldState.String(), m.state.String())
+		m.debugStateChanges = append(m.debugStateChanges, stateChange)
+		if len(m.debugStateChanges) > 10 {
+			m.debugStateChanges = m.debugStateChanges[1:]
+		}
+		logger.Debug("STATE CHANGE: %s", stateChange)
+	}
+
+	return newModel, nil
 }
 
 func (m *Model) View() string {
@@ -321,6 +392,33 @@ func (m *Model) View() string {
 		topContent,
 		playerStyle.Render(player),
 	)
+
+	// デバッグ情報を表示（必要に応じて）
+	if m.showDebugInfo {
+		debugStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#00FF00")).
+			Background(lipgloss.Color("#000000")).
+			Padding(1).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#00FF00"))
+		
+		debugInfo := "=== DEBUG INFO (Ctrl+D to hide) ===\n"
+		debugInfo += "Current State: " + m.state.String() + "\n"
+		debugInfo += "Selected Index: " + fmt.Sprintf("%d", m.selectedIndex) + "\n"
+		debugInfo += "Playlist Selected: " + fmt.Sprintf("%d", m.playlistSelectedIndex) + "\n"
+		debugInfo += "Sections: " + fmt.Sprintf("%d", len(m.sections)) + "\n"
+		debugInfo += "\nState Changes:\n"
+		for _, change := range m.debugStateChanges {
+			debugInfo += "  " + change + "\n"
+		}
+		debugInfo += "\nRecent Messages:\n"
+		for i, msg := range m.debugMessageLog {
+			debugInfo += fmt.Sprintf("  %d: %s\n", i, msg)
+		}
+		
+		debugContent := debugStyle.Render(debugInfo)
+		result = lipgloss.JoinHorizontal(lipgloss.Top, result, debugContent)
+	}
 
 	return result
 }

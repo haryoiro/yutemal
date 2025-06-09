@@ -5,6 +5,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/haryoiro/yutemal/internal/logger"
 	"github.com/haryoiro/yutemal/internal/structures"
 )
 
@@ -18,6 +19,7 @@ func (m *Model) handleEnter() (tea.Model, tea.Cmd) {
 			content := m.sections[m.currentSectionIndex].Contents[m.selectedIndex]
 			if content.Type == "playlist" && content.Playlist != nil {
 				playlist := content.Playlist
+				logger.Debug("Opening playlist from HomeView: %s, changing state to PlaylistDetailView", playlist.Title)
 				// Reset playlist view state
 				m.playlistTracks = []structures.Track{}
 				m.playlistName = playlist.Title
@@ -88,6 +90,7 @@ func (m *Model) performSearch() tea.Cmd {
 // loadSections loads the home sections
 func (m *Model) loadSections() tea.Cmd {
 	return func() tea.Msg {
+		logger.Debug("loadSections called")
 		sections, err := m.systems.API.GetSections()
 		if err != nil {
 			// If sections loading fails, fall back to library playlists
