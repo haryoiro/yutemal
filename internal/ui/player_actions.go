@@ -97,20 +97,8 @@ func (m *Model) handleQueueSelection() (tea.Model, tea.Cmd) {
 	if m.queueFocused && m.showQueue {
 		// Play selected track in queue
 		if m.queueSelectedIndex >= 0 && m.queueSelectedIndex < len(m.playerState.List) {
-			// Jump to selected track
-			if m.queueSelectedIndex < m.playerState.Current {
-				// Jump backward
-				skipCount := m.playerState.Current - m.queueSelectedIndex
-				for i := 0; i < skipCount; i++ {
-					m.systems.Player.SendAction(structures.PreviousAction{})
-				}
-			} else if m.queueSelectedIndex > m.playerState.Current {
-				// Jump forward
-				skipCount := m.queueSelectedIndex - m.playerState.Current
-				for i := 0; i < skipCount; i++ {
-					m.systems.Player.SendAction(structures.NextAction{})
-				}
-			}
+			// Jump directly to the selected track
+			m.systems.Player.SendAction(structures.JumpToIndexAction{Index: m.queueSelectedIndex})
 		}
 		return m, nil
 	}

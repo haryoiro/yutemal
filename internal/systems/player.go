@@ -430,6 +430,16 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 		// Shuffle the queue after the current song
 		ps.shuffleQueue()
 		logger.Info("Queue shuffled")
+		
+	case structures.JumpToIndexAction:
+		// Jump directly to the specified index
+		if a.Index >= 0 && a.Index < len(ps.state.List) {
+			ps.state.Current = a.Index
+			ps.loadCurrentSong()
+			logger.Debug("Jumped to track at index %d", a.Index)
+		} else {
+			logger.Warn("Invalid jump index: %d (queue size: %d)", a.Index, len(ps.state.List))
+		}
 	}
 }
 

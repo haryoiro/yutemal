@@ -147,11 +147,9 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.isKey(msg, "tab") {
 		return m.toggleQueueFocus()
 	}
-	// デバッグ情報の表示切り替え（Ctrl+D）
-	if msg.String() == "ctrl+d" {
-		m.showDebugInfo = !m.showDebugInfo
-		logger.Debug("Debug info toggled: %v", m.showDebugInfo)
-		return m, nil
+	// Additional quit key for compatibility (Ctrl+D)
+	if msg.Type == tea.KeyCtrlD {
+		return m, tea.Quit
 	}
 
 	// Selection/Enter

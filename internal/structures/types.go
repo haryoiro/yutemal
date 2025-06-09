@@ -90,6 +90,7 @@ type SeekAction struct {
 	Position time.Duration
 }
 type ShuffleQueueAction struct{}
+type JumpToIndexAction struct{ Index int }
 
 // PlayerState represents the current state of the music player
 type PlayerState struct {

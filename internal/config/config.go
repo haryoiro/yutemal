@@ -53,7 +53,7 @@ func Default() *structures.Config {
 		KeyBindings: structures.KeyBindings{
 			// Global controls
 			PlayPause:    "space",
-			Quit:         "ctrl+d",
+			Quit:         "ctrl+c",
 			VolumeUp:     []string{"+", "="},
 			VolumeDown:   []string{"-", "_"},
 			SeekForward:  "right",
