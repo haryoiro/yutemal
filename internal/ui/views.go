@@ -168,7 +168,7 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 			// Apply style based on selection
 			style := normalStyle
 			if i == m.playlistSelectedIndex {
-				trackNum = " → "
+				trackNum = " →  "
 				style = selectedStyle
 			}
 
@@ -243,11 +243,11 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 
 		if isCurrentTrack {
 			// Currently playing track
-			trackNum = "  ▶ "
+			trackNum = "  ▶  "
 			style = selectedStyle
 		} else if i == m.playlistSelectedIndex {
 			// Selected track (when focused)
-			trackNum = "  → "
+			trackNum = "  →  "
 			style = selectedStyle.Background(lipgloss.Color("#44475A"))
 		}
 
@@ -820,11 +820,11 @@ func (m *Model) renderQueue(maxWidth int, maxHeight int) string {
 
 		if isCurrentTrack {
 			// Current playing track
-			trackNum = "▶  "
+			trackNum = "▶   "
 			style = selectedStyle
 		} else if m.hasFocus("queue") && displayIdx == m.queueSelectedIndex {
 			// Selected track in queue (when focused)
-			trackNum = "→  "
+			trackNum = "→   "
 			style = selectedStyle.Background(lipgloss.Color("#44475A"))
 		}
 
