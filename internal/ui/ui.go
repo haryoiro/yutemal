@@ -1,9 +1,9 @@
 package ui
 
 import (
-	"time"
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -84,6 +84,7 @@ type Model struct {
 	marqueeOffset int
 	marqueeTicker *time.Ticker
 	lastUpdate    time.Time
+	needsMarquee  bool // Track if marquee is needed for current content
 
 	// Mouse wheel throttling
 	lastScrollTime time.Time
@@ -92,7 +93,7 @@ type Model struct {
 	// Key repeat prevention
 	keyDebouncer *KeyDebouncer
 	lastBackKeyTime *time.Time // Strict debouncing for back navigation keys
-	
+
 	// Debug state tracking
 	debugStateChanges []string
 	debugMessageLog   []string
@@ -113,7 +114,7 @@ func RunSimple(systems *systems.Systems, config *structures.Config) error {
 		themeManager:   NewThemeManager(config.Theme),
 		state:          HomeView,
 		playerHeight:   5,
-		marqueeTicker:  time.NewTicker(150 * time.Millisecond),
+		marqueeTicker:  time.NewTicker(500 * time.Millisecond), // Match the tickCmd frequency
 		scrollCooldown: 20 * time.Millisecond, // 50ms between scroll events
 		keyDebouncer:   NewKeyDebouncer(),
 	}
@@ -133,7 +134,7 @@ func (m *Model) Init() tea.Cmd {
 	logger.Debug("Init called, starting with state: %v", m.state)
 	return tea.Batch(
 		m.loadSections(),
-		m.tickCmd(),
+		// Don't start ticker initially - it will start when needed
 		m.listenToPlayer(),
 	)
 }
@@ -141,7 +142,7 @@ func (m *Model) Init() tea.Cmd {
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// デバッグ用メッセージログ記録
 	oldState := m.state
-	
+
 	// メッセージ種別によるログ記録
 	msgType := ""
 	switch msg := msg.(type) {
@@ -162,7 +163,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	default:
 		msgType = "other"
 	}
-	
+
 	if msgType != "" && msgType != "other" {
 		// デバッグメッセージをリングバッファに記録
 		m.debugMessageLog = append(m.debugMessageLog, msgType + " @ " + m.state.String())
@@ -192,8 +193,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tickMsg:
 		m.lastUpdate = time.Time(msg)
-		m.marqueeOffset++
-		return m, m.tickCmd()
+		// Only update marquee offset if marquee is actually needed
+		if m.needsMarquee {
+			m.marqueeOffset++
+			// Continue ticking only if marquee is active
+			return m, m.tickCmd()
+		}
+		// Stop ticking when marquee is not needed
+		return m, nil
 
 	case playerUpdateMsg:
 		m.playerState = structures.PlayerState(msg)
@@ -220,7 +227,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
-		return m, m.listenToPlayer()
+
+		// Continue listening and check if marquee is needed
+		return m, tea.Batch(
+			m.listenToPlayer(),
+			m.checkMarqueeCmd(),
+		)
 
 	case sectionsLoadedMsg:
 		logger.Debug("Processing sectionsLoadedMsg: %d sections, previous state: %v", len(msg), m.state)
@@ -401,7 +413,7 @@ func (m *Model) View() string {
 			Padding(1).
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#00FF00"))
-		
+
 		debugInfo := "=== DEBUG INFO (Ctrl+D to hide) ===\n"
 		debugInfo += "Current State: " + m.state.String() + "\n"
 		debugInfo += "Selected Index: " + fmt.Sprintf("%d", m.selectedIndex) + "\n"
@@ -415,20 +427,10 @@ func (m *Model) View() string {
 		for i, msg := range m.debugMessageLog {
 			debugInfo += fmt.Sprintf("  %d: %s\n", i, msg)
 		}
-		
+
 		debugContent := debugStyle.Render(debugInfo)
 		result = lipgloss.JoinHorizontal(lipgloss.Top, result, debugContent)
 	}
 
 	return result
 }
-
-// Key binding functions moved to keybindings.go
-
-// handleKeyPress has been moved to keybindings.go
-
-// Navigation helper functions moved to navigation.go
-
-// Action handler functions moved to actions.go
-
-// downloadAllSongs has been moved to actions.go
