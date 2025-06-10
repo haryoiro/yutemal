@@ -49,7 +49,8 @@ func NewBufferedStreamer(source beep.Streamer, format beep.Format, bufferSeconds
 
 // fillLoop continuously fills the buffer in the background
 func (bs *BufferedStreamer) fillLoop() {
-	tempBuffer := make([][2]float64, 1024)
+	// Larger temp buffer for more efficient filling
+	tempBuffer := make([][2]float64, 4096)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -117,8 +118,11 @@ func (bs *BufferedStreamer) fillLoop() {
 		}
 
 		// Small sleep to prevent busy looping when buffer is full
-		if available < len(tempBuffer)/2 {
-			time.Sleep(20 * time.Millisecond)
+		// But don't sleep too long to avoid buffer underrun
+		if available < len(tempBuffer)/4 {
+			time.Sleep(10 * time.Millisecond)
+		} else if available < len(tempBuffer)/2 {
+			time.Sleep(5 * time.Millisecond)
 		}
 	}
 }
@@ -128,10 +132,10 @@ func (bs *BufferedStreamer) Stream(samples [][2]float64) (n int, ok bool) {
 	bs.mu.Lock()
 	defer bs.mu.Unlock()
 
-	// Wait for minimum buffer fill on first read
-	if bs.readPos == 0 && bs.filled < bs.bufferSize/4 && !bs.closed {
-		logger.Debug("Waiting for initial buffer fill: %d/%d samples", bs.filled, bs.bufferSize/4)
-		for bs.filled < bs.bufferSize/4 && !bs.closed {
+	// Wait for minimum buffer fill on first read - use 50% for more stability
+	if bs.readPos == 0 && bs.filled < bs.bufferSize/2 && !bs.closed {
+		logger.Debug("Waiting for initial buffer fill: %d/%d samples", bs.filled, bs.bufferSize/2)
+		for bs.filled < bs.bufferSize/2 && !bs.closed {
 			bs.cond.Wait()
 		}
 	}
@@ -140,10 +144,12 @@ func (bs *BufferedStreamer) Stream(samples [][2]float64) (n int, ok bool) {
 	if bs.filled == 0 {
 		if !bs.closed {
 			bs.underruns++
-			if bs.underruns%10 == 0 {
-				logger.Warn("Audio buffer underrun detected: %d occurrences (max fill: %d/%d)",
-					bs.underruns, bs.maxFilled, bs.bufferSize)
-			}
+			// Log every underrun for debugging
+			logger.Warn("Audio buffer underrun #%d detected at position %d (max fill: %d/%d = %.1f%%)",
+				bs.underruns, bs.readPos, bs.maxFilled, bs.bufferSize,
+				float64(bs.maxFilled)/float64(bs.bufferSize)*100)
+			// Try to give the fill loop more time
+			time.Sleep(50 * time.Millisecond)
 		} else {
 			// Source is closed and buffer is empty
 			return 0, false

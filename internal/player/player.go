@@ -119,7 +119,7 @@ func (p *Player) LoadFile(filepath string) error {
 	p.streamer = streamer
 
 	// Wrap streamer in buffered streamer for smoother playback
-	bufferedStreamer := NewBufferedStreamer(streamer, format, 1.0) // 1 second buffer
+	bufferedStreamer := NewBufferedStreamer(streamer, format, 2.0) // 2 second buffer for stable playback
 
 	// Determine volume to use
 	var volumeToApply float64 = 0.7 // Default to 70%
@@ -210,8 +210,7 @@ func (p *Player) LoadFile(filepath string) error {
 		logger.Debug("Speaker initialized with sample rate: %d Hz", format.SampleRate)
 	}
 
-	// Clear any existing audio and start the new one
-	speaker.Clear()
+	// Start the new audio - speaker.Clear() is called automatically by Play()
 	speaker.Play(ctrl)
 
 	// Log file information
