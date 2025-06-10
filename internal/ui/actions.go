@@ -159,9 +159,19 @@ func (m *Model) downloadAllSongs(tracks []structures.Track) tea.Cmd {
 	}
 }
 
+// checkMarqueeCmd checks if marquee is needed and starts ticker if necessary
+func (m *Model) checkMarqueeCmd() tea.Cmd {
+	if m.needsMarquee {
+		return m.tickCmd()
+	}
+	return nil
+}
+
 // tickCmd creates a ticker command
 func (m *Model) tickCmd() tea.Cmd {
-	return tea.Every(150*time.Millisecond, func(t time.Time) tea.Msg {
+	// Reduced frequency from 150ms to 500ms to lower CPU usage
+	// This is still smooth enough for marquee animation
+	return tea.Every(500*time.Millisecond, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }
@@ -169,8 +179,7 @@ func (m *Model) tickCmd() tea.Cmd {
 // listenToPlayer creates a command to listen for player state updates
 func (m *Model) listenToPlayer() tea.Cmd {
 	return func() tea.Msg {
-		// This would typically be implemented with a channel or similar
-		// For now, just get the current state
+		time.Sleep(50 * time.Millisecond)
 		state := m.systems.Player.GetState()
 		return playerUpdateMsg(state)
 	}
