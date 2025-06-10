@@ -9,6 +9,7 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
+
 func (m *Model) renderPlayer() string {
 	// Get styles from theme manager
 	var playerInfoStyle, timeStyle, dimStyle lipgloss.Style
@@ -48,8 +49,8 @@ func (m *Model) renderPlayer() string {
 		artists := formatArtists(video.Artists)
 
 		// タイトルとアーティストの表示を最適化
-		prefixWidth := runewidth.StringWidth("🎵 ")
-		separatorWidth := runewidth.StringWidth(" - ")
+		prefixWidth := MusicEmojiWidth
+		separatorWidth := SeparatorWidth
 		artistsWidth := runewidth.StringWidth(artists)
 
 		// 利用可能な全体幅からアーティスト名とセパレータの分を引いてタイトル幅を決定
@@ -69,8 +70,12 @@ func (m *Model) renderPlayer() string {
 		// タイトルが長い場合はマーキー表示
 		titleWidth := runewidth.StringWidth(title)
 		if titleWidth > maxTitleWidth {
+			m.needsMarquee = true
 			title = m.applyMarquee(title, maxTitleWidth)
+		} else {
+			m.needsMarquee = false
 		}
+
 
 		// 最終的な表示文字列を構築
 		displayString := fmt.Sprintf("🎵 %s - %s", title, artists)
@@ -103,7 +108,8 @@ func (m *Model) renderPlayer() string {
 		totalTime := formatDuration(int(m.playerState.TotalTime.Seconds()))
 
 		// Calculate exact width needed for time displays and spacing
-		timeWidth := runewidth.StringWidth(currentTime) + runewidth.StringWidth(totalTime) // 2 spaces
+		// Time format is always "MM:SS" so both are 5 characters
+		timeWidth := 10 + 2 // Two time displays (5 chars each) plus 2 spaces
 		barWidth := contentWidth - timeWidth*2 + 6
 		if barWidth < 10 {
 			barWidth = 10
@@ -126,7 +132,7 @@ func (m *Model) renderPlayer() string {
 		}
 
 		// Calculate exact width for empty progress bar
-		timeWidth := runewidth.StringWidth("--:--") * 2 // 2 time displays + 2 spaces
+		timeWidth := TimeFormatWidth * 2 + 2 // 2 time displays + 2 spaces
 		barWidth := contentWidth - timeWidth*2 + 6
 		if barWidth < 10 {
 			barWidth = 10
