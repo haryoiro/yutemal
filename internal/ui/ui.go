@@ -193,27 +193,21 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tickMsg:
 		m.lastUpdate = time.Time(msg)
-		// Only update marquee offset if marquee is actually needed
 		if m.needsMarquee {
 			m.marqueeOffset++
-			// Continue ticking only if marquee is active
 			return m, m.tickCmd()
 		}
-		// Stop ticking when marquee is not needed
 		return m, nil
 
 	case playerUpdateMsg:
 		m.playerState = structures.PlayerState(msg)
-		// Auto-scroll queue to show current track when it changes (only if queue is not focused)
 		if m.showQueue && !m.queueFocused && len(m.playerState.List) > 0 {
 			visibleLines := m.contentHeight - 4
 			if visibleLines < 1 {
 				visibleLines = 1
 			}
-			// Check if current track is out of view
 			if m.playerState.Current < m.queueScrollOffset ||
 			   m.playerState.Current >= m.queueScrollOffset+visibleLines {
-				// Center the current track in the view
 				m.queueScrollOffset = m.playerState.Current - visibleLines/2
 				if m.queueScrollOffset < 0 {
 					m.queueScrollOffset = 0
@@ -228,19 +222,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		// Continue listening and check if marquee is needed
 		return m, tea.Batch(
 			m.listenToPlayer(),
 			m.checkMarqueeCmd(),
 		)
 
 	case sectionsLoadedMsg:
-		logger.Debug("Processing sectionsLoadedMsg: %d sections, previous state: %v", len(msg), m.state)
-		// Only update sections if we're in HomeView or just starting
 		if m.state == HomeView {
 			m.sections = msg
 
-			// Find "Your Library" section and set it as default, or use first section
 			m.currentSectionIndex = 0
 			for i, section := range m.sections {
 				if section.ID == "library" || section.Title == "Your Library" {
@@ -251,8 +241,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			m.selectedIndex = 0
 			m.scrollOffset = 0
-		} else {
-			logger.Debug("Ignoring sectionsLoadedMsg because state is %v", m.state)
 		}
 		return m, nil
 
@@ -263,10 +251,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tracksLoadedMsg:
-		// Update both new and legacy fields
 		m.playlistTracks = msg
 		m.currentList = msg
-		// Use playlist-specific indices when in PlaylistDetailView
 		if m.state == PlaylistDetailView {
 			// Already reset in handleEnter, but ensure consistency
 			if m.playlistSelectedIndex >= len(msg) {

@@ -78,7 +78,7 @@ func DecodeMiniMP3(file *os.File) (beep.StreamSeekCloser, beep.Format, error) {
 	// or from ffprobe if available
 	totalSamples := sampleRate * 60 * 5 // 5 minutes default - prevents seeking beyond actual audio
 
-	logger.Info("minimp3: Created decoder for %d Hz, %d channels, initial estimate: %d samples",
+	logger.Debug("minimp3: Created decoder for %d Hz, %d channels, initial estimate: %d samples",
 		sampleRate, channels, totalSamples)
 
 	return &minimp3Decoder{
@@ -128,7 +128,7 @@ func (d *minimp3Decoder) Stream(samples [][2]float64) (n int, ok bool) {
 				// We've reached the end - update total samples to actual length
 				actualTotalSamples := d.position
 				if actualTotalSamples != d.TotalSamples {
-					logger.Info("minimp3: EOF reached, correcting total samples from %d to %d (%.2fs)",
+					logger.Debug("minimp3: EOF reached, correcting total samples from %d to %d (%.2fs)",
 						d.TotalSamples, actualTotalSamples, float64(actualTotalSamples)/float64(d.format.SampleRate))
 					d.TotalSamples = actualTotalSamples
 

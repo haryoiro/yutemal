@@ -60,13 +60,11 @@ func (m *Model) handleEnter() (tea.Model, tea.Cmd) {
 	case PlaylistListView:
 		if len(m.playlists) > 0 && m.selectedIndex < len(m.playlists) {
 			playlist := m.playlists[m.selectedIndex]
-			// Reset playlist view state
 			m.playlistTracks = []structures.Track{}
 			m.playlistName = playlist.Title
 			m.playlistSelectedIndex = 0
 			m.playlistScrollOffset = 0
 			m.state = PlaylistDetailView
-			// Keep backward compatibility
 			m.currentList = []structures.Track{}
 			m.currentListName = playlist.Title
 			return m, m.loadPlaylistTracks(playlist.ID)
@@ -75,25 +73,20 @@ func (m *Model) handleEnter() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// performSearch executes a search query
 func (m *Model) performSearch() tea.Cmd {
 	return func() tea.Msg {
 		results, err := m.systems.API.Search(strings.TrimSpace(m.searchQuery))
 		if err != nil {
 			return errorMsg(err)
 		}
-		// Extract tracks from search results
 		return tracksLoadedMsg(results.Tracks)
 	}
 }
 
-// loadSections loads the home sections
 func (m *Model) loadSections() tea.Cmd {
 	return func() tea.Msg {
-		logger.Debug("loadSections called")
 		sections, err := m.systems.API.GetSections()
 		if err != nil {
-			// If sections loading fails, fall back to library playlists
 			playlists, err := m.systems.API.GetLibraryPlaylists()
 			if err != nil {
 				return errorMsg(err)
@@ -125,14 +118,12 @@ func (m *Model) loadSections() tea.Cmd {
 	}
 }
 
-// loadPlaylistTracks loads tracks for a playlist
 func (m *Model) loadPlaylistTracks(playlistID string) tea.Cmd {
 	return func() tea.Msg {
 		tracks, err := m.systems.API.GetPlaylistTracks(playlistID)
 		if err != nil {
 			return errorMsg(err)
 		}
-		// Convert to Track structures
 		result := make([]structures.Track, len(tracks))
 		for i, t := range tracks {
 			result[i] = structures.Track{
@@ -149,7 +140,6 @@ func (m *Model) loadPlaylistTracks(playlistID string) tea.Cmd {
 	}
 }
 
-// downloadAllSongs queues all songs for download
 func (m *Model) downloadAllSongs(tracks []structures.Track) tea.Cmd {
 	return func() tea.Msg {
 		for _, track := range tracks {
@@ -159,7 +149,6 @@ func (m *Model) downloadAllSongs(tracks []structures.Track) tea.Cmd {
 	}
 }
 
-// checkMarqueeCmd checks if marquee is needed and starts ticker if necessary
 func (m *Model) checkMarqueeCmd() tea.Cmd {
 	if m.needsMarquee {
 		return m.tickCmd()
@@ -167,16 +156,12 @@ func (m *Model) checkMarqueeCmd() tea.Cmd {
 	return nil
 }
 
-// tickCmd creates a ticker command
 func (m *Model) tickCmd() tea.Cmd {
-	// Reduced frequency from 150ms to 500ms to lower CPU usage
-	// This is still smooth enough for marquee animation
 	return tea.Every(500*time.Millisecond, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }
 
-// listenToPlayer creates a command to listen for player state updates
 func (m *Model) listenToPlayer() tea.Cmd {
 	return func() tea.Msg {
 		time.Sleep(50 * time.Millisecond)

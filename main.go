@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/haryoiro/yutemal/internal/config"
 	"github.com/haryoiro/yutemal/internal/database"
@@ -29,7 +28,6 @@ const (
 )
 
 func main() {
-	// Parse command line flags
 	var (
 		showHelp    = flag.Bool("help", false, "Show help message")
 		showFiles   = flag.Bool("files", false, "Show file locations")
@@ -70,8 +68,6 @@ func main() {
 		fmt.Println("  Playlist view:")
 		fmt.Println("    r           - Remove track from playlist")
 		fmt.Println("    h           - Return to home")
-		fmt.Println("\nDebug options:")
-		fmt.Println("  --debug     - Enable debug logging to file")
 		return
 	}
 
@@ -80,7 +76,6 @@ func main() {
 		return
 	}
 
-	// Get configuration directories
 	configDir, cacheDir, dataDir := getDirectories()
 
 	if *showFiles {
@@ -93,14 +88,11 @@ func main() {
 	}
 
 	if *fixDB {
-		fmt.Println("Fixing database...")
-		// For SQLite, we don't need a fix function as it handles its own integrity
 		fmt.Println("SQLite database self-manages integrity")
 		return
 	}
 
 	if *clearCache {
-		// Ask for confirmation
 		fmt.Println("⚠️  WARNING: This will delete all cached data including:")
 		fmt.Println("  - Downloaded audio files")
 		fmt.Println("  - Database (playlists, tracks)")
@@ -117,39 +109,34 @@ func main() {
 
 		fmt.Println("Clearing all cache data...")
 
-		// Clear cache directory (includes downloads)
 		if err := os.RemoveAll(cacheDir); err != nil {
 			fmt.Printf("Failed to clear cache directory: %v\n", err)
 		} else {
 			fmt.Printf("✓ Cleared cache directory: %s\n", cacheDir)
 		}
 
-		// Clear data directory (includes database and logs)
 		if err := os.RemoveAll(dataDir); err != nil {
 			fmt.Printf("Failed to clear data directory: %v\n", err)
 		} else {
 			fmt.Printf("✓ Cleared data directory: %s\n", dataDir)
 		}
 
-		// Note: We don't clear the config directory as it contains user preferences
 		fmt.Println("\n✅ All cache data cleared successfully")
 		fmt.Printf("Note: Configuration files in %s were preserved\n", configDir)
 		return
 	}
 
-	// Check if yt-dlp is installed
+
 	if err := checkYtDlp(); err != nil {
 		showYtDlpError()
 		return
 	}
 
-	// Check if ffprobe is installed
 	if err := checkFfprobe(); err != nil {
 		showFfprobeError()
 		return
 	}
 
-	// Initialize logging
 	logFile := filepath.Join(dataDir, "yutemal.log")
 	if err := initLogging(logFile, *debugMode); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logging: %v\n", err)
@@ -157,38 +144,25 @@ func main() {
 	}
 	defer logger.CloseLogger()
 
-	// Load configuration
 	configPath := filepath.Join(configDir, "config.toml")
 	cfg := loadConfiguration(configPath)
 
-	// Initialize SQLite database
 	db := initializeDatabase(dataDir)
-	defer func() {
-		logger.Debug("Closing database connection")
-		db.Close()
-	}()
+	defer db.Close()
 
-	// Check for authentication
 	headerFile := findHeaderFile(configDir)
 	if headerFile == "" {
 		showAuthenticationError(configDir)
 		return
 	}
 
-	// Initialize and start systems
 	appSystems := initializeSystems(cfg, db, cacheDir, headerFile)
-	defer func() {
-		logger.Debug("Stopping all application systems...")
-		appSystems.Stop()
-	}()
+	defer appSystems.Stop()
 
-	// Run the UI
-	logger.Debug("Starting UI")
 	if err := ui.RunSimple(appSystems, cfg); err != nil {
 		logger.Fatal("Application error: %v", err)
 	}
 
-	logger.Info("yutemal application shutdown complete")
 }
 
 func getDirectories() (config, cache, data string) {
@@ -232,9 +206,6 @@ func initLogging(logFile string, debugMode bool) error {
 	}
 
 	logger.Info("Logger initialized with debug mode: %v", debugMode)
-	if debugMode {
-		logger.Debug("Debug logging is enabled")
-	}
 
 	return nil
 }
@@ -253,14 +224,11 @@ func checkYtDlp() error {
 
 	// Verify it's executable
 	cmd := exec.Command(path, "--version")
-	output, err := cmd.Output()
+	_, err = cmd.Output()
 	if err != nil {
 		return fmt.Errorf("failed to run yt-dlp: %w", err)
 	}
 
-	version := strings.TrimSpace(string(output))
-	logger.Info("Found yt-dlp version: %s", version)
-	logger.Debug("yt-dlp path: %s", path)
 	return nil
 }
 
@@ -273,18 +241,11 @@ func checkFfprobe() error {
 
 	// Verify it's executable
 	cmd := exec.Command(path, "-version")
-	output, err := cmd.Output()
+	_, err = cmd.Output()
 	if err != nil {
 		return fmt.Errorf("failed to run ffprobe: %w", err)
 	}
 
-	// Extract version info from first line
-	lines := strings.Split(string(output), "\n")
-	if len(lines) > 0 {
-		version := strings.TrimSpace(lines[0])
-		logger.Info("Found ffprobe: %s", version)
-		logger.Debug("ffprobe path: %s", path)
-	}
 	return nil
 }
 
@@ -323,7 +284,7 @@ func loadConfiguration(configPath string) *structures.Config {
 		if err := config.Save(cfg, configPath); err != nil {
 			logger.Warn("Failed to save default config: %v", err)
 		} else {
-			logger.Info("Created default config at: %s", configPath)
+			logger.Debug("Created default config at: %s", configPath)
 		}
 	} else {
 		logger.Debug("Configuration loaded successfully from: %s", configPath)
@@ -346,7 +307,6 @@ func findHeaderFile(configDir string) string {
 		return headerFile
 	}
 
-	// Try alternative name
 	altHeaderFile := "header.txt"
 	if fileExists(altHeaderFile) {
 		return altHeaderFile
@@ -364,33 +324,21 @@ func showAuthenticationError(configDir string) {
 }
 
 func initializeSystems(cfg *structures.Config, db database.DB, cacheDir, headerFile string) *systems.Systems {
-	logger.Debug("Initializing application systems...")
 	appSystems := systems.New(cfg, db, cacheDir)
 
-	// Initialize API client with header file
-	logger.Debug("Initializing YouTube API with header file: %s", headerFile)
 	if err := appSystems.API.InitializeFromHeaderFile(headerFile); err != nil {
 		logger.Warn("Failed to initialize YouTube API: %v", err)
 		fmt.Printf("Warning: YouTube API not available. Some features will be limited.\n")
-	} else {
-		logger.Debug("YouTube API initialized successfully")
 	}
 
-	// Set header file for download system (for cookie authentication)
-	logger.Debug("Setting header file for download system")
 	if err := appSystems.Download.SetHeaderFile(headerFile); err != nil {
 		logger.Warn("Failed to set header file for downloads: %v", err)
 		fmt.Printf("Warning: Downloads may fail without proper authentication.\n")
-	} else {
-		logger.Debug("Header file set successfully for downloads")
 	}
 
-	// Start all systems
-	logger.Debug("Starting all application systems...")
 	if err := appSystems.Start(); err != nil {
 		logger.Fatal("Failed to start systems: %v", err)
 	}
-	logger.Info("All systems started successfully")
 
 	return appSystems
 }

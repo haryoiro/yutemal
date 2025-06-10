@@ -132,7 +132,7 @@ func (ds *DownloadSystem) SetHeaderFile(headerPath string) error {
 	}
 
 	ds.cookiesFile = cookiesPath
-	logger.Info("Created cookies file at: %s", cookiesPath)
+	logger.Debug("Created cookies file at: %s", cookiesPath)
 	return nil
 }
 
@@ -178,7 +178,7 @@ func (ds *DownloadSystem) worker(id int) {
 				// Emit failed status
 				ds.emitStatus(track.TrackID, structures.DownloadFailed)
 			} else {
-				logger.Info("Worker %d: Successfully downloaded %s (%s)", id, track.TrackID, track.Title)
+				logger.Debug("Worker %d: Successfully downloaded %s (%s)", id, track.TrackID, track.Title)
 				// Emit downloaded status
 				ds.emitStatus(track.TrackID, structures.Downloaded)
 			}
@@ -211,7 +211,7 @@ func (ds *DownloadSystem) downloadTrack(track structures.Track) error {
 
 	// Estimate file size based on quality and duration
 	estimatedSizeMB := estimateFileSize(track.Duration, audioQuality)
-	logger.Info("Starting download for track %s (%s by %s) - Quality: %s, Estimated size: %.1f MB",
+	logger.Debug("Starting download for track %s (%s by %s) - Quality: %s, Estimated size: %.1f MB",
 		track.TrackID, track.Title, strings.Join(track.Artists, ", "), audioQuality, estimatedSizeMB)
 
 	// Retry up to MaxDownloadRetries times
@@ -279,9 +279,9 @@ func (ds *DownloadSystem) downloadTrack(track structures.Track) error {
 		// Success - get actual file size
 		if fileInfo, err := os.Stat(outputPath); err == nil {
 			actualSizeMB := float64(fileInfo.Size()) / 1024.0 / 1024.0
-			logger.Info("Successfully downloaded %s - Actual size: %.1f MB", track.TrackID, actualSizeMB)
+			logger.Debug("Successfully downloaded %s - Actual size: %.1f MB", track.TrackID, actualSizeMB)
 		} else {
-			logger.Info("Successfully downloaded %s", track.TrackID)
+			logger.Debug("Successfully downloaded %s", track.TrackID)
 		}
 
 		// Update database
@@ -425,7 +425,7 @@ func (ds *DownloadSystem) CleanupOldFiles(maxAge time.Duration) error {
 		}
 	}
 
-	logger.Info("Cleanup complete: removed %d files, freed %d MB", removedCount, totalSize/(1024*1024))
+	logger.Debug("Cleanup complete: removed %d files, freed %d MB", removedCount, totalSize/(1024*1024))
 	return nil
 }
 

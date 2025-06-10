@@ -394,7 +394,7 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 						logger.Error("Failed to start playback after download: %v", err)
 						ps.state.IsPlaying = false
 					} else {
-						logger.Info("Started playback after download completed")
+						logger.Debug("Started playback after download completed")
 					}
 				}
 			}()
@@ -429,7 +429,7 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 	case structures.ShuffleQueueAction:
 		// Shuffle the queue after the current song
 		ps.shuffleQueue()
-		logger.Info("Queue shuffled")
+		logger.Debug("Queue shuffled")
 		
 	case structures.JumpToIndexAction:
 		// Jump directly to the specified index
@@ -532,7 +532,7 @@ func (ps *PlayerSystem) loadCurrentSong() {
 	}
 
 	currentTrack := ps.state.List[ps.state.Current]
-	logger.Info("Loading song: %s by %s", currentTrack.Title, strings.Join(currentTrack.Artists, ", "))
+	logger.Debug("Loading song: %s by %s", currentTrack.Title, strings.Join(currentTrack.Artists, ", "))
 
 	// Check if the file is downloaded
 	if entry, exists := ps.database.Get(currentTrack.TrackID); exists {
@@ -559,7 +559,7 @@ func (ps *PlayerSystem) loadCurrentSong() {
 
 		// Log bitrate information if available
 		if entry.Track.AudioBitrate > 0 {
-			logger.Info("Song loaded: %s by %s (%d kbps, %s quality)",
+			logger.Debug("Song loaded: %s by %s (%d kbps, %s quality)",
 				currentTrack.Title,
 				strings.Join(currentTrack.Artists, ", "),
 				entry.Track.AudioBitrate,
@@ -580,7 +580,7 @@ func (ps *PlayerSystem) loadCurrentSong() {
 	} else {
 		// Check if it's currently downloading
 		if status, ok := ps.state.MusicStatus[currentTrack.TrackID]; ok && status == structures.Downloading {
-			logger.Info("Track is currently downloading, waiting for completion...")
+			logger.Debug("Track is currently downloading, waiting for completion...")
 			return
 		}
 
@@ -629,7 +629,7 @@ func (ps *PlayerSystem) loadCurrentSong() {
 			ps.state.MusicStatus[currentTrack.TrackID] = structures.NotDownloaded
 			// Queue for download if callback is set
 			if ps.downloadCallback != nil {
-				logger.Info("Queueing for download: %s", currentTrack.TrackID)
+				logger.Debug("Queueing for download: %s", currentTrack.TrackID)
 				ps.downloadCallback(currentTrack)
 			}
 		}
@@ -819,7 +819,7 @@ func (ps *PlayerSystem) fetchAndUpdateBitrate(track structures.Track) {
 	if bestBitrate > 0 {
 		// Convert to kbps
 		bitrateKbps := bestBitrate / 1000
-		logger.Info("Fetched bitrate info from API for %s: %d kbps", track.TrackID, bitrateKbps)
+		logger.Debug("Fetched bitrate info from API for %s: %d kbps", track.TrackID, bitrateKbps)
 
 		// Update database if entry exists
 		if entry, exists := ps.database.Get(track.TrackID); exists {
