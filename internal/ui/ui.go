@@ -197,8 +197,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case playerUpdateMsg:
 		m.playerState = structures.PlayerState(msg)
-		// Auto-scroll queue to show current track when it changes
-		if m.showQueue && len(m.playerState.List) > 0 {
+		// Auto-scroll queue to show current track when it changes (only if queue is not focused)
+		if m.showQueue && !m.queueFocused && len(m.playerState.List) > 0 {
 			visibleLines := m.contentHeight - 4
 			if visibleLines < 1 {
 				visibleLines = 1

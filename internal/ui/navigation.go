@@ -269,7 +269,12 @@ func (m *Model) adjustQueueScroll() {
 
 // adjustPlaylistScroll adjusts the playlist scroll offset to keep the selected item visible
 func (m *Model) adjustPlaylistScroll() {
-	visibleItems := m.getVisibleItems()
+	// Use same calculation as renderPlaylistDetail
+	visibleItems := m.contentHeight - 6 // Header and footer space
+	if visibleItems < 1 {
+		visibleItems = 1
+	}
+	
 	if m.playlistSelectedIndex < m.playlistScrollOffset {
 		m.playlistScrollOffset = m.playlistSelectedIndex
 	} else if m.playlistSelectedIndex >= m.playlistScrollOffset+visibleItems {

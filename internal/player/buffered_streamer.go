@@ -67,13 +67,22 @@ func (bs *BufferedStreamer) fillLoop() {
 		// Calculate available space
 		available := bs.bufferSize - bs.filled
 		if available < len(tempBuffer) {
-			// Buffer is nearly full, wait
-			// Important: cond.Wait() releases the mutex and reacquires it on wake
-			bs.cond.Wait()
-			// After Wait returns, we still hold the lock
-			if bs.closed {
-				bs.mu.Unlock()
-				return
+			// Buffer is nearly full, wait for some space
+			// We want to keep the buffer as full as possible, so only wait if we can't fit a chunk
+			if available == 0 {
+				// Buffer is completely full, wait for some consumption
+				bs.cond.Wait()
+				// After Wait returns, we still hold the lock
+				if bs.closed {
+					bs.mu.Unlock()
+					return
+				}
+				// Recalculate available space after waiting
+				available = bs.bufferSize - bs.filled
+			}
+			// If we still have some space, read only what we can fit
+			if available > 0 && available < len(tempBuffer) {
+				tempBuffer = tempBuffer[:available]
 			}
 		}
 		bs.mu.Unlock()
@@ -101,6 +110,16 @@ func (bs *BufferedStreamer) fillLoop() {
 		}
 		bs.cond.Broadcast()
 		bs.mu.Unlock()
+
+		// Restore tempBuffer size if it was reduced
+		if cap(tempBuffer) > len(tempBuffer) {
+			tempBuffer = tempBuffer[:cap(tempBuffer)]
+		}
+
+		// Small sleep to prevent busy looping when buffer is full
+		if available < len(tempBuffer)/2 {
+			time.Sleep(20 * time.Millisecond)
+		}
 	}
 }
 

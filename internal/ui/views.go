@@ -232,11 +232,23 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 			artistStr,
 			durationStr)
 
-		// Apply style based on selection
+		// Apply style based on selection and current playing track
 		style := normalStyle
-		if i == m.playlistSelectedIndex {
-			trackNum = "  → "
+		isCurrentTrack := false
+		
+		// Check if this track is currently playing
+		if m.playerState.Current < len(m.playerState.List) && m.playerState.List[m.playerState.Current].TrackID == track.TrackID {
+			isCurrentTrack = true
+		}
+		
+		if isCurrentTrack {
+			// Currently playing track
+			trackNum = "  ▶ "
 			style = selectedStyle
+		} else if i == m.playlistSelectedIndex {
+			// Selected track (when focused)
+			trackNum = "  → "
+			style = selectedStyle.Background(lipgloss.Color("#44475A"))
 		}
 		
 		line = trackNum + line
@@ -702,13 +714,12 @@ func (m *Model) renderQueue(maxWidth int, maxHeight int) string {
 		visibleLines = 1
 	}
 
-	// Ensure current track is visible
-	if m.playerState.Current < m.queueScrollOffset {
-		m.queueScrollOffset = m.playerState.Current
-	} else if m.playerState.Current >= m.queueScrollOffset+visibleLines {
-		m.queueScrollOffset = m.playerState.Current - visibleLines/2
-		if m.queueScrollOffset < 0 {
-			m.queueScrollOffset = 0
+	// Ensure selected item is visible when queue is focused
+	if m.queueFocused {
+		if m.queueSelectedIndex < m.queueScrollOffset {
+			m.queueScrollOffset = m.queueSelectedIndex
+		} else if m.queueSelectedIndex >= m.queueScrollOffset+visibleLines {
+			m.queueScrollOffset = m.queueSelectedIndex - visibleLines + 1
 		}
 	}
 
