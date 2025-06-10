@@ -106,7 +106,7 @@ func (p *Player) LoadFile(filepath string) error {
 
 	p.streamer = streamer
 
-	bufferedStreamer := NewBufferedStreamer(streamer, format, 2.0)
+	bufferedStreamer := NewBufferedStreamer(streamer, format, 4.0)
 
 	var volumeToApply float64 = 0.7
 	if p.savedVolumeSet {
@@ -167,7 +167,7 @@ func (p *Player) LoadFile(filepath string) error {
 			time.Sleep(100 * time.Millisecond)
 		}
 
-		err = speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/4))
+		err = speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/2))
 		if err != nil {
 			return fmt.Errorf("failed to initialize speaker for sample rate %d: %w", format.SampleRate, err)
 		}

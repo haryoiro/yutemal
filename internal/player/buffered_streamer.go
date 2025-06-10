@@ -27,7 +27,6 @@ type BufferedStreamer struct {
 
 // NewBufferedStreamer creates a new buffered streamer
 func NewBufferedStreamer(source beep.Streamer, format beep.Format, bufferSeconds float64) *BufferedStreamer {
-	// Calculate buffer size based on sample rate and duration
 	bufferSize := int(float64(format.SampleRate) * bufferSeconds)
 
 	bs := &BufferedStreamer{
@@ -38,6 +37,8 @@ func NewBufferedStreamer(source beep.Streamer, format beep.Format, bufferSeconds
 	}
 	bs.cond = sync.NewCond(&bs.mu)
 
+	logger.Debug("Created buffered streamer with %.1f seconds buffer (%d samples)", bufferSeconds, bufferSize)
+
 	go bs.fillLoop()
 
 	return bs
@@ -45,7 +46,7 @@ func NewBufferedStreamer(source beep.Streamer, format beep.Format, bufferSeconds
 
 // fillLoop continuously fills the buffer in the background
 func (bs *BufferedStreamer) fillLoop() {
-	tempBuffer := make([][2]float64, 4096)
+	tempBuffer := make([][2]float64, 8192)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -82,6 +83,7 @@ func (bs *BufferedStreamer) fillLoop() {
 			bs.closed = true
 			bs.cond.Broadcast()
 			bs.mu.Unlock()
+			logger.Debug("BufferedStreamer: source exhausted, filled: %d/%d", bs.filled, bs.bufferSize)
 			return
 		}
 
@@ -101,10 +103,13 @@ func (bs *BufferedStreamer) fillLoop() {
 			tempBuffer = tempBuffer[:cap(tempBuffer)]
 		}
 
-		if available < len(tempBuffer)/4 {
-			time.Sleep(10 * time.Millisecond)
-		} else if available < len(tempBuffer)/2 {
-			time.Sleep(5 * time.Millisecond)
+		if available < len(tempBuffer)/2 {
+			time.Sleep(2 * time.Millisecond)
+		}
+
+		if bs.filled < bs.bufferSize/4 && !bs.closed {
+			logger.Debug("BufferedStreamer: low buffer warning - filled: %d/%d (%.1f%%)", 
+				bs.filled, bs.bufferSize, float64(bs.filled)/float64(bs.bufferSize)*100)
 		}
 	}
 }
@@ -114,8 +119,9 @@ func (bs *BufferedStreamer) Stream(samples [][2]float64) (n int, ok bool) {
 	bs.mu.Lock()
 	defer bs.mu.Unlock()
 
-	if bs.readPos == 0 && bs.filled < bs.bufferSize/2 && !bs.closed {
-		for bs.filled < bs.bufferSize/2 && !bs.closed {
+	if bs.readPos == 0 && bs.filled < bs.bufferSize*3/4 && !bs.closed {
+		logger.Debug("Waiting for initial buffer fill: %d/%d samples", bs.filled, bs.bufferSize*3/4)
+		for bs.filled < bs.bufferSize*3/4 && !bs.closed {
 			bs.cond.Wait()
 		}
 	}
@@ -126,7 +132,7 @@ func (bs *BufferedStreamer) Stream(samples [][2]float64) (n int, ok bool) {
 			logger.Warn("Audio buffer underrun #%d detected at position %d (max fill: %d/%d = %.1f%%)",
 				bs.underruns, bs.readPos, bs.maxFilled, bs.bufferSize,
 				float64(bs.maxFilled)/float64(bs.bufferSize)*100)
-			time.Sleep(50 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 		} else {
 			return 0, false
 		}
