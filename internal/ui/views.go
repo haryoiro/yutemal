@@ -112,7 +112,7 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 	}
 
 	var b strings.Builder
-	
+
 	// Header with title and shortcuts
 	b.WriteString(titleStyle.Render(fmt.Sprintf("🎶 %s", m.playlistName)))
 	b.WriteString(" " + dimStyle.Render("[Enter: play] [d: delete] [q: queue]"))
@@ -164,27 +164,27 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 			// Track number or selection indicator
 			trackNum := fmt.Sprintf("%2d. ", i+1)
 			line := fmt.Sprintf("%s %s %s", status, titleStr, durationStr)
-			
+
 			// Apply style based on selection
 			style := normalStyle
 			if i == m.playlistSelectedIndex {
 				trackNum = " → "
 				style = selectedStyle
 			}
-			
+
 			line = trackNum + line
 			b.WriteString(style.Render(line))
-			
+
 			if i < end-1 {
 				b.WriteString("\n")
 			}
 		}
-		
+
 		// Simple footer for small screens
 		b.WriteString("\n\n")
 		positionInfo := fmt.Sprintf("%d/%d", m.playlistSelectedIndex+1, len(m.playlistTracks))
 		b.WriteString(dimStyle.Render(positionInfo))
-		
+
 		return b.String()
 	}
 
@@ -224,7 +224,7 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 
 		// Track number or selection indicator
 		trackNum := fmt.Sprintf("%3d. ", i+1)
-		
+
 		// Build line with fixed format
 		line := fmt.Sprintf("%s%s %s %s",
 			status,
@@ -235,12 +235,12 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 		// Apply style based on selection and current playing track
 		style := normalStyle
 		isCurrentTrack := false
-		
+
 		// Check if this track is currently playing
 		if m.playerState.Current < len(m.playerState.List) && m.playerState.List[m.playerState.Current].TrackID == track.TrackID {
 			isCurrentTrack = true
 		}
-		
+
 		if isCurrentTrack {
 			// Currently playing track
 			trackNum = "  ▶ "
@@ -250,10 +250,10 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 			trackNum = "  → "
 			style = selectedStyle.Background(lipgloss.Color("#44475A"))
 		}
-		
+
 		line = trackNum + line
 		b.WriteString(style.Render(line))
-		
+
 		if i < end-1 {
 			b.WriteString("\n")
 		}
@@ -262,19 +262,19 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 	// Footer with position info and help
 	b.WriteString("\n\n")
 	var footerInfo []string
-	
+
 	// Position info
 	footerInfo = append(footerInfo, fmt.Sprintf("%d/%d", m.playlistSelectedIndex+1, len(m.playlistTracks)))
-	
+
 	// Navigation help
 	footerInfo = append(footerInfo, "[↑↓: nav] [Enter: play from here]")
-	
+
 	// Focus help
 	focusHelp := m.getFocusHelpText()
 	if focusHelp != "" {
 		footerInfo = append(footerInfo, focusHelp)
 	}
-	
+
 	b.WriteString(dimStyle.Render(strings.Join(footerInfo, "  ")))
 
 	return b.String()
@@ -483,7 +483,7 @@ func (m Model) renderHome(maxWidth int) string {
 // renderSectionTabs renders the section tabs at the top
 func (m Model) renderSectionTabs(maxWidth int) string {
 	titleStyle, selectedStyle, normalStyle, dimStyle, _ := m.getStyles()
-	
+
 	// Apply focus style if home view has focus
 	if m.hasFocus("home") {
 		titleStyle = titleStyle.Underline(true)
@@ -533,8 +533,26 @@ func (m Model) applyMarquee(text string, maxLen int) string {
 	paddedRunes := append(append([]rune{}, runes...), spacer...)
 	paddedRunes = append(paddedRunes, runes...) // タイトルを繰り返す
 
-	// スクロール速度を調整（2回に1回のみオフセットを増やす）
-	effectiveOffset := m.marqueeOffset / 2
+	// スクロール速度を調整 - テキストの長さに応じて動的に調整
+	// 長いテキストほど遅くスクロールする
+	textLength := len(runes)
+	scrollDivisor := 3 // デフォルトの速度調整値
+
+	// テキストの長さに基づいて速度を調整
+	if textLength > 30 {
+		scrollDivisor = 4
+	}
+	if textLength > 60 {
+		scrollDivisor = 5
+	}
+	if textLength > 90 {
+		scrollDivisor = 6
+	}
+	if textLength > 120 {
+		scrollDivisor = 7
+	}
+
+	effectiveOffset := m.marqueeOffset / scrollDivisor
 
 	// Calculate offset based on rune count
 	totalRunes := len(paddedRunes)
@@ -592,6 +610,16 @@ func (m Model) applyMarquee(text string, maxLen int) string {
 	return string(result)
 }
 
+// isASCII checks if a string contains only ASCII characters
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 0x80 {
+			return false
+		}
+	}
+	return true
+}
+
 func truncate(s string, maxWidth int) string {
 	if maxWidth <= 0 {
 		return ""
@@ -604,33 +632,38 @@ func truncate(s string, maxWidth int) string {
 
 	// 省略記号用のスペースを確保
 	if maxWidth <= 3 {
-		// 短すぎる場合は文字単位で切り詰め
-		runes := []rune(s)
-		result := ""
-		for _, r := range runes {
-			testStr := result + string(r)
-			if runewidth.StringWidth(testStr) > maxWidth {
-				break
-			}
-			result = testStr
+		// Very short max width - just return the first few bytes
+		if len(s) <= maxWidth {
+			return s
 		}
-		return result
+		// For ASCII, we can use simple byte slicing
+		if isASCII(s) && len(s) > maxWidth {
+			return s[:maxWidth]
+		}
+		// For non-ASCII, need proper rune handling
+		runes := []rune(s)
+		if len(runes) <= maxWidth {
+			return s
+		}
+		return string(runes[:maxWidth])
 	}
 
 	// 省略記号込みで切り詰め
 	targetWidth := maxWidth - 3 // "..."分を引く
 	runes := []rune(s)
-	result := ""
+	result := make([]rune, 0, len(runes))
+	width := 0
 
 	for _, r := range runes {
-		testStr := result + string(r)
-		if runewidth.StringWidth(testStr) > targetWidth {
+		rw := runewidth.RuneWidth(r)
+		if width + rw > targetWidth {
 			break
 		}
-		result = testStr
+		result = append(result, r)
+		width += rw
 	}
 
-	return result + "..."
+	return string(result) + "..."
 }
 
 func formatDuration(seconds int) string {
