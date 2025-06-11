@@ -1,0 +1,18 @@
+
+
+
+# ==== Emojis ====
+# 🐛  :bug: Bug fix
+# 👍  :+1: Feature improvement
+# ✨  :sparkles: Minor feature addition
+# 🎉  :tada: Major feature addition (celebratory)
+# ♻️  :recycle: Refactoring
+# 🔥  :fire: Remove unused or obsolete features
+# 💚  :green_heart: Fix or improve tests / CI
+# 👕  :shirt: Fix lint errors or code style
+# ⚡️  :zap: Performance improvement
+# 🆙  :up: Update dependencies or packages
+# 📝  :memo: Update or improve documentation
+# 🎨  :art: Improve code formatting or style
+# 👮  :cop: Security improvements
+# 🔧  :wrench: Chore (dev environment tweaks, add logs, etc. — changes not directly affecting users)
