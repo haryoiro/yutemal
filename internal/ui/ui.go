@@ -389,7 +389,7 @@ func (m *Model) View() string {
 
 	// Split content by lines and ensure it fits in the content area
 	contentLines := strings.Split(content, "\n")
-	maxContentLines := m.contentHeight - mainV
+	maxContentLines := m.contentHeight - mainV + 2
 
 	if len(contentLines) > maxContentLines {
 		contentLines = contentLines[:maxContentLines]

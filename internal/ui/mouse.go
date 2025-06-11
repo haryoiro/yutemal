@@ -106,10 +106,11 @@ func (m *Model) handleContentClick(x, y int) (tea.Model, tea.Cmd) {
 		// プレイリスト詳細ビュー
 		// renderPlaylistDetailの構造:
 		// - タイトル行: "🎶 PLAYLIST: xxx"
+		// - ショートカット行: "[Enter/l: Play from Here] ..."
 		// - 改行: "\n"
 		// - リストアイテムが始まる
 		// 実際には、表示位置が1つずれているため、調整が必要
-		listStartY := 2
+		listStartY := 4
 		relativeY := contentY - listStartY
 
 		// 表示範囲内かチェック
@@ -144,7 +145,7 @@ func (m *Model) handleContentClick(x, y int) (tea.Model, tea.Cmd) {
 		// ホーム画面
 		// セクションの内容の開始位置を計算
 		// タブがない場合: セクションタイトル(1行) + ボーダー(1行) = 2行
-		listStartY := 2
+		listStartY := 6
 
 		if m.currentSectionIndex < len(m.sections) {
 			section := m.sections[m.currentSectionIndex]

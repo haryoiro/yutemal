@@ -72,8 +72,8 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 		b.WriteString("  " + dimStyle.Render(shortcuts))
 	}
 
-	b.WriteString("\033[B")
-	b.WriteString("\n\n")
+	b.WriteString("\033[B\n")
+
 
 	if len(m.playlistTracks) == 0 {
 		b.WriteString(dimStyle.Render("No tracks in this playlist"))
@@ -239,7 +239,7 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 		footerInfo = append(footerInfo, focusHelp)
 	}
 
-	b.WriteString(dimStyle.Render(strings.Join(footerInfo, "  ")))
+	b.WriteString("  "+dimStyle.Render(strings.Join(footerInfo, "  ")))
 
 	return b.String()
 }
@@ -253,14 +253,14 @@ func (m Model) renderSearch(maxWidth int) string {
 
 	b.WriteString("Query: ")
 	b.WriteString(m.searchQuery)
-	b.WriteString("\n\n")
+	b.WriteString("\n")
 
 	if len(m.searchResults) == 0 {
 		b.WriteString(dimStyle.Render("No results found."))
 		return b.String()
 	}
 
-	visibleItems := m.contentHeight - 4
+	visibleItems := m.contentHeight - 6
 	if visibleItems < 1 {
 		visibleItems = 1
 	}
@@ -361,7 +361,7 @@ func (m Model) renderHome(maxWidth int) string {
 	}
 
 	b.WriteString("\033[B")
-	b.WriteString("\n\n")
+	b.WriteString("\n")
 
 	if m.err != nil {
 		b.WriteString(errorStyle.Render(fmt.Sprintf("⚠️  Error: %v", m.err)))
