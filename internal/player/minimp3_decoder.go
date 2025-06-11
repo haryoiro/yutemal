@@ -31,11 +31,10 @@ type minimp3Decoder struct {
 	lastReadTime  time.Time
 
 	// Pre-allocated buffers to reduce GC pressure
-	readBuffer      []byte
-	decodeBuffer    []byte       // Reusable decode input buffer
-	pcmBuffer       []int16      // Reusable PCM output buffer
-	samplePool      [][2]float64 // Pool of sample buffers
-	samplePoolIndex int
+	readBuffer   []byte
+	decodeBuffer []byte       // Reusable decode input buffer
+	pcmBuffer    []int16      // Reusable PCM output buffer
+	samplePool   [][2]float64 // Pool of sample buffers
 }
 
 // DecodeMiniMP3 decodes an MP3 file using minimp3.
@@ -101,7 +100,7 @@ func DecodeMiniMP3(file *os.File) (beep.StreamSeekCloser, beep.Format, error) {
 		bufferIndex:            0,
 		durationUpdateCallback: nil,
 		// Pre-allocated buffers
-		readBuffer:   make([]byte, 65536), // 64KB read buffer
+		readBuffer:   make([]byte, 262144), // 256KB read buffer (increased from 64KB)
 		decodeBuffer: make([]byte, maxDecodeSize),
 		pcmBuffer:    make([]int16, maxDecodeSize),
 		samplePool:   make([][2]float64, 8192), // Pool of samples
@@ -143,7 +142,7 @@ func (d *minimp3Decoder) refillBuffer(samples [][2]float64, startIndex int) bool
 	d.detectUnderrun()
 
 	// Read more data - use pre-allocated buffer to reduce GC pressure
-	const readSize = 65536 // 64KB buffer for smoother playback
+	const readSize = 262144 // 256KB buffer for smoother playback (increased from 64KB)
 	if d.readBuffer == nil {
 		d.readBuffer = make([]byte, readSize)
 	}
@@ -166,10 +165,11 @@ func (d *minimp3Decoder) detectUnderrun() {
 	now := time.Now()
 	if !d.lastReadTime.IsZero() {
 		elapsed := now.Sub(d.lastReadTime)
-		// Only log if reads are happening too frequently (< 1ms is suspicious)
-		if elapsed < time.Millisecond {
+		// Only log if reads are happening too frequently (< 50μs is suspicious for actual underrun)
+		// Changed from 500μs to 50μs to only detect real underruns
+		if elapsed < 50*time.Microsecond {
 			d.underrunCount++
-			if d.underrunCount%100 == 0 {
+			if d.underrunCount%10000 == 0 { // Increased from 1000 to 10000 to reduce log spam
 				logger.Debug("Very frequent decoder reads detected: %d occurrences (elapsed: %v)", d.underrunCount, elapsed)
 			}
 		}

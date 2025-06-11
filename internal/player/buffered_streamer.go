@@ -33,7 +33,7 @@ type BufferedStreamer struct {
 	resizeInProgress     bool
 	consecutiveUnderruns int
 	lastUnderrunTime     time.Time
-	
+
 	// Track source exhaustion separately from closed state
 	sourceExhausted bool
 }
@@ -69,8 +69,10 @@ func NewBufferedStreamer(source beep.Streamer, format beep.Format, bufferSeconds
 
 // fillLoop continuously fills the buffer in the background.
 func (bs *BufferedStreamer) fillLoop() {
-	tempBuffer := make([][2]float64, 8192*2)
+	// Use larger temp buffer to reduce frequency of decoder reads
+	tempBuffer := make([][2]float64, 32768) // Increased from 16384 to 32768
 	healthCheckTicker := time.NewTicker(5 * time.Second)
+
 	defer healthCheckTicker.Stop()
 
 	defer func() {
@@ -87,6 +89,8 @@ func (bs *BufferedStreamer) fillLoop() {
 			if !bs.processFillIteration(tempBuffer) {
 				return
 			}
+			// Add small delay to prevent excessive decoder reads
+			time.Sleep(time.Millisecond)
 		}
 	}
 }
@@ -99,15 +103,26 @@ func (bs *BufferedStreamer) processFillIteration(tempBuffer [][2]float64) bool {
 		bs.mu.Unlock()
 		return false
 	}
-	
+
 	// If source is exhausted but buffer still has data, sleep a bit
 	if bs.sourceExhausted {
 		bs.mu.Unlock()
 		time.Sleep(10 * time.Millisecond)
+
 		return true
 	}
 
 	available := bs.bufferSize - bs.filled
+
+	// If buffer is more than 75% full, add a small delay to reduce decoder pressure
+	fillRatio := float64(bs.filled) / float64(bs.bufferSize)
+	if fillRatio > 0.75 {
+		bs.mu.Unlock()
+		time.Sleep(5 * time.Millisecond)
+		bs.mu.Lock()
+		available = bs.bufferSize - bs.filled
+	}
+
 	workBuffer := bs.adjustTempBuffer(tempBuffer, available)
 	bs.mu.Unlock()
 
@@ -120,6 +135,7 @@ func (bs *BufferedStreamer) processFillIteration(tempBuffer [][2]float64) bool {
 	if n > 0 {
 		bs.writeToBuffer(workBuffer, n)
 	}
+
 	bs.handlePostWrite(workBuffer, available)
 
 	return true
@@ -152,11 +168,11 @@ func (bs *BufferedStreamer) adjustTempBuffer(tempBuffer [][2]float64, available 
 func (bs *BufferedStreamer) handleSourceExhausted() {
 	bs.mu.Lock()
 	defer bs.mu.Unlock()
-	
+
 	// Don't close immediately - we still have buffered data to play
 	logger.Debug("BufferedStreamer: source exhausted, but buffer still has %d/%d samples (%.1f%%) to play",
 		bs.filled, bs.bufferSize, float64(bs.filled)/float64(bs.bufferSize)*100)
-	
+
 	// Mark that source is exhausted but don't set closed=true yet
 	bs.sourceExhausted = true
 	bs.cond.Broadcast()
@@ -282,7 +298,7 @@ func (bs *BufferedStreamer) Close() error {
 	// Log performance statistics
 	logger.Info("BufferedStreamer performance stats:")
 	logger.Info("  - Underruns: %d (consecutive max: %d)", bs.underruns, bs.consecutiveUnderruns)
-	logger.Info("  - Max buffer fill: %d/%d (%.1f%%)", 
+	logger.Info("  - Max buffer fill: %d/%d (%.1f%%)",
 		bs.maxFilled, bs.bufferSize,
 		float64(bs.maxFilled)/float64(bs.bufferSize)*100)
 	logger.Info("  - Final buffer size: %.1f seconds (%d samples)",
@@ -348,6 +364,7 @@ func (bs *BufferedStreamer) handleUnderrun() {
 	} else {
 		bs.consecutiveUnderruns = 1
 	}
+
 	bs.lastUnderrunTime = now
 
 	logger.Warn("Audio buffer underrun #%d detected at position %d (consecutive: %d, max fill: %d/%d = %.1f%%)",
@@ -444,10 +461,10 @@ func (bs *BufferedStreamer) checkBufferHealth() {
 	// 2. Buffer is consistently full
 	// 3. We're above minimum buffer size
 	stableTime := time.Since(bs.lastUnderrunTime)
-	
+
 	if (bs.underruns == 0 && bs.position > int(bs.format.SampleRate)*30) || // 30 seconds of playback
-	   (bs.underruns > 0 && stableTime > 60*time.Second) { // 1 minute since last underrun
-		
+		(bs.underruns > 0 && stableTime > 60*time.Second) { // 1 minute since last underrun
+
 		// Only reduce if buffer is consistently very full
 		fillRatio := float64(bs.filled) / float64(bs.bufferSize)
 		if bs.targetBufferSize > bs.minBufferSize && fillRatio > 0.9 {
@@ -470,7 +487,7 @@ func (bs *BufferedStreamer) checkBufferHealth() {
 			bs.consecutiveUnderruns = 0
 		}
 	}
-	
+
 	// Log current buffer status periodically
 	if bs.position%(int(bs.format.SampleRate)*10) == 0 && bs.position > 0 { // Every 10 seconds
 		fillRatio := float64(bs.filled) / float64(bs.bufferSize)
