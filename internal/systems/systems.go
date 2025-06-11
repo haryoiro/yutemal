@@ -5,7 +5,7 @@ import (
 	"github.com/haryoiro/yutemal/internal/structures"
 )
 
-// Systems contains all the core systems of the application
+// Systems contains all the core systems of the application.
 type Systems struct {
 	Config   *structures.Config
 	Database database.DB
@@ -15,7 +15,7 @@ type Systems struct {
 	API      *APISystem
 }
 
-// New creates a new Systems instance
+// New creates a new Systems instance.
 func New(cfg *structures.Config, db database.DB, cacheDir string) *Systems {
 	s := &Systems{
 		Config:   cfg,
@@ -31,7 +31,7 @@ func New(cfg *structures.Config, db database.DB, cacheDir string) *Systems {
 	return s
 }
 
-// Start starts all systems
+// Start starts all systems.
 func (s *Systems) Start() error {
 	// Connect download status updates to player
 	s.Download.SetStatusCallback(func(trackID string, status structures.MusicDownloadStatus) {
@@ -59,14 +59,15 @@ func (s *Systems) Start() error {
 	return nil
 }
 
-// Stop stops all systems
+// Stop stops all systems.
 func (s *Systems) Stop() error {
 	s.Player.Stop()
 	s.Download.Stop()
+
 	return nil
 }
 
-// QueueVideoForDownload checks if a video needs downloading and queues it
+// QueueVideoForDownload checks if a video needs downloading and queues it.
 func (s *Systems) QueueVideoForDownload(video structures.Track) {
 	// Check if already downloaded
 	if _, exists := s.Database.Get(video.TrackID); exists {

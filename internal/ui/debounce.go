@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// KeyDebouncer helps prevent key repeat flooding
+// KeyDebouncer helps prevent key repeat flooding.
 type KeyDebouncer struct {
 	mu              sync.Mutex
 	lastKeyTime     map[string]time.Time
@@ -14,7 +14,7 @@ type KeyDebouncer struct {
 	consecutiveKeys map[string]int
 }
 
-// NewKeyDebouncer creates a new key debouncer
+// NewKeyDebouncer creates a new key debouncer.
 func NewKeyDebouncer() *KeyDebouncer {
 	return &KeyDebouncer{
 		lastKeyTime:     make(map[string]time.Time),
@@ -24,7 +24,7 @@ func NewKeyDebouncer() *KeyDebouncer {
 	}
 }
 
-// ShouldProcess returns true if the key event should be processed
+// ShouldProcess returns true if the key event should be processed.
 func (kd *KeyDebouncer) ShouldProcess(key string) bool {
 	kd.mu.Lock()
 	defer kd.mu.Unlock()
@@ -36,6 +36,7 @@ func (kd *KeyDebouncer) ShouldProcess(key string) bool {
 		// First time pressing this key
 		kd.lastKeyTime[key] = now
 		kd.consecutiveKeys[key] = 1
+
 		return true
 	}
 
@@ -46,6 +47,7 @@ func (kd *KeyDebouncer) ShouldProcess(key string) bool {
 	if timeSinceLastKey > 500*time.Millisecond {
 		kd.consecutiveKeys[key] = 1
 		kd.lastKeyTime[key] = now
+
 		return true
 	}
 
@@ -62,6 +64,7 @@ func (kd *KeyDebouncer) ShouldProcess(key string) bool {
 	if timeSinceLastKey >= requiredDelay {
 		kd.consecutiveKeys[key]++
 		kd.lastKeyTime[key] = now
+
 		return true
 	}
 
@@ -69,7 +72,7 @@ func (kd *KeyDebouncer) ShouldProcess(key string) bool {
 	return false
 }
 
-// Reset clears the debouncer state for a specific key
+// Reset clears the debouncer state for a specific key.
 func (kd *KeyDebouncer) Reset(key string) {
 	kd.mu.Lock()
 	defer kd.mu.Unlock()
@@ -77,7 +80,7 @@ func (kd *KeyDebouncer) Reset(key string) {
 	delete(kd.consecutiveKeys, key)
 }
 
-// ResetAll clears all debouncer state
+// ResetAll clears all debouncer state.
 func (kd *KeyDebouncer) ResetAll() {
 	kd.mu.Lock()
 	defer kd.mu.Unlock()

@@ -5,10 +5,11 @@ import (
 	"time"
 
 	"github.com/faiface/beep"
+
 	"github.com/haryoiro/yutemal/internal/logger"
 )
 
-// BufferedStreamer provides a ring buffer for smooth audio playback
+// BufferedStreamer provides a ring buffer for smooth audio playback.
 type BufferedStreamer struct {
 	source     beep.Streamer
 	buffer     [][2]float64
@@ -26,7 +27,7 @@ type BufferedStreamer struct {
 	maxFilled int
 }
 
-// NewBufferedStreamer creates a new buffered streamer
+// NewBufferedStreamer creates a new buffered streamer.
 func NewBufferedStreamer(source beep.Streamer, format beep.Format, bufferSeconds float64) *BufferedStreamer {
 	bufferSize := int(float64(format.SampleRate) * bufferSeconds)
 
@@ -46,7 +47,7 @@ func NewBufferedStreamer(source beep.Streamer, format beep.Format, bufferSeconds
 	return bs
 }
 
-// fillLoop continuously fills the buffer in the background
+// fillLoop continuously fills the buffer in the background.
 func (bs *BufferedStreamer) fillLoop() {
 	tempBuffer := make([][2]float64, 8192*2)
 
@@ -67,12 +68,15 @@ func (bs *BufferedStreamer) fillLoop() {
 		if available < len(tempBuffer) {
 			if available == 0 {
 				bs.cond.Wait()
+
 				if bs.closed {
 					bs.mu.Unlock()
 					return
 				}
+
 				available = bs.bufferSize - bs.filled
 			}
+
 			if available > 0 && available < len(tempBuffer) {
 				tempBuffer = tempBuffer[:available]
 			}
@@ -86,6 +90,7 @@ func (bs *BufferedStreamer) fillLoop() {
 			bs.cond.Broadcast()
 			bs.mu.Unlock()
 			logger.Debug("BufferedStreamer: source exhausted, filled: %d/%d", bs.filled, bs.bufferSize)
+
 			return
 		}
 
@@ -94,10 +99,12 @@ func (bs *BufferedStreamer) fillLoop() {
 			bs.buffer[bs.writePos] = tempBuffer[i]
 			bs.writePos = (bs.writePos + 1) % bs.bufferSize
 		}
+
 		bs.filled += n
 		if bs.filled > bs.maxFilled {
 			bs.maxFilled = bs.filled
 		}
+
 		bs.cond.Broadcast()
 		bs.mu.Unlock()
 
@@ -116,7 +123,7 @@ func (bs *BufferedStreamer) fillLoop() {
 	}
 }
 
-// Stream implements beep.Streamer
+// Stream implements beep.Streamer.
 func (bs *BufferedStreamer) Stream(samples [][2]float64) (n int, ok bool) {
 	bs.mu.Lock()
 	defer bs.mu.Unlock()
@@ -125,6 +132,7 @@ func (bs *BufferedStreamer) Stream(samples [][2]float64) (n int, ok bool) {
 	// This helps with seeking to work immediately
 	if bs.position == 0 && bs.filled < bs.bufferSize*3/4 && !bs.closed && bs.underruns == 0 {
 		logger.Debug("Waiting for initial buffer fill: %d/%d samples", bs.filled, bs.bufferSize*3/4)
+
 		for bs.filled < bs.bufferSize*3/4 && !bs.closed {
 			bs.cond.Wait()
 		}
@@ -149,9 +157,12 @@ func (bs *BufferedStreamer) Stream(samples [][2]float64) (n int, ok bool) {
 			} else {
 				ok = true
 			}
+
 			n = i
+
 			bs.cond.Broadcast()
-			return
+
+			return n, ok
 		}
 
 		samples[i] = bs.buffer[bs.readPos]
@@ -161,24 +172,27 @@ func (bs *BufferedStreamer) Stream(samples [][2]float64) (n int, ok bool) {
 	}
 
 	bs.cond.Broadcast()
+
 	return len(samples), true
 }
 
-// Err implements beep.Streamer
+// Err implements beep.Streamer.
 func (bs *BufferedStreamer) Err() error {
 	if source, ok := bs.source.(beep.StreamSeeker); ok {
 		return source.Err()
 	}
+
 	return nil
 }
 
-// Close closes the buffered streamer
+// Close closes the buffered streamer.
 func (bs *BufferedStreamer) Close() error {
 	bs.mu.Lock()
 	if bs.closed {
 		bs.mu.Unlock()
 		return nil
 	}
+
 	bs.closed = true
 	bs.cond.Broadcast()
 	bs.mu.Unlock()
@@ -194,7 +208,7 @@ func (bs *BufferedStreamer) Close() error {
 	return nil
 }
 
-// Seek clears the buffer and seeks the underlying source
+// Seek clears the buffer and seeks the underlying source.
 func (bs *BufferedStreamer) Seek(position int) error {
 	bs.mu.Lock()
 	defer bs.mu.Unlock()
@@ -221,17 +235,19 @@ func (bs *BufferedStreamer) Seek(position int) error {
 	return nil
 }
 
-// Position returns the current position
+// Position returns the current position.
 func (bs *BufferedStreamer) Position() int {
 	bs.mu.Lock()
 	defer bs.mu.Unlock()
+
 	return bs.position
 }
 
-// Len returns the total length if the source implements StreamSeeker
+// Len returns the total length if the source implements StreamSeeker.
 func (bs *BufferedStreamer) Len() int {
 	if seeker, ok := bs.source.(beep.StreamSeeker); ok {
 		return seeker.Len()
 	}
+
 	return 0
 }

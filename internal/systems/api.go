@@ -10,14 +10,14 @@ import (
 	"github.com/haryoiro/yutemal/internal/structures"
 )
 
-// APISystem handles YouTube Music API interactions
+// APISystem handles YouTube Music API interactions.
 type APISystem struct {
 	config *structures.Config
 	client *api.Client
 	db     database.DB
 }
 
-// Cache configuration constants
+// Cache configuration constants.
 const (
 	cacheTTLPlaylistList   = 3600 // 1 hour in seconds
 	cacheTTLPlaylistTracks = 1800 // 30 minutes in seconds
@@ -25,7 +25,7 @@ const (
 	cacheTTLSections       = 1800 // 30 minutes in seconds
 )
 
-// NewAPISystem creates a new API system
+// NewAPISystem creates a new API system.
 func NewAPISystem(cfg *structures.Config, db database.DB) *APISystem {
 	return &APISystem{
 		config: cfg,
@@ -33,7 +33,7 @@ func NewAPISystem(cfg *structures.Config, db database.DB) *APISystem {
 	}
 }
 
-// InitializeFromHeaderFile initializes the API client from header file
+// InitializeFromHeaderFile initializes the API client from header file.
 func (as *APISystem) InitializeFromHeaderFile(headerPath string) error {
 	client, err := api.NewClientFromHeaderFile(headerPath)
 	if err != nil {
@@ -41,10 +41,11 @@ func (as *APISystem) InitializeFromHeaderFile(headerPath string) error {
 	}
 
 	as.client = client
+
 	return nil
 }
 
-// GetLibraryPlaylists fetches user library playlists
+// GetLibraryPlaylists fetches user library playlists.
 func (as *APISystem) GetLibraryPlaylists() ([]Playlist, error) {
 	if as.client == nil {
 		return nil, fmt.Errorf("API client not initialized")
@@ -86,7 +87,7 @@ func (as *APISystem) GetLibraryPlaylists() ([]Playlist, error) {
 	return result, nil
 }
 
-// GetLikedPlaylists fetches user liked playlists
+// GetLikedPlaylists fetches user liked playlists.
 func (as *APISystem) GetLikedPlaylists() ([]Playlist, error) {
 	if as.client == nil {
 		return nil, fmt.Errorf("API client not initialized")
@@ -128,7 +129,7 @@ func (as *APISystem) GetLikedPlaylists() ([]Playlist, error) {
 	return result, nil
 }
 
-// GetHomePlaylists fetches home page playlists
+// GetHomePlaylists fetches home page playlists.
 func (as *APISystem) GetHomePlaylists() ([]Playlist, error) {
 	if as.client == nil {
 		return nil, fmt.Errorf("API client not initialized")
@@ -170,7 +171,7 @@ func (as *APISystem) GetHomePlaylists() ([]Playlist, error) {
 	return playlists, nil
 }
 
-// GetPlaylistTracks fetches videos from a playlist
+// GetPlaylistTracks fetches videos from a playlist.
 func (as *APISystem) GetPlaylistTracks(playlistID string) ([]structures.Track, error) {
 	if as.client == nil {
 		return nil, fmt.Errorf("API client not initialized")
@@ -216,7 +217,7 @@ func (as *APISystem) GetPlaylistTracks(playlistID string) ([]structures.Track, e
 	return result, nil
 }
 
-// Search searches for music
+// Search searches for music.
 func (as *APISystem) Search(query string) (*SearchResults, error) {
 	if as.client == nil {
 		return nil, fmt.Errorf("API client not initialized")
@@ -279,7 +280,7 @@ func (as *APISystem) Search(query string) (*SearchResults, error) {
 	return searchResults, nil
 }
 
-// Playlist represents a YouTube Music playlist
+// Playlist represents a YouTube Music playlist.
 type Playlist struct {
 	ID          string
 	Title       string
@@ -288,13 +289,13 @@ type Playlist struct {
 	VideoCount  int
 }
 
-// SearchResults contains search results
+// SearchResults contains search results.
 type SearchResults struct {
 	Tracks    []structures.Track
 	Playlists []Playlist
 }
 
-// GetHomeEnhanced fetches enhanced home page content with sections
+// GetHomeEnhanced fetches enhanced home page content with sections.
 func (as *APISystem) GetHomeEnhanced() ([]api.Section, error) {
 	if as.client == nil {
 		return nil, fmt.Errorf("API client not initialized")
@@ -314,6 +315,7 @@ func (as *APISystem) GetHomeEnhanced() ([]api.Section, error) {
 			Title:    "Recommended Tracks",
 			Contents: []api.ContentItem{},
 		}
+
 		for _, track := range results.Tracks {
 			t := track // Create a copy to avoid pointer issues
 			trackSection.Contents = append(trackSection.Contents, api.ContentItem{
@@ -321,6 +323,7 @@ func (as *APISystem) GetHomeEnhanced() ([]api.Section, error) {
 				Track: &t,
 			})
 		}
+
 		sections = append(sections, trackSection)
 	}
 
@@ -329,6 +332,7 @@ func (as *APISystem) GetHomeEnhanced() ([]api.Section, error) {
 			Title:    "Recommended Playlists",
 			Contents: []api.ContentItem{},
 		}
+
 		for _, playlist := range results.Playlists {
 			p := playlist // Create a copy to avoid pointer issues
 			playlistSection.Contents = append(playlistSection.Contents, api.ContentItem{
@@ -336,13 +340,14 @@ func (as *APISystem) GetHomeEnhanced() ([]api.Section, error) {
 				Playlist: &p,
 			})
 		}
+
 		sections = append(sections, playlistSection)
 	}
 
 	return sections, nil
 }
 
-// GetSections fetches all sections for the home page
+// GetSections fetches all sections for the home page.
 func (as *APISystem) GetSections() ([]structures.Section, error) {
 	if as.client == nil {
 		return nil, fmt.Errorf("API client not initialized")
@@ -370,6 +375,7 @@ func (as *APISystem) GetSections() ([]structures.Section, error) {
 			Type:     structures.SectionTypeRecommendedPlaylists,
 			Contents: make([]structures.ContentItem, 0, len(homePlaylists)),
 		}
+
 		for _, playlist := range homePlaylists {
 			p := structures.Playlist{
 				ID:          playlist.ID,
@@ -383,6 +389,7 @@ func (as *APISystem) GetSections() ([]structures.Section, error) {
 				Playlist: &p,
 			})
 		}
+
 		sections = append(sections, section)
 	}
 
@@ -402,6 +409,7 @@ func (as *APISystem) GetSections() ([]structures.Section, error) {
 			Type:     structures.SectionTypeLibraryPlaylists,
 			Contents: make([]structures.ContentItem, 0, len(libraryPlaylists)),
 		}
+
 		for _, playlist := range libraryPlaylists {
 			p := structures.Playlist{
 				ID:          playlist.ID,
@@ -415,6 +423,7 @@ func (as *APISystem) GetSections() ([]structures.Section, error) {
 				Playlist: &p,
 			})
 		}
+
 		sections = append(sections, section)
 	} else {
 		fmt.Printf("Your Library section skipped - err: %v, playlist count: %d\n", err, len(libraryPlaylists))
@@ -429,6 +438,7 @@ func (as *APISystem) GetSections() ([]structures.Section, error) {
 			Type:     structures.SectionTypeLikedPlaylists,
 			Contents: make([]structures.ContentItem, 0, len(likedPlaylists)),
 		}
+
 		for _, playlist := range likedPlaylists {
 			p := structures.Playlist{
 				ID:          playlist.ID,
@@ -442,6 +452,7 @@ func (as *APISystem) GetSections() ([]structures.Section, error) {
 				Playlist: &p,
 			})
 		}
+
 		sections = append(sections, section)
 	}
 
@@ -454,6 +465,7 @@ func (as *APISystem) GetSections() ([]structures.Section, error) {
 			Type:     structures.SectionTypeHomeFeed,
 			Contents: make([]structures.ContentItem, 0, len(homeResults.Tracks)),
 		}
+
 		for _, track := range homeResults.Tracks {
 			t := structures.Track{
 				TrackID:     track.TrackID,
@@ -469,6 +481,7 @@ func (as *APISystem) GetSections() ([]structures.Section, error) {
 				Track: &t,
 			})
 		}
+
 		sections = append(sections, section)
 	}
 
@@ -490,6 +503,7 @@ func (as *APISystem) GetSections() ([]structures.Section, error) {
 				if i >= 5 { // Limit to 5 tracks per search
 					break
 				}
+
 				t := structures.Track{
 					TrackID:     track.TrackID,
 					Title:       track.Title,
@@ -504,6 +518,7 @@ func (as *APISystem) GetSections() ([]structures.Section, error) {
 					Track: &t,
 				})
 			}
+
 			break // Only use first successful search
 		}
 	}
@@ -531,15 +546,16 @@ func (as *APISystem) GetSections() ([]structures.Section, error) {
 	return sections, nil
 }
 
-// InvalidateCache invalidates cached data for a specific type
+// InvalidateCache invalidates cached data for a specific type.
 func (as *APISystem) InvalidateCache(cacheType string) error {
 	if as.db == nil {
 		return nil
 	}
+
 	return as.db.InvalidateCacheByType(cacheType)
 }
 
-// InvalidateAllCache invalidates all cached API data
+// InvalidateAllCache invalidates all cached API data.
 func (as *APISystem) InvalidateAllCache() error {
 	if as.db == nil {
 		return nil
@@ -555,7 +571,7 @@ func (as *APISystem) InvalidateAllCache() error {
 	return nil
 }
 
-// RefreshCache forces a refresh of cached data by clearing cache and re-fetching
+// RefreshCache forces a refresh of cached data by clearing cache and re-fetching.
 func (as *APISystem) RefreshCache() error {
 	// Clear all cache
 	if err := as.InvalidateAllCache(); err != nil {
@@ -572,10 +588,11 @@ func (as *APISystem) RefreshCache() error {
 	return nil
 }
 
-// CleanExpiredCache removes expired cache entries
+// CleanExpiredCache removes expired cache entries.
 func (as *APISystem) CleanExpiredCache() error {
 	if as.db == nil {
 		return nil
 	}
+
 	return as.db.CleanExpiredCache()
 }

@@ -1,6 +1,6 @@
 package api
 
-// TrackRef represents a YouTube Music track reference
+// TrackRef represents a YouTube Music track reference.
 type TrackRef struct {
 	TrackID     string   `json:"trackId"`
 	Title       string   `json:"title"`
@@ -16,27 +16,27 @@ type PlaylistTracksRef struct {
 	Playlist PlaylistRef `json:"playlist"`
 }
 
-// PlaylistRef represents a YouTube Music playlist reference
+// PlaylistRef represents a YouTube Music playlist reference.
 type PlaylistRef struct {
 	Name     string `json:"name"`
 	Subtitle string `json:"subtitle"`
 	BrowseID string `json:"browseId"`
 }
 
-// SearchResults contains search results
+// SearchResults contains search results.
 type SearchResults struct {
 	Tracks    []TrackRef    `json:"tracks"`
 	Playlists []PlaylistRef `json:"playlists"`
 }
 
-// Endpoint represents an API endpoint
+// Endpoint represents an API endpoint.
 type Endpoint interface {
 	GetKey() string
 	GetParam() string
 	GetRoute() string
 }
 
-// Predefined endpoints
+// Predefined endpoints.
 type musicEndpoint struct {
 	key   string
 	param string
@@ -47,7 +47,7 @@ func (e musicEndpoint) GetKey() string   { return e.key }
 func (e musicEndpoint) GetParam() string { return e.param }
 func (e musicEndpoint) GetRoute() string { return e.route }
 
-// MusicLikedPlaylistsEndpoint returns the liked playlists endpoint
+// MusicLikedPlaylistsEndpoint returns the liked playlists endpoint.
 func MusicLikedPlaylistsEndpoint() Endpoint {
 	return musicEndpoint{
 		key:   "browseId",
@@ -56,7 +56,7 @@ func MusicLikedPlaylistsEndpoint() Endpoint {
 	}
 }
 
-// MusicHomeEndpoint returns the home endpoint
+// MusicHomeEndpoint returns the home endpoint.
 func MusicHomeEndpoint() Endpoint {
 	return musicEndpoint{
 		key:   "browseId",
@@ -65,7 +65,7 @@ func MusicHomeEndpoint() Endpoint {
 	}
 }
 
-// MusicLibraryLandingEndpoint returns the library landing endpoint
+// MusicLibraryLandingEndpoint returns the library landing endpoint.
 func MusicLibraryLandingEndpoint() Endpoint {
 	return musicEndpoint{
 		key:   "browseId",
@@ -74,7 +74,7 @@ func MusicLibraryLandingEndpoint() Endpoint {
 	}
 }
 
-// PlaylistEndpoint returns a playlist endpoint
+// PlaylistEndpoint returns a playlist endpoint.
 func PlaylistEndpoint(id string) Endpoint {
 	return musicEndpoint{
 		key:   "browseId",
@@ -83,7 +83,7 @@ func PlaylistEndpoint(id string) Endpoint {
 	}
 }
 
-// SearchEndpoint returns a search endpoint
+// SearchEndpoint returns a search endpoint.
 func SearchEndpoint(query string) Endpoint {
 	return musicEndpoint{
 		key:   "query",
@@ -92,7 +92,7 @@ func SearchEndpoint(query string) Endpoint {
 	}
 }
 
-// VideoEndpoint returns a video/player endpoint
+// VideoEndpoint returns a video/player endpoint.
 func VideoEndpoint(videoId string) Endpoint {
 	return musicEndpoint{
 		key:   "videoId",
@@ -101,23 +101,23 @@ func VideoEndpoint(videoId string) Endpoint {
 	}
 }
 
-// BrowseResponse represents the raw API response
-type BrowseResponse map[string]interface{}
+// BrowseResponse represents the raw API response.
+type BrowseResponse map[string]any
 
-// Section represents a content section on the home page
+// Section represents a content section on the home page.
 type Section struct {
 	Title    string        `json:"title"`
 	Contents []ContentItem `json:"contents"`
 }
 
-// ContentItem represents an item in a section
+// ContentItem represents an item in a section.
 type ContentItem struct {
 	Type     string       `json:"type"` // "track", "playlist", "album", etc.
 	Track    *TrackRef    `json:"track,omitempty"`
 	Playlist *PlaylistRef `json:"playlist,omitempty"`
 }
 
-// StreamingData represents streaming information from the player endpoint
+// StreamingData represents streaming information from the player endpoint.
 type StreamingData struct {
 	VideoID         string       `json:"videoId"`
 	Title           string       `json:"title"`
@@ -128,7 +128,7 @@ type StreamingData struct {
 	Formats         []FormatInfo `json:"formats"`
 }
 
-// FormatInfo represents audio/video format information
+// FormatInfo represents audio/video format information.
 type FormatInfo struct {
 	ITag             int    `json:"itag"`
 	URL              string `json:"url"`
@@ -145,14 +145,14 @@ type FormatInfo struct {
 	ApproxDurationMs string `json:"approxDurationMs,omitempty"`
 }
 
-// PlayerResponse represents the response from the player endpoint
+// PlayerResponse represents the response from the player endpoint.
 type PlayerResponse struct {
 	VideoDetails      VideoDetails      `json:"videoDetails"`
 	StreamingData     StreamingData     `json:"streamingData"`
 	PlayabilityStatus PlayabilityStatus `json:"playabilityStatus"`
 }
 
-// VideoDetails contains detailed video information
+// VideoDetails contains detailed video information.
 type VideoDetails struct {
 	VideoID          string    `json:"videoId"`
 	Title            string    `json:"title"`
@@ -163,18 +163,18 @@ type VideoDetails struct {
 	Author           string    `json:"author"`
 }
 
-// PlayabilityStatus indicates if the video is playable
+// PlayabilityStatus indicates if the video is playable.
 type PlayabilityStatus struct {
 	Status string `json:"status"`
 	Reason string `json:"reason,omitempty"`
 }
 
-// Thumbnail represents thumbnail information
+// Thumbnail represents thumbnail information.
 type Thumbnail struct {
 	Thumbnails []ThumbnailInfo `json:"thumbnails"`
 }
 
-// ThumbnailInfo represents a single thumbnail
+// ThumbnailInfo represents a single thumbnail.
 type ThumbnailInfo struct {
 	URL    string `json:"url"`
 	Width  int    `json:"width"`

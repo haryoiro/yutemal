@@ -5,10 +5,10 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/haryoiro/yutemal/internal/structures"
-	"github.com/mattn/go-runewidth"
-)
+	runewidth "github.com/mattn/go-runewidth"
 
+	"github.com/haryoiro/yutemal/internal/structures"
+)
 
 func (m *Model) renderPlayer() string {
 	// Get styles from theme manager
@@ -61,6 +61,7 @@ func (m *Model) renderPlayer() string {
 		if maxTitleWidth < 20 {
 			// タイトルが短すぎる場合はアーティスト名を短縮
 			maxTitleWidth = contentWidth * 2 / 3 // 全体の2/3をタイトルに
+
 			maxArtistWidth := contentWidth - prefixWidth - separatorWidth - maxTitleWidth - 2
 			if maxArtistWidth > 0 {
 				artists = truncate(artists, maxArtistWidth)
@@ -75,7 +76,6 @@ func (m *Model) renderPlayer() string {
 		} else {
 			m.needsMarquee = false
 		}
-
 
 		// 最終的な表示文字列を構築
 		displayString := fmt.Sprintf("🎵 %s - %s", title, artists)
@@ -100,6 +100,7 @@ func (m *Model) renderPlayer() string {
 	} else {
 		content.WriteString(dimStyle.Render("NO SONG PLAYING"))
 	}
+
 	content.WriteString("\n\n")
 
 	// Second line: Progress bar
@@ -110,6 +111,7 @@ func (m *Model) renderPlayer() string {
 		// Calculate exact width needed for time displays and spacing
 		// Time format is always "MM:SS" so both are 5 characters
 		timeWidth := 10 + 2 // Two time displays (5 chars each) plus 2 spaces
+
 		barWidth := contentWidth - timeWidth*2 + 6
 		if barWidth < 10 {
 			barWidth = 10
@@ -132,17 +134,20 @@ func (m *Model) renderPlayer() string {
 		}
 
 		// Calculate exact width for empty progress bar
-		timeWidth := TimeFormatWidth * 2 + 2 // 2 time displays + 2 spaces
+		timeWidth := TimeFormatWidth*2 + 2 // 2 time displays + 2 spaces
+
 		barWidth := contentWidth - timeWidth*2 + 6
 		if barWidth < 10 {
 			barWidth = 10
 		}
+
 		bar := progressBgStyle.Render(strings.Repeat("─", barWidth))
 		content.WriteString(fmt.Sprintf("%s %s %s",
 			timeStyle.Render("--:--"),
 			bar,
 			timeStyle.Render("--:--")))
 	}
+
 	content.WriteString("\n\n")
 
 	// Third line: Controls and status
@@ -174,6 +179,7 @@ func (m *Model) renderProgressBar(width int) string {
 	if progress > 1 {
 		progress = 1
 	}
+
 	if progress < 0 {
 		progress = 0
 	}
@@ -195,6 +201,7 @@ func (m *Model) renderProgressBar(width int) string {
 		if filled > 0 {
 			bar.WriteString(progressBarStyle.Render(strings.Repeat("█", filled)))
 		}
+
 		if empty > 0 {
 			bar.WriteString(progressBgStyle.Render(strings.Repeat("░", empty)))
 		}
@@ -204,6 +211,7 @@ func (m *Model) renderProgressBar(width int) string {
 		if filled > 0 {
 			bar.WriteString(progressBarStyle.Render(strings.Repeat("─", filled)))
 		}
+
 		if empty > 0 {
 			bar.WriteString(progressBgStyle.Render(strings.Repeat("─", empty)))
 		}
@@ -215,6 +223,7 @@ func (m *Model) renderProgressBar(width int) string {
 			gradientBar := m.createGradientBar(filled, m.config.Theme.ProgressBar, m.config.Theme.ProgressBarFill)
 			bar.WriteString(gradientBar)
 		}
+
 		if empty > 0 {
 			bar.WriteString(progressBgStyle.Render(strings.Repeat("━", empty)))
 		}
@@ -225,6 +234,7 @@ func (m *Model) renderProgressBar(width int) string {
 			gradientBar := m.createGradientBar(filled, m.config.Theme.ProgressBar, m.config.Theme.ProgressBarFill)
 			bar.WriteString(gradientBar)
 		}
+
 		if empty > 0 {
 			bar.WriteString(progressBgStyle.Render(strings.Repeat("━", empty)))
 		}
@@ -233,7 +243,7 @@ func (m *Model) renderProgressBar(width int) string {
 	return bar.String()
 }
 
-// createGradientBar creates a gradient effect between two colors
+// createGradientBar creates a gradient effect between two colors.
 func (m *Model) createGradientBar(width int, startColor, endColor string) string {
 	if width <= 0 {
 		return ""
@@ -268,9 +278,11 @@ func (m *Model) createGradientBar(width int, startColor, endColor string) string
 		if startLen > 0 {
 			result += startStyle.Render(strings.Repeat("━", startLen))
 		}
+
 		if middleLen > 0 {
 			result += middleStyle.Render(strings.Repeat("━", middleLen))
 		}
+
 		if endLen > 0 {
 			result += endStyle.Render(strings.Repeat("━", endLen))
 		}
@@ -302,6 +314,7 @@ func (m *Model) renderControls(availableWidth int) string {
 	// Volume
 	volume := int(m.playerState.Volume * 100)
 	volumeIcon := "🔊"
+
 	if volume == 0 {
 		volumeIcon = "🔇"
 	} else if volume < 30 {
@@ -309,6 +322,7 @@ func (m *Model) renderControls(availableWidth int) string {
 	} else if volume < 70 {
 		volumeIcon = "🔉"
 	}
+
 	parts = append(parts, fmt.Sprintf("%s %d%%", volumeIcon, volume))
 
 	// Bitrate info
@@ -332,7 +346,9 @@ func (m *Model) renderControls(availableWidth int) string {
 	}
 
 	// Controls hint
-	hint := m.shortcutFormatter.FormatHints(m.shortcutFormatter.GetPlayerHints())
+	isHomeView := m.state == HomeView
+	hasMultipleSections := len(m.sections) > 1
+	hint := m.shortcutFormatter.FormatHints(m.shortcutFormatter.GetPlayerHints(isHomeView, hasMultipleSections))
 	parts = append(parts, dimStyle.Render(hint))
 
 	// 利用可能幅に収まるように調整
@@ -340,6 +356,7 @@ func (m *Model) renderControls(availableWidth int) string {
 	if runewidth.StringWidth(fullLine) > availableWidth {
 		// ヒント部分を短縮
 		withoutHint := strings.Join(parts[:len(parts)-1], "  ")
+
 		remaining := availableWidth - runewidth.StringWidth(withoutHint) - 2
 		if remaining > 10 {
 			truncatedHint := truncate(hint, remaining)
@@ -347,6 +364,7 @@ func (m *Model) renderControls(availableWidth int) string {
 		} else {
 			parts = parts[:len(parts)-1]
 		}
+
 		fullLine = strings.Join(parts, "  ")
 	}
 

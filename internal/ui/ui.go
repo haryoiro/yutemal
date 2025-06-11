@@ -7,10 +7,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
+
 	"github.com/haryoiro/yutemal/internal/logger"
 	"github.com/haryoiro/yutemal/internal/structures"
 	"github.com/haryoiro/yutemal/internal/systems"
-	"github.com/mattn/go-runewidth"
 )
 
 func init() {
@@ -60,8 +61,8 @@ type Model struct {
 	scrollOffset        int
 
 	// PlaylistDetailView fields
-	playlistTracks      []structures.Track
-	playlistName        string
+	playlistTracks        []structures.Track
+	playlistName          string
 	playlistSelectedIndex int
 	playlistScrollOffset  int
 
@@ -71,10 +72,10 @@ type Model struct {
 	currentListName string
 
 	// Queue display
-	showQueue         bool
-	queueWidth        int
-	queueScrollOffset int
-	queueFocused      bool
+	showQueue          bool
+	queueWidth         int
+	queueScrollOffset  int
+	queueFocused       bool
 	queueSelectedIndex int
 
 	// Other fields
@@ -92,7 +93,7 @@ type Model struct {
 	scrollCooldown time.Duration
 
 	// Key repeat prevention
-	keyDebouncer *KeyDebouncer
+	keyDebouncer    *KeyDebouncer
 	lastBackKeyTime *time.Time // Strict debouncing for back navigation keys
 
 	// Debug state tracking
@@ -117,7 +118,7 @@ func RunSimple(systems *systems.Systems, config *structures.Config) error {
 		state:             HomeView,
 		playerHeight:      5,
 		marqueeTicker:     time.NewTicker(500 * time.Millisecond), // Match the tickCmd frequency
-		scrollCooldown:    20 * time.Millisecond, // 50ms between scroll events
+		scrollCooldown:    20 * time.Millisecond,                  // 50ms between scroll events
 		keyDebouncer:      NewKeyDebouncer(),
 	}
 
@@ -125,15 +126,18 @@ func RunSimple(systems *systems.Systems, config *structures.Config) error {
 		tea.WithMouseCellMotion(), // マウスイベントを有効化
 		tea.WithAltScreen(),       // Use alternate screen
 	}
+
 	p := tea.NewProgram(&m, opts...)
 	if _, err := p.Run(); err != nil {
 		return err
 	}
+
 	return nil
 }
 
 func (m *Model) Init() tea.Cmd {
 	logger.Debug("Init called, starting with state: %v", m.state)
+
 	return tea.Batch(
 		m.loadSections(),
 		// Don't start ticker initially - it will start when needed
@@ -153,12 +157,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		logger.Debug("KeyMsg received: %v, current state: %v", msg, m.state)
 	case sectionsLoadedMsg:
 		msgType = "sectionsLoadedMsg"
+
 		logger.Debug("sectionsLoadedMsg received, current state: %v", m.state)
 	case tracksLoadedMsg:
 		msgType = "tracksLoadedMsg"
+
 		logger.Debug("tracksLoadedMsg received, current state: %v", m.state)
 	case errorMsg:
 		msgType = "errorMsg"
+
 		logger.Debug("errorMsg received: %v, current state: %v", msg, m.state)
 	case tickMsg:
 		// Tickメッセージは多すぎるので記録しない
@@ -168,7 +175,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if msgType != "" && msgType != "other" {
 		// デバッグメッセージをリングバッファに記録
-		m.debugMessageLog = append(m.debugMessageLog, msgType + " @ " + m.state.String())
+		m.debugMessageLog = append(m.debugMessageLog, msgType+" @ "+m.state.String())
 		if len(m.debugMessageLog) > 20 {
 			m.debugMessageLog = m.debugMessageLog[1:]
 		}
@@ -199,6 +206,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.marqueeOffset++
 			return m, m.tickCmd()
 		}
+
 		return m, nil
 
 	case playerUpdateMsg:
@@ -208,16 +216,20 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if visibleLines < 1 {
 				visibleLines = 1
 			}
+
 			if m.playerState.Current < m.queueScrollOffset ||
-			   m.playerState.Current >= m.queueScrollOffset+visibleLines {
+				m.playerState.Current >= m.queueScrollOffset+visibleLines {
+
 				m.queueScrollOffset = m.playerState.Current - visibleLines/2
 				if m.queueScrollOffset < 0 {
 					m.queueScrollOffset = 0
 				}
+
 				maxScrollOffset := len(m.playerState.List) - visibleLines
 				if maxScrollOffset < 0 {
 					maxScrollOffset = 0
 				}
+
 				if m.queueScrollOffset > maxScrollOffset {
 					m.queueScrollOffset = maxScrollOffset
 				}
@@ -244,22 +256,26 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.selectedIndex = 0
 			m.scrollOffset = 0
 		}
+
 		return m, nil
 
 	case playlistsLoadedMsg:
 		m.playlists = msg
 		m.selectedIndex = 0
 		m.scrollOffset = 0
+
 		return m, nil
 
 	case tracksLoadedMsg:
 		m.playlistTracks = msg
 		m.currentList = msg
+
 		if m.state == PlaylistDetailView {
 			// Already reset in handleEnter, but ensure consistency
 			if m.playlistSelectedIndex >= len(msg) {
 				m.playlistSelectedIndex = 0
 			}
+
 			if m.playlistScrollOffset > 0 && m.playlistScrollOffset >= len(msg) {
 				m.playlistScrollOffset = 0
 			}
@@ -279,10 +295,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// 状態変更を検出して記録
 	if m.state != oldState {
 		stateChange := fmt.Sprintf("%s -> %s", oldState.String(), m.state.String())
+
 		m.debugStateChanges = append(m.debugStateChanges, stateChange)
 		if len(m.debugStateChanges) > 10 {
 			m.debugStateChanges = m.debugStateChanges[1:]
 		}
+
 		logger.Debug("STATE CHANGE: %s", stateChange)
 	}
 
@@ -326,6 +344,7 @@ func (m *Model) View() string {
 		if m.queueWidth < 40 {
 			m.queueWidth = 40 // Minimum width
 		}
+
 		if m.queueWidth > 80 {
 			m.queueWidth = 80 // Maximum width
 		}
@@ -353,6 +372,7 @@ func (m *Model) View() string {
 
 	// コンテンツをレンダリング（実際の利用可能幅を渡す）
 	var content string
+
 	switch m.state {
 	case HomeView:
 		content = m.renderHome(mainContentWidth)
@@ -369,13 +389,16 @@ func (m *Model) View() string {
 	// Split content by lines and ensure it fits in the content area
 	contentLines := strings.Split(content, "\n")
 	maxContentLines := m.contentHeight - mainV
+
 	if len(contentLines) > maxContentLines {
 		contentLines = contentLines[:maxContentLines]
 	}
+
 	content = strings.Join(contentLines, "\n")
 
 	// Render main content and queue side by side if queue is shown
 	var topContent string
+
 	if m.showQueue {
 		queue := m.renderQueue(queueContentWidth, m.contentHeight-queueV)
 		topContent = lipgloss.JoinHorizontal(
@@ -408,9 +431,11 @@ func (m *Model) View() string {
 		debugInfo += "Playlist Selected: " + fmt.Sprintf("%d", m.playlistSelectedIndex) + "\n"
 		debugInfo += "Sections: " + fmt.Sprintf("%d", len(m.sections)) + "\n"
 		debugInfo += "\nState Changes:\n"
+
 		for _, change := range m.debugStateChanges {
 			debugInfo += "  " + change + "\n"
 		}
+
 		debugInfo += "\nRecent Messages:\n"
 		for i, msg := range m.debugMessageLog {
 			debugInfo += fmt.Sprintf("  %d: %s\n", i, msg)

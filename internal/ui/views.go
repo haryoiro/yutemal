@@ -5,12 +5,13 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/haryoiro/yutemal/internal/structures"
 
 	"github.com/mattn/go-runewidth"
 )
 
-// getStyles returns commonly used styles based on theme
+// getStyles returns commonly used styles based on theme.
 func (m *Model) getStyles() (titleStyle, selectedStyle, normalStyle, dimStyle, errorStyle lipgloss.Style) {
 	// Use theme manager if available, otherwise use defaults
 	if m.themeManager != nil {
@@ -47,14 +48,15 @@ func (m *Model) getStyles() (titleStyle, selectedStyle, normalStyle, dimStyle, e
 			Foreground(lipgloss.Color("#FF5555")).
 			Bold(true)
 	}
-	return
+
+	return titleStyle, selectedStyle, normalStyle, dimStyle, errorStyle
 }
 
 func (m Model) renderPlaylistList(maxWidth int) string {
 	titleStyle, selectedStyle, normalStyle, dimStyle, errorStyle := m.getStyles()
 
 	var b strings.Builder
-	b.WriteString(titleStyle.Render("🎵 Playlists"))
+	b.WriteString("  " + titleStyle.Render("🎵 Playlists"))
 	b.WriteString("\n")
 
 	if m.err != nil {
@@ -65,6 +67,7 @@ func (m Model) renderPlaylistList(maxWidth int) string {
 	if len(m.playlists) == 0 {
 		emptyHint := m.shortcutFormatter.GetEmptyStateHint("search", m.config.KeyBindings.Search)
 		b.WriteString(dimStyle.Render("No playlists found.\n\n" + emptyHint))
+
 		return b.String()
 	}
 
@@ -72,7 +75,9 @@ func (m Model) renderPlaylistList(maxWidth int) string {
 	if visibleItems < 1 {
 		visibleItems = 1
 	}
+
 	start := m.scrollOffset
+
 	end := start + visibleItems
 	if end > len(m.playlists) {
 		end = len(m.playlists)
@@ -80,6 +85,7 @@ func (m Model) renderPlaylistList(maxWidth int) string {
 
 	for i := start; i < end; i++ {
 		playlist := m.playlists[i]
+
 		icon := "📁"
 		if i == m.selectedIndex {
 			icon = "▶"
@@ -89,6 +95,7 @@ func (m Model) renderPlaylistList(maxWidth int) string {
 		if titleWidth < 20 {
 			titleWidth = 20
 		}
+
 		line := fmt.Sprintf("%s  %s", icon, truncate(playlist.Title, titleWidth))
 
 		if i == m.selectedIndex {
@@ -96,6 +103,7 @@ func (m Model) renderPlaylistList(maxWidth int) string {
 		} else {
 			b.WriteString(normalStyle.Render(line))
 		}
+
 		if i < end-1 {
 			b.WriteString("\n")
 		}
@@ -116,13 +124,14 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 
 	// Header with title and shortcuts
 	headerTitle := fmt.Sprintf("🎶 %s", m.playlistName)
-	b.WriteString(titleStyle.Render(headerTitle))
+	b.WriteString("  " + titleStyle.Render(headerTitle))
 	b.WriteString("\n\033[A")
 
 	shortcuts := m.shortcutFormatter.FormatHints(m.shortcutFormatter.GetPlaylistHints(m.showQueue))
-	if runewidth.StringWidth(headerTitle) + runewidth.StringWidth(shortcuts) + 2 <= maxWidth {
-		b.WriteString( dimStyle.Render(shortcuts))
+	if runewidth.StringWidth(headerTitle)+runewidth.StringWidth(shortcuts)+2 <= maxWidth {
+		b.WriteString("  " + dimStyle.Render(shortcuts))
 	}
+
 	b.WriteString("\033[B")
 	b.WriteString("\n\n")
 
@@ -135,7 +144,9 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 	if visibleItems < 1 {
 		visibleItems = 1
 	}
+
 	start := m.playlistScrollOffset
+
 	end := start + visibleItems
 	if end > len(m.playlistTracks) {
 		end = len(m.playlistTracks)
@@ -175,6 +186,7 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 
 			// Apply style based on selection
 			style := normalStyle
+
 			if i == m.playlistSelectedIndex {
 				trackNum = " →  "
 				style = selectedStyle
@@ -190,6 +202,7 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 
 		// Simple footer for small screens
 		b.WriteString("\n\n")
+
 		positionInfo := fmt.Sprintf("%d/%d", m.playlistSelectedIndex+1, len(m.playlistTracks))
 		b.WriteString(dimStyle.Render(positionInfo))
 
@@ -294,7 +307,7 @@ func (m Model) renderSearch(maxWidth int) string {
 	titleStyle, selectedStyle, normalStyle, dimStyle, _ := m.getStyles()
 
 	var b strings.Builder
-	b.WriteString(titleStyle.Render("🔍 Search"))
+	b.WriteString("  " + titleStyle.Render("🔍 Search"))
 	b.WriteString("\n")
 
 	b.WriteString("Query: ")
@@ -310,7 +323,9 @@ func (m Model) renderSearch(maxWidth int) string {
 	if visibleItems < 1 {
 		visibleItems = 1
 	}
+
 	start := m.scrollOffset
+
 	end := start + visibleItems
 	if end > len(m.searchResults) {
 		end = len(m.searchResults)
@@ -336,6 +351,7 @@ func (m Model) renderSearch(maxWidth int) string {
 			} else {
 				b.WriteString(normalStyle.Render(line))
 			}
+
 			if i < end-1 {
 				b.WriteString("\n")
 			}
@@ -372,6 +388,7 @@ func (m Model) renderSearch(maxWidth int) string {
 			} else {
 				b.WriteString(normalStyle.Render(line))
 			}
+
 			if i < end-1 {
 				b.WriteString("\n")
 			}
@@ -381,7 +398,7 @@ func (m Model) renderSearch(maxWidth int) string {
 	return b.String()
 }
 
-// renderHome renders the home view with sections
+// renderHome renders the home view with sections.
 func (m Model) renderHome(maxWidth int) string {
 	titleStyle, selectedStyle, normalStyle, dimStyle, errorStyle := m.getStyles()
 
@@ -394,13 +411,14 @@ func (m Model) renderHome(maxWidth int) string {
 
 	// Header with title and shortcuts
 	headerTitle := "🏠 Home"
-	b.WriteString(titleStyle.Render(headerTitle))
+	b.WriteString("  " + titleStyle.Render(headerTitle))
 	b.WriteString("\n\033[A")
 
-	shortcuts := m.shortcutFormatter.FormatHints(m.shortcutFormatter.GetHomeHints(m.showQueue))
-	if runewidth.StringWidth(headerTitle) + runewidth.StringWidth(shortcuts) + 2 <= maxWidth {
-		b.WriteString(dimStyle.Render(shortcuts))
+	shortcuts := m.shortcutFormatter.FormatHints(m.shortcutFormatter.GetHomeHints(m.showQueue, len(m.sections) > 1))
+	if runewidth.StringWidth(headerTitle)+runewidth.StringWidth(shortcuts)+2 <= maxWidth {
+		b.WriteString("  " + dimStyle.Render(shortcuts))
 	}
+
 	b.WriteString("\033[B")
 	b.WriteString("\n\n")
 
@@ -433,6 +451,7 @@ func (m Model) renderHome(maxWidth int) string {
 		}
 
 		startIndex := m.scrollOffset
+
 		endIndex := startIndex + visibleItems
 		if endIndex > len(section.Contents) {
 			endIndex = len(section.Contents)
@@ -449,6 +468,7 @@ func (m Model) renderHome(maxWidth int) string {
 			}
 
 			var displayText string
+
 			switch content.Type {
 			case "playlist":
 				if content.Playlist != nil {
@@ -474,14 +494,17 @@ func (m Model) renderHome(maxWidth int) string {
 					runes := []rune(displayText)
 					truncated := ""
 					width := 0
+
 					for _, r := range runes {
 						charWidth := runewidth.RuneWidth(r)
 						if width+charWidth > availableWidth-3 {
 							break
 						}
+
 						truncated += string(r)
 						width += charWidth
 					}
+
 					displayText = truncated + "..."
 				} else {
 					displayText = "..."
@@ -489,6 +512,7 @@ func (m Model) renderHome(maxWidth int) string {
 			}
 
 			b.WriteString(style.Render(prefix + displayText))
+
 			if i < endIndex-1 {
 				b.WriteString("\n")
 			}
@@ -499,6 +523,7 @@ func (m Model) renderHome(maxWidth int) string {
 			totalItems := len(section.Contents)
 			currentPage := (m.selectedIndex / visibleItems) + 1
 			totalPages := (totalItems + visibleItems - 1) / visibleItems
+
 			b.WriteString("\n\n")
 			b.WriteString(dimStyle.Render(fmt.Sprintf("Page %d/%d (%d items)", currentPage, totalPages, totalItems)))
 		}
@@ -507,9 +532,9 @@ func (m Model) renderHome(maxWidth int) string {
 	return b.String()
 }
 
-// renderSectionTabs renders the section tabs at the top
+// renderSectionTabs renders the section tabs at the top.
 func (m Model) renderSectionTabs(maxWidth int) string {
-	titleStyle, selectedStyle, normalStyle, _, _ := m.getStyles()
+	titleStyle, selectedStyle, normalStyle, dimStyle, _ := m.getStyles()
 
 	// Apply focus style if home view has focus
 	if m.hasFocus("home") {
@@ -521,6 +546,7 @@ func (m Model) renderSectionTabs(maxWidth int) string {
 	}
 
 	var tabs []string
+
 	for i, section := range m.sections {
 		tabStyle := normalStyle.PaddingLeft(2).PaddingRight(2)
 
@@ -538,6 +564,12 @@ func (m Model) renderSectionTabs(maxWidth int) string {
 		// 簡単な実装：現在のタブだけを表示
 		currentTab := selectedStyle.PaddingLeft(2).PaddingRight(2).Render(m.sections[m.currentSectionIndex].Title)
 		return currentTab
+	}
+
+	// Add navigation hint if there are multiple sections and queue is not shown
+	if len(m.sections) > 1 && !m.showQueue {
+		hint := dimStyle.Render(" (← → to switch)")
+		return tabsStr + hint
 	}
 
 	return tabsStr
@@ -566,12 +598,15 @@ func (m Model) applyMarquee(text string, maxLen int) string {
 	if textLength > 30 {
 		scrollDivisor = 4
 	}
+
 	if textLength > 60 {
 		scrollDivisor = 5
 	}
+
 	if textLength > 90 {
 		scrollDivisor = 6
 	}
+
 	if textLength > 120 {
 		scrollDivisor = 7
 	}
@@ -598,6 +633,7 @@ func (m Model) applyMarquee(text string, maxLen int) string {
 				result = append(result, ' ')
 				currentWidth++
 			}
+
 			break
 		}
 
@@ -617,6 +653,7 @@ func (m Model) applyMarquee(text string, maxLen int) string {
 					result = append(result, ' ')
 					currentWidth++
 				}
+
 				break
 			}
 
@@ -634,13 +671,14 @@ func (m Model) applyMarquee(text string, maxLen int) string {
 	return string(result)
 }
 
-// isASCII checks if a string contains only ASCII characters
+// isASCII checks if a string contains only ASCII characters.
 func isASCII(s string) bool {
 	for i := 0; i < len(s); i++ {
 		if s[i] >= 0x80 {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -669,6 +707,7 @@ func truncate(s string, maxWidth int) string {
 		if len(runes) <= maxWidth {
 			return s
 		}
+
 		return string(runes[:maxWidth])
 	}
 
@@ -680,9 +719,10 @@ func truncate(s string, maxWidth int) string {
 
 	for _, r := range runes {
 		rw := runewidth.RuneWidth(r)
-		if width + rw > targetWidth {
+		if width+rw > targetWidth {
 			break
 		}
+
 		result = append(result, r)
 		width += rw
 	}
@@ -694,8 +734,10 @@ func formatDuration(seconds int) string {
 	if seconds <= 0 {
 		return "--:--"
 	}
+
 	minutes := seconds / 60
 	secs := seconds % 60
+
 	return fmt.Sprintf("%02d:%02d", minutes, secs)
 }
 
@@ -718,6 +760,7 @@ func formatArtists(artists []string) string {
 			result += ", ..."
 			break
 		}
+
 		result = testResult
 	}
 
@@ -736,10 +779,11 @@ func padToWidth(s string, width int) string {
 
 	// 不足分をスペースで埋める
 	padding := width - currentWidth
+
 	return s + strings.Repeat(" ", padding)
 }
 
-// renderQueue renders the queue panel on the right side
+// renderQueue renders the queue panel on the right side.
 func (m *Model) renderQueue(maxWidth int, maxHeight int) string {
 	titleStyle, selectedStyle, normalStyle, dimStyle, _ := m.getStyles()
 
@@ -752,16 +796,17 @@ func (m *Model) renderQueue(maxWidth int, maxHeight int) string {
 
 	// Header
 	queueTitle := "🎵 Queue"
-	b.WriteString(titleStyle.Render(queueTitle))
+	b.WriteString("  " + titleStyle.Render(queueTitle))
 	b.WriteString("\n\033[A")
 
 	hints := m.shortcutFormatter.GetQueueHints(m.hasFocus("queue"))
 	if len(hints) > 0 {
 		shortcuts := m.shortcutFormatter.FormatHint(hints[0])
-		if runewidth.StringWidth(queueTitle) + runewidth.StringWidth(shortcuts) + 2 <= maxWidth {
-			b.WriteString(dimStyle.Render(shortcuts))
+		if runewidth.StringWidth(queueTitle)+runewidth.StringWidth(shortcuts)+2 <= maxWidth {
+			b.WriteString("  " + dimStyle.Render(shortcuts))
 		}
 	}
+
 	b.WriteString("\033[B")
 	b.WriteString("\n\n")
 
@@ -791,12 +836,14 @@ func (m *Model) renderQueue(maxWidth int, maxHeight int) string {
 	if maxScrollOffset < 0 {
 		maxScrollOffset = 0
 	}
+
 	if m.queueScrollOffset > maxScrollOffset {
 		m.queueScrollOffset = maxScrollOffset
 	}
 
 	// Render tracks
 	startIndex := m.queueScrollOffset
+
 	endIndex := startIndex + visibleLines
 	if endIndex > len(m.playerState.List) {
 		endIndex = len(m.playerState.List)
@@ -821,6 +868,7 @@ func (m *Model) renderQueue(maxWidth int, maxHeight int) string {
 
 		// Add status icon
 		var statusIcon string
+
 		if status, ok := m.playerState.MusicStatus[track.TrackID]; ok {
 			switch status {
 			case structures.Downloaded:
@@ -861,6 +909,7 @@ func (m *Model) renderQueue(maxWidth int, maxHeight int) string {
 		line = trackNum + line
 
 		b.WriteString(style.Render(line))
+
 		if displayIdx < endIndex-1 {
 			b.WriteString("\n")
 		}

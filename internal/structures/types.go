@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// MusicDownloadStatus represents the download status of a music file
+// MusicDownloadStatus represents the download status of a music file.
 type MusicDownloadStatus int
 
 const (
@@ -14,7 +14,7 @@ const (
 	DownloadFailed
 )
 
-// Track represents a music track
+// Track represents a music track.
 type Track struct {
 	TrackID      string   `json:"track_id"`
 	Title        string   `json:"title"`
@@ -27,7 +27,7 @@ type Track struct {
 	AudioQuality string   `json:"audio_quality,omitempty"` // Quality level used for download
 }
 
-// Section represents a content section on the home page
+// Section represents a content section on the home page.
 type Section struct {
 	ID       string        `json:"id"`
 	Title    string        `json:"title"`
@@ -35,7 +35,7 @@ type Section struct {
 	Contents []ContentItem `json:"contents"`
 }
 
-// SectionType represents the type of section
+// SectionType represents the type of section.
 type SectionType string
 
 const (
@@ -46,14 +46,14 @@ const (
 	SectionTypeHomeFeed             SectionType = "home_feed"
 )
 
-// ContentItem represents an item in a section
+// ContentItem represents an item in a section.
 type ContentItem struct {
 	Type     string    `json:"type"` // "track", "playlist", "album", etc.
 	Track    *Track    `json:"track,omitempty"`
 	Playlist *Playlist `json:"playlist,omitempty"`
 }
 
-// Playlist represents a playlist with metadata
+// Playlist represents a playlist with metadata.
 type Playlist struct {
 	ID          string `json:"id"`
 	Title       string `json:"title"`
@@ -62,10 +62,10 @@ type Playlist struct {
 	VideoCount  int    `json:"video_count"`
 }
 
-// SoundAction represents actions that can be sent to the player
-type SoundAction interface{}
+// SoundAction represents actions that can be sent to the player.
+type SoundAction any
 
-// Player actions
+// Player actions.
 type PlayPauseAction struct{}
 type PlayAction struct{}
 type PauseAction struct{}
@@ -93,19 +93,19 @@ type SeekAction struct {
 type ShuffleQueueAction struct{}
 type JumpToIndexAction struct{ Index int }
 
-// PlayerState represents the current state of the music player
+// PlayerState represents the current state of the music player.
 type PlayerState struct {
-	List               []Track
-	Current            int
-	MusicStatus        map[string]MusicDownloadStatus
-	Volume             float64
-	IsPlaying          bool
-	CurrentTime        time.Duration
-	TotalTime          time.Duration
-	ListSelector       *ListSelector
+	List         []Track
+	Current      int
+	MusicStatus  map[string]MusicDownloadStatus
+	Volume       float64
+	IsPlaying    bool
+	CurrentTime  time.Duration
+	TotalTime    time.Duration
+	ListSelector *ListSelector
 }
 
-// ListSelector manages list navigation
+// ListSelector manages list navigation.
 type ListSelector struct {
 	Position  int
 	ListSize  int
@@ -113,7 +113,7 @@ type ListSelector struct {
 	ViewSize  int
 }
 
-// AppStatus represents the application status
+// AppStatus represents the application status.
 type AppStatus struct {
 	TotalTasks     int
 	CompletedTasks int
@@ -122,7 +122,7 @@ type AppStatus struct {
 	IsDownloading  bool
 }
 
-// Config represents the application configuration
+// Config represents the application configuration.
 type Config struct {
 	Theme       Theme       `toml:"theme"`
 	KeyBindings KeyBindings `toml:"key_bindings"`
@@ -141,7 +141,7 @@ type Config struct {
 	DisableAltScreen bool `toml:"disable_alt_screen"` // Disable alternate screen for Kitty graphics compatibility
 }
 
-// Theme represents the UI theme configuration
+// Theme represents the UI theme configuration.
 type Theme struct {
 	Background       string `toml:"background"`         // Note: Not used to avoid partial background coloring
 	Foreground       string `toml:"foreground"`         // Default text color
@@ -153,7 +153,7 @@ type Theme struct {
 	ProgressBarStyle string `toml:"progress_bar_style"` // Progress bar style: "line", "block", "gradient"
 }
 
-// KeyBindings represents configurable keyboard shortcuts
+// KeyBindings represents configurable keyboard shortcuts.
 type KeyBindings struct {
 	// Global controls
 	PlayPause    string   `toml:"play_pause"`
@@ -178,7 +178,7 @@ type KeyBindings struct {
 	Home        string `toml:"home"`
 }
 
-// Database entry structure
+// Database entry structure.
 type DatabaseEntry struct {
 	Track    Track
 	AddedAt  time.Time

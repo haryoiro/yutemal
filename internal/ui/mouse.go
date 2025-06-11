@@ -4,20 +4,22 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/haryoiro/yutemal/internal/structures"
 )
 
-// マウスイベントのハンドリング
+// マウスイベントのハンドリング.
 func (m *Model) handleMouseEvent(mouse tea.MouseMsg) (tea.Model, tea.Cmd) {
 	switch mouse.Action {
-
 	case tea.MouseActionPress:
 		if mouse.Button == tea.MouseButtonLeft {
 			return m.handleMouseClick(mouse.X, mouse.Y)
 		}
+
 		if mouse.Button == tea.MouseButtonWheelUp {
 			return m.handleScrollUp()
 		}
+
 		if mouse.Button == tea.MouseButtonWheelDown {
 			return m.handleScrollDown()
 		}
@@ -26,7 +28,7 @@ func (m *Model) handleMouseEvent(mouse tea.MouseMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// マウスクリックの処理
+// マウスクリックの処理.
 func (m *Model) handleMouseClick(x, y int) (tea.Model, tea.Cmd) {
 	// プレイヤー部分の高さを計算
 	// プレイヤーの高さには、フレーム（上下各1）も含まれている
@@ -41,7 +43,7 @@ func (m *Model) handleMouseClick(x, y int) (tea.Model, tea.Cmd) {
 	return m.handleContentClick(x, y)
 }
 
-// プレイヤー部分のクリック処理
+// プレイヤー部分のクリック処理.
 func (m *Model) handlePlayerClick(x, y int) (tea.Model, tea.Cmd) {
 	// プログレスバーの位置を計算
 	// フレームのマージンを考慮（左右各1文字分）
@@ -73,6 +75,7 @@ func (m *Model) handlePlayerClick(x, y int) (tea.Model, tea.Cmd) {
 		if contentX >= progressBarStart && contentX < progressBarStart+barWidth {
 			// クリック位置から進行度を計算
 			clickPos := contentX - progressBarStart
+
 			progress := float64(clickPos) / float64(barWidth)
 			if progress < 0 {
 				progress = 0
@@ -91,7 +94,7 @@ func (m *Model) handlePlayerClick(x, y int) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// コンテンツ部分のクリック処理
+// コンテンツ部分のクリック処理.
 func (m *Model) handleContentClick(x, y int) (tea.Model, tea.Cmd) {
 	// フレームボーダー（上部の枠線）を考慮
 	// lipgloss.RoundedBorder()は上下左右に1文字分のボーダーを追加
@@ -142,6 +145,7 @@ func (m *Model) handleContentClick(x, y int) (tea.Model, tea.Cmd) {
 		// セクションの内容の開始位置を計算
 		// タブがない場合: セクションタイトル(1行) + ボーダー(1行) = 2行
 		listStartY := 2
+
 		if m.currentSectionIndex < len(m.sections) {
 			section := m.sections[m.currentSectionIndex]
 			relativeY := contentY - listStartY
@@ -166,10 +170,12 @@ func (m *Model) handleContentClick(x, y int) (tea.Model, tea.Cmd) {
 						// Keep backward compatibility
 						m.currentList = []structures.Track{}
 						m.currentListName = playlist.Title
+
 						return m, m.loadPlaylistTracks(playlist.ID)
 					} else if content.Type == "track" && content.Track != nil {
 						// トラックを再生
 						track := content.Track
+
 						m.systems.Player.SendAction(structures.CleanupAction{})
 						m.systems.Player.SendAction(structures.AddTrackAction{Track: *track})
 						m.systems.Player.SendAction(structures.PlayAction{})
@@ -201,6 +207,7 @@ func (m *Model) handleContentClick(x, y int) (tea.Model, tea.Cmd) {
 				// Keep backward compatibility
 				m.currentList = []structures.Track{}
 				m.currentListName = playlist.Title
+
 				return m, m.loadPlaylistTracks(playlist.ID)
 			}
 		}
@@ -209,13 +216,14 @@ func (m *Model) handleContentClick(x, y int) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// スクロールアップの処理
+// スクロールアップの処理.
 func (m *Model) handleScrollUp() (tea.Model, tea.Cmd) {
 	// スロットリング: 前回のスクロールから一定時間経過していない場合は無視
 	now := time.Now()
 	if now.Sub(m.lastScrollTime) < m.scrollCooldown {
 		return m, nil
 	}
+
 	m.lastScrollTime = now
 
 	// Queue画面がフォーカスされている場合
@@ -227,6 +235,7 @@ func (m *Model) handleScrollUp() (tea.Model, tea.Cmd) {
 				m.queueScrollOffset = m.queueSelectedIndex
 			}
 		}
+
 		return m, nil
 	}
 
@@ -243,16 +252,18 @@ func (m *Model) handleScrollUp() (tea.Model, tea.Cmd) {
 			m.adjustScroll()
 		}
 	}
+
 	return m, nil
 }
 
-// スクロールダウンの処理
+// スクロールダウンの処理.
 func (m *Model) handleScrollDown() (tea.Model, tea.Cmd) {
 	// スロットリング: 前回のスクロールから一定時間経過していない場合は無視
 	now := time.Now()
 	if now.Sub(m.lastScrollTime) < m.scrollCooldown {
 		return m, nil
 	}
+
 	m.lastScrollTime = now
 
 	// Queue画面がフォーカスされている場合
@@ -263,18 +274,22 @@ func (m *Model) handleScrollDown() (tea.Model, tea.Cmd) {
 			// Adjust scroll to keep selection visible
 			// Queue表示の高さを計算（コンテンツエリアの1/3）
 			contentAreaHeight := m.height - m.playerHeight
+
 			queueHeight := contentAreaHeight / 3
 			if queueHeight < 5 {
 				queueHeight = 5
 			}
+
 			visibleLines := queueHeight - 4 // Header, spacing, and scroll indicator
 			if visibleLines < 1 {
 				visibleLines = 1
 			}
+
 			if m.queueSelectedIndex >= m.queueScrollOffset+visibleLines {
 				m.queueScrollOffset = m.queueSelectedIndex - visibleLines + 1
 			}
 		}
+
 		return m, nil
 	}
 
@@ -292,10 +307,11 @@ func (m *Model) handleScrollDown() (tea.Model, tea.Cmd) {
 			m.adjustScroll()
 		}
 	}
+
 	return m, nil
 }
 
-// ビューごとの最大アイテム数を取得
+// ビューごとの最大アイテム数を取得.
 func (m *Model) getMaxItems() int {
 	switch m.state {
 	case PlaylistDetailView:
@@ -306,6 +322,7 @@ func (m *Model) getMaxItems() int {
 		if m.currentSectionIndex < len(m.sections) {
 			return len(m.sections[m.currentSectionIndex].Contents)
 		}
+
 		return 0
 	case PlaylistListView:
 		return len(m.playlists)
@@ -314,7 +331,7 @@ func (m *Model) getMaxItems() int {
 	}
 }
 
-// 選択されたトラックを再生
+// 選択されたトラックを再生.
 func (m *Model) playSelectedTrack() (tea.Model, tea.Cmd) {
 	switch m.state {
 	case PlaylistDetailView:
@@ -337,5 +354,6 @@ func (m *Model) playSelectedTrack() (tea.Model, tea.Cmd) {
 			m.systems.Player.SendAction(structures.PlayAction{})
 		}
 	}
+
 	return m, nil
 }

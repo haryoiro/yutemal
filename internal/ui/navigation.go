@@ -2,12 +2,13 @@ package ui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/haryoiro/yutemal/internal/logger"
 )
 
 // ナビゲーション関連の共通処理
 
-// moveUp handles upward navigation for both main content and queue
+// moveUp handles upward navigation for both main content and queue.
 func (m *Model) moveUp() (tea.Model, tea.Cmd) {
 	if m.queueFocused && m.showQueue {
 		// Navigate in queue
@@ -35,10 +36,11 @@ func (m *Model) moveUp() (tea.Model, tea.Cmd) {
 			}
 		}
 	}
+
 	return m, nil
 }
 
-// moveDown handles downward navigation for both main content and queue
+// moveDown handles downward navigation for both main content and queue.
 func (m *Model) moveDown() (tea.Model, tea.Cmd) {
 	if m.queueFocused && m.showQueue {
 		// Navigate in queue
@@ -62,10 +64,11 @@ func (m *Model) moveDown() (tea.Model, tea.Cmd) {
 			}
 		}
 	}
+
 	return m, nil
 }
 
-// jumpToTop moves selection to the first item
+// jumpToTop moves selection to the first item.
 func (m *Model) jumpToTop() (tea.Model, tea.Cmd) {
 	if m.queueFocused && m.showQueue {
 		m.queueSelectedIndex = 0
@@ -80,10 +83,11 @@ func (m *Model) jumpToTop() (tea.Model, tea.Cmd) {
 			m.scrollOffset = 0
 		}
 	}
+
 	return m, nil
 }
 
-// jumpToBottom moves selection to the last item
+// jumpToBottom moves selection to the last item.
 func (m *Model) jumpToBottom() (tea.Model, tea.Cmd) {
 	if m.queueFocused && m.showQueue {
 		m.queueSelectedIndex = len(m.playerState.List) - 1
@@ -99,77 +103,92 @@ func (m *Model) jumpToBottom() (tea.Model, tea.Cmd) {
 			m.adjustScroll()
 		}
 	}
+
 	return m, nil
 }
 
-// pageUp moves selection up by one page
+// pageUp moves selection up by one page.
 func (m *Model) pageUp() (tea.Model, tea.Cmd) {
 	if m.queueFocused && m.showQueue {
 		visibleLines := m.getQueueVisibleLines()
+
 		m.queueSelectedIndex -= visibleLines
 		if m.queueSelectedIndex < 0 {
 			m.queueSelectedIndex = 0
 		}
+
 		m.adjustQueueScroll()
 	} else {
 		visibleItems := m.getVisibleItems()
+
 		switch m.state {
 		case PlaylistDetailView:
 			m.playlistSelectedIndex -= visibleItems
 			if m.playlistSelectedIndex < 0 {
 				m.playlistSelectedIndex = 0
 			}
+
 			m.adjustPlaylistScroll()
 		default:
 			m.selectedIndex -= visibleItems
 			if m.selectedIndex < 0 {
 				m.selectedIndex = 0
 			}
+
 			m.adjustScroll()
 		}
 	}
+
 	return m, nil
 }
 
-// pageDown moves selection down by one page
+// pageDown moves selection down by one page.
 func (m *Model) pageDown() (tea.Model, tea.Cmd) {
 	if m.queueFocused && m.showQueue {
 		visibleLines := m.getQueueVisibleLines()
 		m.queueSelectedIndex += visibleLines
 		maxIndex := len(m.playerState.List) - 1
+
 		if m.queueSelectedIndex > maxIndex {
 			m.queueSelectedIndex = maxIndex
 		}
+
 		m.adjustQueueScroll()
 	} else {
 		visibleItems := m.getVisibleItems()
+
 		switch m.state {
 		case PlaylistDetailView:
 			m.playlistSelectedIndex += visibleItems
 			if m.playlistSelectedIndex >= len(m.playlistTracks) {
 				m.playlistSelectedIndex = len(m.playlistTracks) - 1
 			}
+
 			m.adjustPlaylistScroll()
 		default:
 			maxIndex := m.getMaxIndex()
 			m.selectedIndex += visibleItems
+
 			if m.selectedIndex > maxIndex {
 				m.selectedIndex = maxIndex
 			}
+
 			m.adjustScroll()
 		}
 	}
+
 	return m, nil
 }
 
-// navigateBack handles back navigation between views
+// navigateBack handles back navigation between views.
 func (m *Model) navigateBack() (tea.Model, tea.Cmd) {
 	logger.Debug("navigateBack called: current state=%s, focused pane=%d", m.state, m.getFocusedPane())
-	
+
 	// If queue is focused, just unfocus it without changing views
 	if m.getFocusedPane() == FocusQueue {
 		logger.Debug("navigateBack: Unfocusing queue, staying in current view")
 		m.setFocus(FocusMain)
+
 		return m, nil
 	}
 
@@ -178,11 +197,13 @@ func (m *Model) navigateBack() (tea.Model, tea.Cmd) {
 	case PlaylistDetailView:
 		// Return to HomeView, keeping the section selection
 		logger.Debug("navigateBack: Returning from PlaylistDetailView to HomeView")
+
 		m.state = HomeView
 		// Don't reset the selectedIndex and scrollOffset for HomeView
 		// so user returns to where they were
 	case SearchView:
 		logger.Debug("navigateBack: Returning from SearchView to HomeView")
+
 		m.state = HomeView
 		m.setFocus(FocusMain)
 	case HomeView:
@@ -197,59 +218,68 @@ func (m *Model) navigateBack() (tea.Model, tea.Cmd) {
 
 // Helper methods
 
-// getMaxIndex returns the maximum selectable index for the current view
+// getMaxIndex returns the maximum selectable index for the current view.
 func (m *Model) getMaxIndex() int {
 	switch m.state {
 	case HomeView:
 		if m.currentSectionIndex < len(m.sections) && len(m.sections[m.currentSectionIndex].Contents) > 0 {
 			return len(m.sections[m.currentSectionIndex].Contents) - 1
 		}
+
 		return 0
 	case PlaylistDetailView:
 		if len(m.currentList) > 0 {
 			return len(m.currentList) - 1
 		}
+
 		return 0
 	case SearchView:
 		if len(m.searchResults) > 0 {
 			return len(m.searchResults) - 1
 		}
+
 		return 0
 	case PlaylistListView:
 		if len(m.playlists) > 0 {
 			return len(m.playlists) - 1
 		}
+
 		return 0
 	default:
 		return 0
 	}
 }
 
-// getVisibleItems returns the number of visible items in the content area
+// getVisibleItems returns the number of visible items in the content area.
 func (m *Model) getVisibleItems() int {
 	if m.contentHeight < 1 {
 		return 1
 	}
+
 	return m.contentHeight
 }
 
-// getQueueVisibleLines returns the number of visible lines in the queue
+// getQueueVisibleLines returns the number of visible lines in the queue.
 func (m *Model) getQueueVisibleLines() int {
 	contentAreaHeight := m.height - m.playerHeight
+
 	queueHeight := contentAreaHeight / 3
 	if queueHeight < 5 {
 		queueHeight = 5
 	}
+
 	visibleLines := queueHeight - 4 // Header, spacing, and scroll indicator
 	if visibleLines < 1 {
 		visibleLines = 1
 	}
+
 	return visibleLines
 }
 
-// adjustScroll adjusts the scroll offset to keep the selected item visible
+// adjustScroll adjusts the scroll offset to keep the selected item visible.
 func (m *Model) adjustScroll() {
 	visibleItems := m.getVisibleItems()
+
 	if m.selectedIndex < m.scrollOffset {
 		m.scrollOffset = m.selectedIndex
 	} else if m.selectedIndex >= m.scrollOffset+visibleItems {
@@ -257,9 +287,10 @@ func (m *Model) adjustScroll() {
 	}
 }
 
-// adjustQueueScroll adjusts the queue scroll offset to keep the selected item visible
+// adjustQueueScroll adjusts the queue scroll offset to keep the selected item visible.
 func (m *Model) adjustQueueScroll() {
 	visibleLines := m.getQueueVisibleLines()
+
 	if m.queueSelectedIndex < m.queueScrollOffset {
 		m.queueScrollOffset = m.queueSelectedIndex
 	} else if m.queueSelectedIndex >= m.queueScrollOffset+visibleLines {
@@ -267,14 +298,14 @@ func (m *Model) adjustQueueScroll() {
 	}
 }
 
-// adjustPlaylistScroll adjusts the playlist scroll offset to keep the selected item visible
+// adjustPlaylistScroll adjusts the playlist scroll offset to keep the selected item visible.
 func (m *Model) adjustPlaylistScroll() {
 	// Use same calculation as renderPlaylistDetail
 	visibleItems := m.contentHeight - 6 // Header and footer space
 	if visibleItems < 1 {
 		visibleItems = 1
 	}
-	
+
 	if m.playlistSelectedIndex < m.playlistScrollOffset {
 		m.playlistScrollOffset = m.playlistSelectedIndex
 	} else if m.playlistSelectedIndex >= m.playlistScrollOffset+visibleItems {

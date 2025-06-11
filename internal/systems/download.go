@@ -16,7 +16,7 @@ import (
 	"github.com/haryoiro/yutemal/internal/structures"
 )
 
-// DownloadSystem manages music downloads
+// DownloadSystem manages music downloads.
 type DownloadSystem struct {
 	config         *structures.Config
 	database       database.DB
@@ -32,7 +32,7 @@ type DownloadSystem struct {
 	statusCallback func(trackID string, status structures.MusicDownloadStatus)
 }
 
-// NewDownloadSystem creates a new download system
+// NewDownloadSystem creates a new download system.
 func NewDownloadSystem(cfg *structures.Config, db database.DB, cacheDir string) *DownloadSystem {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -51,16 +51,17 @@ func NewDownloadSystem(cfg *structures.Config, db database.DB, cacheDir string) 
 	}
 }
 
-// Start starts the download workers
+// Start starts the download workers.
 func (ds *DownloadSystem) Start() error {
 	for i := 0; i < ds.workers; i++ {
 		ds.wg.Add(1)
 		go ds.worker(i)
 	}
+
 	return nil
 }
 
-// Stop stops all download workers
+// Stop stops all download workers.
 func (ds *DownloadSystem) Stop() {
 	// Cancel context first to signal workers to stop
 	ds.cancel()
@@ -70,12 +71,12 @@ func (ds *DownloadSystem) Stop() {
 	close(ds.queue)
 }
 
-// SetStatusCallback sets the callback for download status updates
+// SetStatusCallback sets the callback for download status updates.
 func (ds *DownloadSystem) SetStatusCallback(callback func(trackID string, status structures.MusicDownloadStatus)) {
 	ds.statusCallback = callback
 }
 
-// SetHeaderFile sets the header file for authentication and creates cookies file
+// SetHeaderFile sets the header file for authentication and creates cookies file.
 func (ds *DownloadSystem) SetHeaderFile(headerPath string) error {
 	// Read header file
 	content, err := os.ReadFile(headerPath)
@@ -86,6 +87,7 @@ func (ds *DownloadSystem) SetHeaderFile(headerPath string) error {
 	// Parse headers to extract cookies
 	lines := strings.Split(string(content), "\n")
 	var cookieHeader string
+
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "Cookie:") || strings.HasPrefix(line, "cookie:") {
@@ -100,10 +102,12 @@ func (ds *DownloadSystem) SetHeaderFile(headerPath string) error {
 
 	// Create cookies file in Netscape format for yt-dlp
 	cookiesPath := filepath.Join(ds.cacheDir, "cookies.txt")
+
 	cookiesFile, err := os.Create(cookiesPath)
 	if err != nil {
 		return fmt.Errorf("failed to create cookies file: %w", err)
 	}
+
 	defer cookiesFile.Close()
 
 	// Write cookie format header
@@ -133,10 +137,11 @@ func (ds *DownloadSystem) SetHeaderFile(headerPath string) error {
 
 	ds.cookiesFile = cookiesPath
 	logger.Debug("Created cookies file at: %s", cookiesPath)
+
 	return nil
 }
 
-// QueueDownload adds a track to the download queue
+// QueueDownload adds a track to the download queue.
 func (ds *DownloadSystem) QueueDownload(track structures.Track) {
 	// Check if already downloading
 	if _, exists := ds.inProgress.Load(track.TrackID); exists {
@@ -159,7 +164,7 @@ func (ds *DownloadSystem) QueueDownload(track structures.Track) {
 	}
 }
 
-// worker is a download worker goroutine
+// worker is a download worker goroutine.
 func (ds *DownloadSystem) worker(id int) {
 	defer ds.wg.Done()
 
@@ -192,7 +197,7 @@ func (ds *DownloadSystem) worker(id int) {
 	}
 }
 
-// downloadTrack downloads a single track using yt-dlp with retry mechanism
+// downloadTrack downloads a single track using yt-dlp with retry mechanism.
 func (ds *DownloadSystem) downloadTrack(track structures.Track) error {
 	outputPath := filepath.Join(ds.downloadDir, track.TrackID+".mp3")
 
@@ -207,6 +212,7 @@ func (ds *DownloadSystem) downloadTrack(track structures.Track) error {
 	if audioQuality == "" {
 		audioQuality = constants.AudioQualityMedium
 	}
+
 	track.AudioQuality = audioQuality
 
 	// Estimate file size based on quality and duration
@@ -291,7 +297,7 @@ func (ds *DownloadSystem) downloadTrack(track structures.Track) error {
 	return fmt.Errorf("download failed after %d attempts: %w", maxRetries, lastErr)
 }
 
-// updateDatabase updates the database with download info
+// updateDatabase updates the database with download info.
 func (ds *DownloadSystem) updateDatabase(track structures.Track, filePath string) error {
 	// Get file size
 	fileInfo, err := os.Stat(filePath)
@@ -329,7 +335,7 @@ func (ds *DownloadSystem) updateDatabase(track structures.Track, filePath string
 	return nil
 }
 
-// getFileBitrate uses ffprobe to get the actual bitrate of an audio file
+// getFileBitrate uses ffprobe to get the actual bitrate of an audio file.
 func (ds *DownloadSystem) getFileBitrate(filePath string) int {
 	// Build ffprobe command
 	cmd := exec.Command("ffprobe",
@@ -363,20 +369,20 @@ func (ds *DownloadSystem) getFileBitrate(filePath string) int {
 	return 0
 }
 
-// IsDownloading checks if a track is currently downloading
+// IsDownloading checks if a track is currently downloading.
 func (ds *DownloadSystem) IsDownloading(trackID string) bool {
 	_, exists := ds.inProgress.Load(trackID)
 	return exists
 }
 
-// emitStatus emits a status update if a callback is set
+// emitStatus emits a status update if a callback is set.
 func (ds *DownloadSystem) emitStatus(trackID string, status structures.MusicDownloadStatus) {
 	if ds.statusCallback != nil {
 		ds.statusCallback(trackID, status)
 	}
 }
 
-// CleanupOldFiles removes downloaded files that haven't been accessed in the specified duration
+// CleanupOldFiles removes downloaded files that haven't been accessed in the specified duration.
 func (ds *DownloadSystem) CleanupOldFiles(maxAge time.Duration) error {
 	entries, err := os.ReadDir(ds.downloadDir)
 	if err != nil {
@@ -394,6 +400,7 @@ func (ds *DownloadSystem) CleanupOldFiles(maxAge time.Duration) error {
 
 		filePath := filepath.Join(ds.downloadDir, entry.Name())
 		info, err := entry.Info()
+
 		if err != nil {
 			logger.Error("Failed to get info for %s: %v", filePath, err)
 			continue
@@ -421,15 +428,17 @@ func (ds *DownloadSystem) CleanupOldFiles(maxAge time.Duration) error {
 
 			totalSize += info.Size()
 			removedCount++
+
 			logger.Debug("Removed old file: %s", filePath)
 		}
 	}
 
 	logger.Debug("Cleanup complete: removed %d files, freed %d MB", removedCount, totalSize/(1024*1024))
+
 	return nil
 }
 
-// GetCacheSize returns the total size of cached downloads in bytes
+// GetCacheSize returns the total size of cached downloads in bytes.
 func (ds *DownloadSystem) GetCacheSize() (int64, error) {
 	entries, err := os.ReadDir(ds.downloadDir)
 	if err != nil {
@@ -437,6 +446,7 @@ func (ds *DownloadSystem) GetCacheSize() (int64, error) {
 	}
 
 	var totalSize int64
+
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -453,7 +463,7 @@ func (ds *DownloadSystem) GetCacheSize() (int64, error) {
 	return totalSize, nil
 }
 
-// getFileDuration uses ffprobe to get the actual duration of an audio file
+// getFileDuration uses ffprobe to get the actual duration of an audio file.
 func (ds *DownloadSystem) getFileDuration(filePath string) int {
 	// Build ffprobe command
 	cmd := exec.Command("ffprobe",
@@ -486,10 +496,11 @@ func (ds *DownloadSystem) getFileDuration(filePath string) int {
 	return 0
 }
 
-// estimateFileSize estimates the file size based on duration and quality
+// estimateFileSize estimates the file size based on duration and quality.
 func estimateFileSize(durationSeconds int, quality string) float64 {
 	// Estimate bitrates for each quality level
 	var bitrateKbps int
+
 	switch quality {
 	case constants.AudioQualityBest:
 		bitrateKbps = 256
@@ -506,5 +517,6 @@ func estimateFileSize(durationSeconds int, quality string) float64 {
 	// Calculate estimated size in MB
 	// Formula: (bitrate in kbps * duration in seconds) / 8 / 1024
 	sizeMB := float64(bitrateKbps*durationSeconds) / 8.0 / 1024.0
+
 	return sizeMB
 }

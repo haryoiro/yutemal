@@ -16,7 +16,7 @@ import (
 	"github.com/haryoiro/yutemal/internal/structures"
 )
 
-// PlayerSystem manages audio playback
+// PlayerSystem manages audio playback.
 type PlayerSystem struct {
 	mu               sync.RWMutex
 	config           *structures.Config
@@ -27,15 +27,16 @@ type PlayerSystem struct {
 	player           *player.Player
 	cacheDir         string
 	downloadCallback func(track structures.Track)
-	skipUpdate       int32       // Atomic flag to skip position updates during critical operations
-	apiClient        interface{} // API client for fetching bitrate info (optional)
+	skipUpdate       int32 // Atomic flag to skip position updates during critical operations
+	apiClient        any   // API client for fetching bitrate info (optional)
 }
 
-// NewPlayerSystem creates a new player system
+// NewPlayerSystem creates a new player system.
 func NewPlayerSystem(cfg *structures.Config, db database.DB, cacheDir string) *PlayerSystem {
 	audioPlayer, err := player.New()
 	if err != nil {
 		logger.Error("Failed to create audio player: %v", err)
+
 		audioPlayer = nil
 	}
 
@@ -62,35 +63,37 @@ func NewPlayerSystem(cfg *structures.Config, db database.DB, cacheDir string) *P
 	return ps
 }
 
-// Start starts the player system
+// Start starts the player system.
 func (ps *PlayerSystem) Start() error {
 	// Don't reset volume here - it's already set in NewPlayerSystem
 	go ps.run()
 	go ps.updateLoop()
+
 	return nil
 }
 
-// Stop stops the player system
+// Stop stops the player system.
 func (ps *PlayerSystem) Stop() {
 	close(ps.stopChan)
+
 	if ps.player != nil {
 		ps.player.Close()
 	}
 }
 
-// SetDownloadCallback sets the callback for automatic download queueing
+// SetDownloadCallback sets the callback for automatic download queueing.
 func (ps *PlayerSystem) SetDownloadCallback(callback func(track structures.Track)) {
 	ps.downloadCallback = callback
 }
 
-// SetAPIClient sets the API client for fetching additional track information
-func (ps *PlayerSystem) SetAPIClient(client interface{}) {
+// SetAPIClient sets the API client for fetching additional track information.
+func (ps *PlayerSystem) SetAPIClient(client any) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	ps.apiClient = client
 }
 
-// SendAction sends an action to the player
+// SendAction sends an action to the player.
 func (ps *PlayerSystem) SendAction(action structures.SoundAction) {
 	select {
 	case ps.actionChan <- action:
@@ -99,7 +102,7 @@ func (ps *PlayerSystem) SendAction(action structures.SoundAction) {
 	}
 }
 
-// GetState returns a copy of the current player state
+// GetState returns a copy of the current player state.
 func (ps *PlayerSystem) GetState() structures.PlayerState {
 	ps.mu.RLock()
 	defer ps.mu.RUnlock()
@@ -115,6 +118,7 @@ func (ps *PlayerSystem) GetState() structures.PlayerState {
 	// Create a deep copy
 	stateCopy := *ps.state
 	stateCopy.MusicStatus = make(map[string]structures.MusicDownloadStatus)
+
 	for k, v := range ps.state.MusicStatus {
 		stateCopy.MusicStatus[k] = v
 	}
@@ -122,7 +126,7 @@ func (ps *PlayerSystem) GetState() structures.PlayerState {
 	return stateCopy
 }
 
-// run is the main loop of the player system
+// run is the main loop of the player system.
 func (ps *PlayerSystem) run() {
 	for {
 		select {
@@ -135,7 +139,7 @@ func (ps *PlayerSystem) run() {
 	}
 }
 
-// updateLoop periodically updates the player state - simplified version
+// updateLoop periodically updates the player state - simplified version.
 func (ps *PlayerSystem) updateLoop() {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
@@ -173,7 +177,7 @@ func (ps *PlayerSystem) updateLoop() {
 	}
 }
 
-// refreshDownloadStatus updates the download status for all tracks in the list
+// refreshDownloadStatus updates the download status for all tracks in the list.
 func (ps *PlayerSystem) refreshDownloadStatus() {
 	for _, track := range ps.state.List {
 		// Check if file exists in database
@@ -196,7 +200,7 @@ func (ps *PlayerSystem) refreshDownloadStatus() {
 	}
 }
 
-// handleAction processes player actions - simplified version
+// handleAction processes player actions - simplified version.
 func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
@@ -206,6 +210,7 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 		if !ps.validatePlayerState() {
 			logger.Warn("Cannot toggle playback: invalid player state")
 			ps.loadCurrentSong()
+
 			return
 		}
 
@@ -215,6 +220,7 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 				ps.loadCurrentSong()
 			} else {
 				ps.state.IsPlaying = false
+
 				logger.Debug("Playback paused")
 			}
 		} else {
@@ -225,6 +231,7 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 				ps.state.IsPlaying = true
 				ps.state.CurrentTime = ps.player.GetPosition()
 				ps.state.TotalTime = ps.player.GetDuration()
+
 				logger.Debug("Playback started")
 			}
 		}
@@ -233,11 +240,13 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 		if !ps.validatePlayerState() {
 			logger.Warn("Cannot play: invalid player state")
 			ps.loadCurrentSong()
+
 			return
 		}
 
 		if !ps.state.IsPlaying {
 			ps.loadCurrentSong()
+
 			if err := ps.player.Play(); err != nil {
 				logger.Error("Failed to start playback: %v", err)
 				ps.handleLoadFailure()
@@ -245,6 +254,7 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 				ps.state.IsPlaying = true
 				ps.state.CurrentTime = ps.player.GetPosition()
 				ps.state.TotalTime = ps.player.GetDuration()
+
 				logger.Debug("Playback started")
 			}
 		} else {
@@ -252,7 +262,9 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 			if err := ps.player.Stop(); err != nil {
 				logger.Error("Failed to stop playback: %v", err)
 			}
+
 			ps.loadCurrentSong()
+
 			if err := ps.player.Play(); err != nil {
 				logger.Error("Failed to restart playback: %v", err)
 				ps.handleLoadFailure()
@@ -260,6 +272,7 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 				ps.state.IsPlaying = true
 				ps.state.CurrentTime = ps.player.GetPosition()
 				ps.state.TotalTime = ps.player.GetDuration()
+
 				logger.Debug("Playback restarted")
 			}
 		}
@@ -275,6 +288,7 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 			ps.loadCurrentSong()
 		} else {
 			ps.state.IsPlaying = false
+
 			logger.Debug("Playback paused")
 		}
 
@@ -283,6 +297,7 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 			if err := ps.player.VolumeUp(); err != nil {
 				logger.Error("Failed to increase volume: %v", err)
 			}
+
 			ps.state.Volume = ps.player.GetVolume()
 		}
 
@@ -291,6 +306,7 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 			if err := ps.player.VolumeDown(); err != nil {
 				logger.Error("Failed to decrease volume: %v", err)
 			}
+
 			ps.state.Volume = ps.player.GetVolume()
 		}
 
@@ -298,6 +314,7 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 		if ps.validatePlayerState() && ps.state.TotalTime > 0 {
 			// Temporarily disable position updates during seek
 			atomic.StoreInt32(&ps.skipUpdate, 1)
+
 			if err := ps.player.SeekForward(time.Duration(ps.config.SeekSeconds) * time.Second); err != nil {
 				logger.Error("Failed to seek forward: %v", err)
 			} else {
@@ -314,6 +331,7 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 		if ps.validatePlayerState() && ps.state.TotalTime > 0 {
 			// Temporarily disable position updates during seek
 			atomic.StoreInt32(&ps.skipUpdate, 1)
+
 			if err := ps.player.SeekBackward(time.Duration(ps.config.SeekSeconds) * time.Second); err != nil {
 				logger.Error("Failed to seek backward: %v", err)
 			} else {
@@ -351,6 +369,7 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 			ps.state.List = append(ps.state.List[:ps.state.Current+1],
 				append([]structures.Track{a.Track}, ps.state.List[ps.state.Current+1:]...)...)
 		}
+
 		ps.state.MusicStatus[a.Track.TrackID] = structures.NotDownloaded
 		// Queue for download
 		if ps.downloadCallback != nil {
@@ -367,14 +386,17 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 			if insertPos > len(ps.state.List) {
 				insertPos = len(ps.state.List)
 			}
+
 			ps.state.List = append(ps.state.List[:insertPos],
 				append([]structures.Track{a.Track}, ps.state.List[insertPos:]...)...)
 		}
+
 		ps.state.MusicStatus[a.Track.TrackID] = structures.NotDownloaded
 		// Queue for download
 		if ps.downloadCallback != nil {
 			ps.downloadCallback(a.Track)
 		}
+
 		logger.Debug("Inserted track '%s' after current position", a.Track.Title)
 
 	case structures.ReplaceQueueAction:
@@ -401,6 +423,7 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 		if a.Status == structures.Downloaded &&
 			ps.state.Current < len(ps.state.List) &&
 			ps.state.List[ps.state.Current].TrackID == a.TrackID {
+
 			logger.Debug("Current track download completed, reloading...")
 			// Give the database a moment to sync
 			go func() {
@@ -412,6 +435,7 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 				if ps.state.IsPlaying && ps.player != nil {
 					if err := ps.player.Play(); err != nil {
 						logger.Error("Failed to start playback after download: %v", err)
+
 						ps.state.IsPlaying = false
 					} else {
 						logger.Debug("Started playback after download completed")
@@ -430,6 +454,7 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 		ps.state.List = nil
 		ps.state.Current = 0
 		ps.state.MusicStatus = make(map[string]structures.MusicDownloadStatus)
+
 		if ps.player != nil {
 			ps.player.Stop()
 		}
@@ -450,7 +475,7 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 		// Shuffle the queue after the current song
 		ps.shuffleQueue()
 		logger.Debug("Queue shuffled")
-		
+
 	case structures.JumpToIndexAction:
 		// Jump directly to the specified index
 		if a.Index >= 0 && a.Index < len(ps.state.List) {
@@ -463,7 +488,7 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 	}
 }
 
-// shuffleQueue shuffles the tracks after the current position
+// shuffleQueue shuffles the tracks after the current position.
 func (ps *PlayerSystem) shuffleQueue() {
 	if len(ps.state.List) <= ps.state.Current+1 {
 		// No tracks after the current one to shuffle
@@ -478,6 +503,7 @@ func (ps *PlayerSystem) shuffleQueue() {
 
 	// Shuffle the remaining tracks using Fisher-Yates algorithm
 	remainingTracks := ps.state.List[ps.state.Current+1:]
+
 	for i := len(remainingTracks) - 1; i > 0; i-- {
 		j := rand.Intn(i + 1)
 		remainingTracks[i], remainingTracks[j] = remainingTracks[j], remainingTracks[i]
@@ -489,11 +515,11 @@ func (ps *PlayerSystem) shuffleQueue() {
 	ps.state.List = append(newList, remainingTracks...)
 }
 
-
-// nextSong advances to the next song - simplified version
+// nextSong advances to the next song - simplified version.
 func (ps *PlayerSystem) nextSong() {
 	// Disable updates during song transition
 	atomic.StoreInt32(&ps.skipUpdate, 1)
+
 	defer func() {
 		// Re-enable updates after transition
 		go func() {
@@ -511,6 +537,7 @@ func (ps *PlayerSystem) nextSong() {
 		if wasPlaying && ps.player != nil {
 			if err := ps.player.Play(); err != nil {
 				logger.Error("Failed to start playback after advancing to next song: %v", err)
+
 				ps.state.IsPlaying = false
 			} else {
 				ps.state.IsPlaying = true
@@ -522,11 +549,12 @@ func (ps *PlayerSystem) nextSong() {
 		if ps.player != nil {
 			ps.player.Stop()
 		}
+
 		logger.Debug("Reached end of playlist")
 	}
 }
 
-// previousSong goes back to the previous song
+// previousSong goes back to the previous song.
 func (ps *PlayerSystem) previousSong() {
 	wasPlaying := ps.state.IsPlaying
 
@@ -537,6 +565,7 @@ func (ps *PlayerSystem) previousSong() {
 		if wasPlaying && ps.player != nil {
 			if err := ps.player.Play(); err != nil {
 				logger.Error("Failed to start playback after going to previous song: %v", err)
+
 				ps.state.IsPlaying = false
 			} else {
 				ps.state.IsPlaying = true
@@ -545,7 +574,7 @@ func (ps *PlayerSystem) previousSong() {
 	}
 }
 
-// loadCurrentSong loads the current song for playback - simplified version
+// loadCurrentSong loads the current song for playback - simplified version.
 func (ps *PlayerSystem) loadCurrentSong() {
 	if !ps.validatePlayerState() {
 		return
@@ -557,9 +586,12 @@ func (ps *PlayerSystem) loadCurrentSong() {
 	// Check if the file is downloaded
 	if entry, exists := ps.database.Get(currentTrack.TrackID); exists {
 		logger.Debug("Loading from database: %s", entry.FilePath)
+
 		if err := ps.player.LoadFile(entry.FilePath); err != nil {
 			logger.Error("Failed to load file %s: %v", entry.FilePath, err)
+
 			ps.state.MusicStatus[currentTrack.TrackID] = structures.DownloadFailed
+
 			return
 		}
 
@@ -572,6 +604,7 @@ func (ps *PlayerSystem) loadCurrentSong() {
 			currentTrack.Duration = actualDurationSeconds
 			ps.state.List[ps.state.Current].Duration = actualDurationSeconds
 			entry.Track.Duration = actualDurationSeconds
+
 			if err := ps.database.Add(*entry); err != nil {
 				logger.Error("Failed to update duration in database: %v", err)
 			}
@@ -594,6 +627,7 @@ func (ps *PlayerSystem) loadCurrentSong() {
 		if ps.state.IsPlaying {
 			if err := ps.player.Play(); err != nil {
 				logger.Error("Failed to start playback: %v", err)
+
 				ps.state.IsPlaying = false
 			}
 		}
@@ -624,6 +658,7 @@ func (ps *PlayerSystem) loadCurrentSong() {
 				// Add to database for future reference
 				fileInfo, _ := os.Stat(cachePath)
 				currentTrack.Duration = actualDurationSeconds
+
 				entry := structures.DatabaseEntry{
 					Track:    currentTrack,
 					FilePath: cachePath,
@@ -637,15 +672,18 @@ func (ps *PlayerSystem) loadCurrentSong() {
 				if ps.state.IsPlaying {
 					if err := ps.player.Play(); err != nil {
 						logger.Error("Failed to start playback: %v", err)
+
 						ps.state.IsPlaying = false
 					}
 				}
 			} else {
 				logger.Error("Failed to load file from cache: %v", err)
+
 				ps.state.MusicStatus[currentTrack.TrackID] = structures.NotDownloaded
 			}
 		} else {
 			logger.Debug("File not found in cache: %s", cachePath)
+
 			ps.state.MusicStatus[currentTrack.TrackID] = structures.NotDownloaded
 			// Queue for download if callback is set
 			if ps.downloadCallback != nil {
@@ -656,7 +694,7 @@ func (ps *PlayerSystem) loadCurrentSong() {
 	}
 }
 
-// handleLoadFailure handles the case when current song fails to load
+// handleLoadFailure handles the case when current song fails to load.
 func (ps *PlayerSystem) handleLoadFailure() {
 	currentTrack := ps.state.List[ps.state.Current]
 	logger.Warn("Failed to load track: %s, attempting to skip", currentTrack.Title)
@@ -671,6 +709,7 @@ func (ps *PlayerSystem) handleLoadFailure() {
 	} else {
 		// No more songs, stop playback
 		logger.Debug("No more songs available, stopping playback")
+
 		ps.state.IsPlaying = false
 		if ps.player != nil {
 			ps.player.Stop()
@@ -678,7 +717,7 @@ func (ps *PlayerSystem) handleLoadFailure() {
 	}
 }
 
-// validatePlayerState ensures the player state is consistent
+// validatePlayerState ensures the player state is consistent.
 func (ps *PlayerSystem) validatePlayerState() bool {
 	if ps.player == nil {
 		logger.Error("Player is nil")
@@ -693,7 +732,7 @@ func (ps *PlayerSystem) validatePlayerState() bool {
 	return true
 }
 
-// deleteCurrentTrack removes the current track from the playlist and deletes its files
+// deleteCurrentTrack removes the current track from the playlist and deletes its files.
 func (ps *PlayerSystem) deleteCurrentTrack() {
 	if ps.state.Current < 0 || ps.state.Current >= len(ps.state.List) {
 		return
@@ -749,7 +788,7 @@ func (ps *PlayerSystem) deleteCurrentTrack() {
 	}
 }
 
-// deleteTrackAtIndex removes a track at the specified index
+// deleteTrackAtIndex removes a track at the specified index.
 func (ps *PlayerSystem) deleteTrackAtIndex(index int) {
 	if index < 0 || index >= len(ps.state.List) {
 		return
@@ -789,6 +828,7 @@ func (ps *PlayerSystem) deleteTrackAtIndex(index int) {
 		// Load and play new current track if was playing
 		if len(ps.state.List) > 0 && wasPlaying {
 			ps.loadCurrentSong()
+
 			if ps.player != nil {
 				ps.player.Play()
 				ps.state.IsPlaying = true
@@ -797,8 +837,7 @@ func (ps *PlayerSystem) deleteTrackAtIndex(index int) {
 	}
 }
 
-
-// fetchAndUpdateBitrate fetches bitrate information from API and updates the database
+// fetchAndUpdateBitrate fetches bitrate information from API and updates the database.
 func (ps *PlayerSystem) fetchAndUpdateBitrate(track structures.Track) {
 	// Check if API client is available
 	if ps.apiClient == nil {

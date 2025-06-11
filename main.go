@@ -68,6 +68,7 @@ func main() {
 		fmt.Println("  Playlist view:")
 		fmt.Println("    r           - Remove track from playlist")
 		fmt.Println("    h           - Return to home")
+
 		return
 	}
 
@@ -84,6 +85,7 @@ func main() {
 		fmt.Printf("  Cache:  %s\n", cacheDir)
 		fmt.Printf("  Data:   %s\n", dataDir)
 		fmt.Printf("  Logs:   %s\n", filepath.Join(dataDir, "yutemal.log"))
+
 		return
 	}
 
@@ -102,6 +104,7 @@ func main() {
 
 		var confirm string
 		fmt.Scanln(&confirm)
+
 		if confirm != "y" && confirm != "Y" {
 			fmt.Println("Cache clearing cancelled.")
 			return
@@ -123,9 +126,9 @@ func main() {
 
 		fmt.Println("\n✅ All cache data cleared successfully")
 		fmt.Printf("Note: Configuration files in %s were preserved\n", configDir)
+
 		return
 	}
-
 
 	if err := checkYtDlp(); err != nil {
 		showYtDlpError()
@@ -142,6 +145,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logging: %v\n", err)
 		os.Exit(1)
 	}
+
 	defer logger.CloseLogger()
 
 	configPath := filepath.Join(configDir, "config.toml")
@@ -162,7 +166,6 @@ func main() {
 	if err := ui.RunSimple(appSystems, cfg); err != nil {
 		logger.Fatal("Application error: %v", err)
 	}
-
 }
 
 func getDirectories() (config, cache, data string) {
@@ -224,6 +227,7 @@ func checkYtDlp() error {
 
 	// Verify it's executable
 	cmd := exec.Command(path, "--version")
+
 	_, err = cmd.Output()
 	if err != nil {
 		return fmt.Errorf("failed to run yt-dlp: %w", err)
@@ -241,6 +245,7 @@ func checkFfprobe() error {
 
 	// Verify it's executable
 	cmd := exec.Command(path, "-version")
+
 	_, err = cmd.Output()
 	if err != nil {
 		return fmt.Errorf("failed to run ffprobe: %w", err)
@@ -278,6 +283,7 @@ func loadConfiguration(configPath string) *structures.Config {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		logger.Warn("Failed to load config, using defaults: %v", err)
+
 		cfg = config.Default()
 
 		// Save default config for future use
@@ -289,6 +295,7 @@ func loadConfiguration(configPath string) *structures.Config {
 	} else {
 		logger.Debug("Configuration loaded successfully from: %s", configPath)
 	}
+
 	return cfg
 }
 
@@ -297,7 +304,9 @@ func initializeDatabase(dataDir string) database.DB {
 	if err != nil {
 		logger.Fatal("Failed to open SQLite database: %v", err)
 	}
+
 	logger.Debug("SQLite database opened successfully")
+
 	return db
 }
 

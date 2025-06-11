@@ -36,84 +36,90 @@ type Logger struct {
 	debugMode    bool
 }
 
-// グローバルロガーインスタンス
+// グローバルロガーインスタンス.
 var globalLogger *Logger
 
-// IsDebugEnabled デバッグモードが有効かどうかを確認
+// IsDebugEnabled デバッグモードが有効かどうかを確認.
 func IsDebugEnabled() bool {
 	if globalLogger == nil {
 		return false
 	}
+
 	return globalLogger.debugMode
 }
 
-// InitLogger グローバルロガーを初期化
+// InitLogger グローバルロガーを初期化.
 func InitLogger(logPath string, level LogLevel, debugMode bool) error {
 	logger, err := NewFileOnlyLogger(logPath, level)
 	if err != nil {
 		return err
 	}
+
 	logger.debugMode = debugMode
 	globalLogger = logger
+
 	return nil
 }
 
-// InitFileOnlyLogger ファイル専用グローバルロガーを初期化
+// InitFileOnlyLogger ファイル専用グローバルロガーを初期化.
 func InitFileOnlyLogger(logPath string, level LogLevel, debugMode bool) error {
 	logger, err := NewFileOnlyLogger(logPath, level)
 	if err != nil {
 		return err
 	}
+
 	logger.debugMode = debugMode
 	globalLogger = logger
+
 	return nil
 }
 
-// GetLogger グローバルロガーを取得
+// GetLogger グローバルロガーを取得.
 func GetLogger() *Logger {
 	return globalLogger
 }
 
-// CloseLogger グローバルロガーを閉じる
+// CloseLogger グローバルロガーを閉じる.
 func CloseLogger() error {
 	if globalLogger != nil {
 		return globalLogger.Close()
 	}
+
 	return nil
 }
 
-// グローバル関数群
-func Debug(format string, args ...interface{}) {
+// グローバル関数群.
+func Debug(format string, args ...any) {
 	if globalLogger != nil && globalLogger.debugMode {
 		globalLogger.Debug(format, args...)
 	}
 }
 
-func Info(format string, args ...interface{}) {
+func Info(format string, args ...any) {
 	if globalLogger != nil {
 		globalLogger.Info(format, args...)
 	}
 }
 
-func Warn(format string, args ...interface{}) {
+func Warn(format string, args ...any) {
 	if globalLogger != nil {
 		globalLogger.Warn(format, args...)
 	}
 }
 
-func Error(format string, args ...interface{}) {
+func Error(format string, args ...any) {
 	if globalLogger != nil {
 		globalLogger.Error(format, args...)
 	}
 }
 
-func Fatal(format string, args ...interface{}) {
+func Fatal(format string, args ...any) {
 	if globalLogger != nil {
 		globalLogger.Fatal(format, args...)
 	}
 }
 
-// NewLogger creates a new logger instance
+// NewLogger creates a new logger instance.
 func NewLogger(logPath string, level LogLevel) (*Logger, error) {
 	// ログディレクトリを作成
 	dir := filepath.Dir(logPath)
@@ -141,7 +147,7 @@ func NewLogger(logPath string, level LogLevel) (*Logger, error) {
 	return logger, nil
 }
 
-// NewFileOnlyLogger creates a logger that only writes to file
+// NewFileOnlyLogger creates a logger that only writes to file.
 func NewFileOnlyLogger(logPath string, level LogLevel) (*Logger, error) {
 	dir := filepath.Dir(logPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -164,36 +170,37 @@ func NewFileOnlyLogger(logPath string, level LogLevel) (*Logger, error) {
 	return logger, nil
 }
 
-// Close closes the log file
+// Close closes the log file.
 func (l *Logger) Close() error {
 	if l.file != nil {
 		return l.file.Close()
 	}
+
 	return nil
 }
 
-// SetLevel sets the minimum log level
+// SetLevel sets the minimum log level.
 func (l *Logger) SetLevel(level LogLevel) {
 	l.level = level
 }
 
-// EnableCaller enables/disables caller information in logs
+// EnableCaller enables/disables caller information in logs.
 func (l *Logger) EnableCaller(enable bool) {
 	l.enableCaller = enable
 }
 
-// SetDebugMode enables/disables debug mode
+// SetDebugMode enables/disables debug mode.
 func (l *Logger) SetDebugMode(enable bool) {
 	l.debugMode = enable
 }
 
-// IsDebugMode returns whether debug mode is enabled
+// IsDebugMode returns whether debug mode is enabled.
 func (l *Logger) IsDebugMode() bool {
 	return l.debugMode
 }
 
-// log is the internal logging function
-func (l *Logger) log(level LogLevel, format string, args ...interface{}) {
+// log is the internal logging function.
+func (l *Logger) log(level LogLevel, format string, args ...any) {
 	if level < l.level {
 		return
 	}
@@ -202,6 +209,7 @@ func (l *Logger) log(level LogLevel, format string, args ...interface{}) {
 	levelStr := levelNames[level]
 
 	var caller string
+
 	if l.enableCaller {
 		_, file, line, ok := runtime.Caller(2)
 		if ok {
@@ -220,29 +228,29 @@ func (l *Logger) log(level LogLevel, format string, args ...interface{}) {
 	}
 }
 
-// Debug logs a debug message (only if debug mode is enabled)
-func (l *Logger) Debug(format string, args ...interface{}) {
+// Debug logs a debug message (only if debug mode is enabled).
+func (l *Logger) Debug(format string, args ...any) {
 	if l.debugMode {
 		l.log(DEBUG, format, args...)
 	}
 }
 
-// Info logs an info message
-func (l *Logger) Info(format string, args ...interface{}) {
+// Info logs an info message.
+func (l *Logger) Info(format string, args ...any) {
 	l.log(INFO, format, args...)
 }
 
-// Warn logs a warning message
-func (l *Logger) Warn(format string, args ...interface{}) {
+// Warn logs a warning message.
+func (l *Logger) Warn(format string, args ...any) {
 	l.log(WARN, format, args...)
 }
 
-// Error logs an error message
-func (l *Logger) Error(format string, args ...interface{}) {
+// Error logs an error message.
+func (l *Logger) Error(format string, args ...any) {
 	l.log(ERROR, format, args...)
 }
 
-// Fatal logs a fatal message and exits the program
-func (l *Logger) Fatal(format string, args ...interface{}) {
+// Fatal logs a fatal message and exits the program.
+func (l *Logger) Fatal(format string, args ...any) {
 	l.log(FATAL, format, args...)
 }

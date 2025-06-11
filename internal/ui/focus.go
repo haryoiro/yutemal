@@ -4,7 +4,7 @@ import (
 	"github.com/haryoiro/yutemal/internal/logger"
 )
 
-// FocusPane represents which pane currently has focus
+// FocusPane represents which pane currently has focus.
 type FocusPane int
 
 const (
@@ -15,20 +15,23 @@ const (
 
 // Focus management methods
 
-// getFocusedPane returns the currently focused pane
+// getFocusedPane returns the currently focused pane.
 func (m *Model) getFocusedPane() FocusPane {
 	if m.queueFocused && m.showQueue {
 		return FocusQueue
 	}
+
 	if m.state == SearchView {
 		return FocusSearch
 	}
+
 	return FocusMain
 }
 
-// setFocus sets the focus to a specific pane
+// setFocus sets the focus to a specific pane.
 func (m *Model) setFocus(pane FocusPane) {
 	oldFocus := m.getFocusedPane()
+
 	switch pane {
 	case FocusMain:
 		m.queueFocused = false
@@ -44,14 +47,15 @@ func (m *Model) setFocus(pane FocusPane) {
 		// Search view automatically gets focus when active
 		m.queueFocused = false
 	}
+
 	newFocus := m.getFocusedPane()
 	if oldFocus != newFocus {
-		logger.Debug("Focus changed: %d -> %d (state=%s, showQueue=%t, queueFocused=%t)", 
+		logger.Debug("Focus changed: %d -> %d (state=%s, showQueue=%t, queueFocused=%t)",
 			oldFocus, newFocus, m.state, m.showQueue, m.queueFocused)
 	}
 }
 
-// cycleFocus cycles through available focus targets
+// cycleFocus cycles through available focus targets.
 func (m *Model) cycleFocus(forward bool) {
 	current := m.getFocusedPane()
 
@@ -69,7 +73,7 @@ func (m *Model) cycleFocus(forward bool) {
 	}
 }
 
-// hasFocus returns true if the specified component has focus
+// hasFocus returns true if the specified component has focus.
 func (m *Model) hasFocus(component string) bool {
 	switch component {
 	case "main":
@@ -87,7 +91,7 @@ func (m *Model) hasFocus(component string) bool {
 	}
 }
 
-// canNavigate returns true if navigation is allowed in the current focus state
+// canNavigate returns true if navigation is allowed in the current focus state.
 func (m *Model) canNavigate() bool {
 	focus := m.getFocusedPane()
 	switch focus {
@@ -99,10 +103,11 @@ func (m *Model) canNavigate() bool {
 		// Navigation is limited in search view
 		return false
 	}
+
 	return false
 }
 
-// getFocusHelpText returns help text for the current focus state
+// getFocusHelpText returns help text for the current focus state.
 func (m *Model) getFocusHelpText() string {
 	return m.shortcutFormatter.GetContextualHints(m.state, m.showQueue, m.hasFocus)
 }

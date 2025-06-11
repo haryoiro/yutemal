@@ -8,11 +8,12 @@ import (
 	"time"
 
 	"github.com/faiface/beep"
-	"github.com/haryoiro/yutemal/internal/logger"
 	"github.com/tosone/minimp3"
+
+	"github.com/haryoiro/yutemal/internal/logger"
 )
 
-// minimp3Decoder wraps minimp3 decoder to implement beep.StreamSeekCloser
+// minimp3Decoder wraps minimp3 decoder to implement beep.StreamSeekCloser.
 type minimp3Decoder struct {
 	decoder      *minimp3.Decoder
 	data         []byte
@@ -33,7 +34,7 @@ type minimp3Decoder struct {
 	readBuffer []byte
 }
 
-// DecodeMiniMP3 decodes an MP3 file using minimp3
+// DecodeMiniMP3 decodes an MP3 file using minimp3.
 func DecodeMiniMP3(file *os.File) (beep.StreamSeekCloser, beep.Format, error) {
 	// Read entire file into memory
 	data, err := io.ReadAll(file)
@@ -50,10 +51,12 @@ func DecodeMiniMP3(file *os.File) (beep.StreamSeekCloser, beep.Format, error) {
 	// Decode a bit to get format info
 	const testSize = 1024
 	testBuf := make([]byte, testSize)
+
 	n, err := dec.Read(testBuf)
 	if err != nil && err != io.EOF {
 		return nil, beep.Format{}, fmt.Errorf("failed to read test data: %w", err)
 	}
+
 	if n == 0 {
 		return nil, beep.Format{}, fmt.Errorf("no audio data found")
 	}
@@ -93,7 +96,7 @@ func DecodeMiniMP3(file *os.File) (beep.StreamSeekCloser, beep.Format, error) {
 	}, format, nil
 }
 
-// Stream streams audio samples
+// Stream streams audio samples.
 func (d *minimp3Decoder) Stream(samples [][2]float64) (n int, ok bool) {
 	for i := range samples {
 		// Need more data?
@@ -109,6 +112,7 @@ func (d *minimp3Decoder) Stream(samples [][2]float64) (n int, ok bool) {
 					}
 				}
 			}
+
 			d.lastReadTime = now
 
 			// Read more data - use pre-allocated buffer to reduce GC pressure
@@ -116,20 +120,24 @@ func (d *minimp3Decoder) Stream(samples [][2]float64) (n int, ok bool) {
 			if d.readBuffer == nil {
 				d.readBuffer = make([]byte, readSize)
 			}
+
 			buf := d.readBuffer[:readSize]
 
 			startRead := time.Now()
 			n, err := d.decoder.Read(buf)
 			readDuration := time.Since(startRead)
+
 			if readDuration > time.Millisecond*50 {
 				logger.Debug("Slow MP3 decode: took %v to read %d bytes", readDuration, n)
 			}
+
 			if err == io.EOF || n == 0 {
 				// We've reached the end - update total samples to actual length
 				actualTotalSamples := d.position
 				if actualTotalSamples != d.TotalSamples {
 					logger.Debug("minimp3: EOF reached, correcting total samples from %d to %d (%.2fs)",
 						d.TotalSamples, actualTotalSamples, float64(actualTotalSamples)/float64(d.format.SampleRate))
+
 					d.TotalSamples = actualTotalSamples
 
 					// Notify player of actual duration
@@ -143,6 +151,7 @@ func (d *minimp3Decoder) Stream(samples [][2]float64) (n int, ok bool) {
 					samples[j][0] = 0
 					samples[j][1] = 0
 				}
+
 				return i, i > 0
 			}
 
@@ -157,6 +166,7 @@ func (d *minimp3Decoder) Stream(samples [][2]float64) (n int, ok bool) {
 			for j := 0; j < requiredSize; j++ {
 				d.buffer[j] = int16(buf[j*2]) | (int16(buf[j*2+1]) << 8)
 			}
+
 			d.bufferIndex = 0
 		}
 
@@ -188,30 +198,32 @@ func (d *minimp3Decoder) Stream(samples [][2]float64) (n int, ok bool) {
 			}
 		}
 	}
+
 	return len(samples), true
 }
 
-// Err returns any error
+// Err returns any error.
 func (d *minimp3Decoder) Err() error {
 	return nil
 }
 
-// Len returns the total number of samples
+// Len returns the total number of samples.
 func (d *minimp3Decoder) Len() int {
 	return d.TotalSamples
 }
 
-// Position returns current position in samples
+// Position returns current position in samples.
 func (d *minimp3Decoder) Position() int {
 	return d.position
 }
 
-// Seek seeks to a position in samples - simplified approach
+// Seek seeks to a position in samples - simplified approach.
 func (d *minimp3Decoder) Seek(p int) error {
 	// Clamp to valid range
 	if p < 0 {
 		p = 0
 	}
+
 	if p >= d.TotalSamples {
 		p = d.TotalSamples - 1
 	}
@@ -225,7 +237,7 @@ func (d *minimp3Decoder) Seek(p int) error {
 	return d.seekApproximate(p)
 }
 
-// seekFromBeginning resets decoder and reads forward to target position
+// seekFromBeginning resets decoder and reads forward to target position.
 func (d *minimp3Decoder) seekFromBeginning(targetPos int) error {
 	// Reset decoder
 	dec, err := minimp3.NewDecoder(bytes.NewReader(d.data))
@@ -256,6 +268,7 @@ func (d *minimp3Decoder) seekFromBeginning(targetPos int) error {
 		if samplesRead > samplesToSkip {
 			samplesRead = samplesToSkip
 		}
+
 		samplesToSkip -= samplesRead
 		d.position += samplesRead
 	}
@@ -263,7 +276,7 @@ func (d *minimp3Decoder) seekFromBeginning(targetPos int) error {
 	return nil
 }
 
-// seekApproximate uses byte-based estimation for faster seeking to later positions
+// seekApproximate uses byte-based estimation for faster seeking to later positions.
 func (d *minimp3Decoder) seekApproximate(targetPos int) error {
 	// Use simple byte-based estimation
 	targetRatio := float64(targetPos) / float64(d.TotalSamples)
@@ -273,6 +286,7 @@ func (d *minimp3Decoder) seekApproximate(targetPos int) error {
 	if estimatedBytePos >= len(d.data)-1024 {
 		estimatedBytePos = len(d.data) - 1024
 	}
+
 	if estimatedBytePos < 0 {
 		estimatedBytePos = 0
 	}
@@ -292,7 +306,7 @@ func (d *minimp3Decoder) seekApproximate(targetPos int) error {
 	return nil
 }
 
-// Close closes the decoder
+// Close closes the decoder.
 func (d *minimp3Decoder) Close() error {
 	return nil
 }

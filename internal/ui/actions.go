@@ -5,13 +5,14 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/haryoiro/yutemal/internal/logger"
 	"github.com/haryoiro/yutemal/internal/structures"
 )
 
 // アクション処理関連の関数
 
-// handleEnter handles enter key press for different views
+// handleEnter handles enter key press for different views.
 func (m *Model) handleEnter() (tea.Model, tea.Cmd) {
 	switch m.state {
 	case HomeView:
@@ -29,6 +30,7 @@ func (m *Model) handleEnter() (tea.Model, tea.Cmd) {
 				// Keep backward compatibility
 				m.currentList = []structures.Track{}
 				m.currentListName = playlist.Title
+
 				return m, m.loadPlaylistTracks(playlist.ID)
 			} else if content.Type == "track" && content.Track != nil {
 				track := content.Track
@@ -67,9 +69,11 @@ func (m *Model) handleEnter() (tea.Model, tea.Cmd) {
 			m.state = PlaylistDetailView
 			m.currentList = []structures.Track{}
 			m.currentListName = playlist.Title
+
 			return m, m.loadPlaylistTracks(playlist.ID)
 		}
 	}
+
 	return m, nil
 }
 
@@ -79,6 +83,7 @@ func (m *Model) performSearch() tea.Cmd {
 		if err != nil {
 			return errorMsg(err)
 		}
+
 		return tracksLoadedMsg(results.Tracks)
 	}
 }
@@ -105,6 +110,7 @@ func (m *Model) loadSections() tea.Cmd {
 					},
 				}
 			}
+
 			return sectionsLoadedMsg([]structures.Section{
 				{
 					ID:       "library",
@@ -114,6 +120,7 @@ func (m *Model) loadSections() tea.Cmd {
 				},
 			})
 		}
+
 		return sectionsLoadedMsg(sections)
 	}
 }
@@ -124,6 +131,7 @@ func (m *Model) loadPlaylistTracks(playlistID string) tea.Cmd {
 		if err != nil {
 			return errorMsg(err)
 		}
+
 		result := make([]structures.Track, len(tracks))
 		for i, t := range tracks {
 			result[i] = structures.Track{
@@ -136,6 +144,7 @@ func (m *Model) loadPlaylistTracks(playlistID string) tea.Cmd {
 				IsExplicit:  t.IsExplicit,
 			}
 		}
+
 		return tracksLoadedMsg(result)
 	}
 }
@@ -145,6 +154,7 @@ func (m *Model) downloadAllSongs(tracks []structures.Track) tea.Cmd {
 		for _, track := range tracks {
 			m.systems.Download.QueueDownload(track)
 		}
+
 		return nil
 	}
 }
@@ -153,6 +163,7 @@ func (m *Model) checkMarqueeCmd() tea.Cmd {
 	if m.needsMarquee {
 		return m.tickCmd()
 	}
+
 	return nil
 }
 
@@ -165,7 +176,9 @@ func (m *Model) tickCmd() tea.Cmd {
 func (m *Model) listenToPlayer() tea.Cmd {
 	return func() tea.Msg {
 		time.Sleep(50 * time.Millisecond)
+
 		state := m.systems.Player.GetState()
+
 		return playerUpdateMsg(state)
 	}
 }

@@ -2,49 +2,50 @@ package ui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/haryoiro/yutemal/internal/logger"
 	"github.com/haryoiro/yutemal/internal/structures"
 )
 
 // プレイヤー操作関連の共通処理
 
-// togglePlayPause toggles play/pause state
+// togglePlayPause toggles play/pause state.
 func (m *Model) togglePlayPause() (tea.Model, tea.Cmd) {
 	m.systems.Player.SendAction(structures.PlayPauseAction{})
 	return m, nil
 }
 
-// volumeUp increases the volume
+// volumeUp increases the volume.
 func (m *Model) volumeUp() (tea.Model, tea.Cmd) {
 	m.systems.Player.SendAction(structures.VolumeUpAction{})
 	return m, nil
 }
 
-// volumeDown decreases the volume
+// volumeDown decreases the volume.
 func (m *Model) volumeDown() (tea.Model, tea.Cmd) {
 	m.systems.Player.SendAction(structures.VolumeDownAction{})
 	return m, nil
 }
 
-// seekForward seeks forward in the current track
+// seekForward seeks forward in the current track.
 func (m *Model) seekForward() (tea.Model, tea.Cmd) {
 	m.systems.Player.SendAction(structures.ForwardAction{})
 	return m, nil
 }
 
-// seekBackward seeks backward in the current track
+// seekBackward seeks backward in the current track.
 func (m *Model) seekBackward() (tea.Model, tea.Cmd) {
 	m.systems.Player.SendAction(structures.BackwardAction{})
 	return m, nil
 }
 
-// shuffleQueue shuffles the current queue
+// shuffleQueue shuffles the current queue.
 func (m *Model) shuffleQueue() (tea.Model, tea.Cmd) {
 	m.systems.Player.SendAction(structures.ShuffleQueueAction{})
 	return m, nil
 }
 
-// removeTrack handles track removal from queue or current view
+// removeTrack handles track removal from queue or current view.
 func (m *Model) removeTrack() (tea.Model, tea.Cmd) {
 	if m.queueFocused && m.showQueue {
 		// Remove selected track from queue
@@ -60,13 +61,15 @@ func (m *Model) removeTrack() (tea.Model, tea.Cmd) {
 		// Remove current song action
 		m.systems.Player.SendAction(structures.DeleteTrackAction{})
 	}
+
 	return m, nil
 }
 
-// toggleQueue toggles the queue display
+// toggleQueue toggles the queue display.
 func (m *Model) toggleQueue() (tea.Model, tea.Cmd) {
 	m.showQueue = !m.showQueue
 	m.queueScrollOffset = 0
+
 	if m.showQueue {
 		// When opening queue, automatically focus it
 		m.setFocus(FocusQueue)
@@ -76,10 +79,11 @@ func (m *Model) toggleQueue() (tea.Model, tea.Cmd) {
 		m.setFocus(FocusMain)
 		logger.Debug("toggleQueue: Queue hidden, focus returned to main")
 	}
+
 	return m, nil
 }
 
-// toggleQueueFocus toggles focus between main content and queue
+// toggleQueueFocus toggles focus between main content and queue.
 func (m *Model) toggleQueueFocus() (tea.Model, tea.Cmd) {
 	if m.showQueue {
 		// Toggle focus based on current state
@@ -89,10 +93,11 @@ func (m *Model) toggleQueueFocus() (tea.Model, tea.Cmd) {
 			m.setFocus(FocusQueue)
 		}
 	}
+
 	return m, nil
 }
 
-// handleQueueSelection plays the selected track in the queue
+// handleQueueSelection plays the selected track in the queue.
 func (m *Model) handleQueueSelection() (tea.Model, tea.Cmd) {
 	if m.queueFocused && m.showQueue {
 		// Play selected track in queue
@@ -100,7 +105,9 @@ func (m *Model) handleQueueSelection() (tea.Model, tea.Cmd) {
 			// Jump directly to the selected track
 			m.systems.Player.SendAction(structures.JumpToIndexAction{Index: m.queueSelectedIndex})
 		}
+
 		return m, nil
 	}
+
 	return m.handleEnter()
 }

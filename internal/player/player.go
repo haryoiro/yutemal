@@ -14,10 +14,11 @@ import (
 	"github.com/faiface/beep/effects"
 	"github.com/faiface/beep/speaker"
 	"github.com/faiface/beep/wav"
+
 	"github.com/haryoiro/yutemal/internal/logger"
 )
 
-// Player represents the audio player
+// Player represents the audio player.
 type Player struct {
 	mu                 sync.RWMutex
 	streamer           beep.StreamSeekCloser
@@ -39,7 +40,7 @@ type Player struct {
 	savedVolumeSet     bool
 }
 
-// New creates a new audio player
+// New creates a new audio player.
 func New() (*Player, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -57,7 +58,7 @@ func New() (*Player, error) {
 	return player, nil
 }
 
-// LoadFile loads an audio file for playback
+// LoadFile loads an audio file for playback.
 func (p *Player) LoadFile(filepath string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -112,7 +113,7 @@ func (p *Player) LoadFile(filepath string) error {
 	bufferedStreamer := NewBufferedStreamer(streamer, format, 4.0)
 	p.bufferedStreamer = bufferedStreamer
 
-	var volumeToApply float64 = 0.7
+	var volumeToApply = 0.7
 	if p.savedVolumeSet {
 		volumeToApply = p.savedVolume
 	} else if p.volume != nil {
@@ -120,7 +121,8 @@ func (p *Player) LoadFile(filepath string) error {
 	}
 
 	var dbVolume float64
-	var isSilent bool = false
+
+	var isSilent = false
 	if volumeToApply <= 0 {
 		isSilent = true
 		dbVolume = -60.0
@@ -128,6 +130,7 @@ func (p *Player) LoadFile(filepath string) error {
 		dbVolume = -60.0
 	} else {
 		adjustedVolume := volumeToApply * volumeToApply
+
 		dbVolume = 20.0 * math.Log10(adjustedVolume)
 		if dbVolume < -60.0 {
 			dbVolume = -60.0
@@ -193,7 +196,7 @@ func (p *Player) LoadFile(filepath string) error {
 	return nil
 }
 
-// Play starts playback
+// Play starts playback.
 func (p *Player) Play() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -210,7 +213,7 @@ func (p *Player) Play() error {
 	return nil
 }
 
-// Pause pauses playback
+// Pause pauses playback.
 func (p *Player) Pause() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -227,7 +230,7 @@ func (p *Player) Pause() error {
 	return nil
 }
 
-// Toggle toggles play/pause
+// Toggle toggles play/pause.
 func (p *Player) Toggle() error {
 	p.mu.RLock()
 	isPlaying := p.isPlaying
@@ -236,10 +239,11 @@ func (p *Player) Toggle() error {
 	if isPlaying {
 		return p.Pause()
 	}
+
 	return p.Play()
 }
 
-// Stop stops playback
+// Stop stops playback.
 func (p *Player) Stop() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -262,7 +266,7 @@ func (p *Player) Stop() error {
 	return nil
 }
 
-// SetVolume sets the volume (0.0 to 1.0)
+// SetVolume sets the volume (0.0 to 1.0).
 func (p *Player) SetVolume(volume float64) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -275,15 +279,18 @@ func (p *Player) SetVolume(volume float64) error {
 	}
 
 	var dbVolume float64
+
 	if volume <= 0 {
 		p.volume.Silent = true
 		return nil
 	} else {
 		p.volume.Silent = false
+
 		if volume < 0.001 {
 			dbVolume = -60.0
 		} else {
 			adjustedVolume := volume * volume
+
 			dbVolume = 20.0 * math.Log10(adjustedVolume)
 			if dbVolume < -60.0 {
 				dbVolume = -60.0
@@ -298,7 +305,7 @@ func (p *Player) SetVolume(volume float64) error {
 	return nil
 }
 
-// GetVolume returns the current volume (0.0 to 1.0)
+// GetVolume returns the current volume (0.0 to 1.0).
 func (p *Player) GetVolume() float64 {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -307,6 +314,7 @@ func (p *Player) GetVolume() float64 {
 		if p.savedVolumeSet {
 			return p.savedVolume
 		}
+
 		return 0.7
 	}
 
@@ -328,12 +336,15 @@ func (p *Player) Seek(pos time.Duration) error {
 	if p.iseeking {
 		return fmt.Errorf("seek already in progress")
 	}
+
 	p.iseeking = true
+
 	defer func() { p.iseeking = false }()
 
 	if pos < 0 {
 		pos = 0
 	}
+
 	if pos > p.duration {
 		pos = p.duration
 	}
@@ -356,6 +367,7 @@ func (p *Player) Seek(pos time.Duration) error {
 			if err := p.bufferedStreamer.Seek(0); err != nil {
 				return fmt.Errorf("failed to reset position: %w", err)
 			}
+
 			pos = 0
 		}
 	} else {
@@ -364,6 +376,7 @@ func (p *Player) Seek(pos time.Duration) error {
 			if err := p.streamer.Seek(0); err != nil {
 				return fmt.Errorf("failed to reset position: %w", err)
 			}
+
 			pos = 0
 		}
 	}
@@ -382,7 +395,7 @@ func (p *Player) Seek(pos time.Duration) error {
 	return nil
 }
 
-// SeekForward seeks forward by the specified duration
+// SeekForward seeks forward by the specified duration.
 func (p *Player) SeekForward(duration time.Duration) error {
 	currentPos := p.GetPosition()
 	newPos := currentPos + duration
@@ -394,9 +407,10 @@ func (p *Player) SeekForward(duration time.Duration) error {
 	return p.Seek(newPos)
 }
 
-// SeekBackward seeks backward by the specified duration
+// SeekBackward seeks backward by the specified duration.
 func (p *Player) SeekBackward(duration time.Duration) error {
 	currentPos := p.GetPosition()
+
 	newPos := currentPos - duration
 	if newPos < 0 {
 		newPos = 0
@@ -420,7 +434,7 @@ func (p *Player) GetPosition() time.Duration {
 	return 0
 }
 
-// HasEnded checks if playback has reached the end
+// HasEnded checks if playback has reached the end.
 func (p *Player) HasEnded() bool {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -444,59 +458,67 @@ func (p *Player) HasEnded() bool {
 	return hasEnded
 }
 
-// GetDuration returns the total duration
+// GetDuration returns the total duration.
 func (p *Player) GetDuration() time.Duration {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+
 	return p.duration
 }
 
-// IsPlaying returns whether the player is currently playing
+// IsPlaying returns whether the player is currently playing.
 func (p *Player) IsPlaying() bool {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+
 	return p.isPlaying && p.ctrl != nil && !p.ctrl.Paused
 }
 
-// GetCurrentFile returns the currently loaded file
+// GetCurrentFile returns the currently loaded file.
 func (p *Player) GetCurrentFile() string {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+
 	return p.currentFile
 }
 
-// GetRawPosition returns the current sample position
+// GetRawPosition returns the current sample position.
 func (p *Player) GetRawPosition() int {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+
 	if p.bufferedStreamer != nil {
 		return p.bufferedStreamer.Position()
 	} else if p.streamer != nil {
 		return p.streamer.Position()
 	}
+
 	return 0
 }
 
-// GetRawLength returns the total samples
+// GetRawLength returns the total samples.
 func (p *Player) GetRawLength() int {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+
 	if p.bufferedStreamer != nil {
 		return p.bufferedStreamer.Len()
 	} else if p.streamer != nil {
 		return p.streamer.Len()
 	}
+
 	return 0
 }
 
-// GetSampleRate returns the current sample rate
+// GetSampleRate returns the current sample rate.
 func (p *Player) GetSampleRate() int {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+
 	return int(p.format.SampleRate)
 }
 
-// UpdateActualDuration updates the duration based on actual EOF detection
+// UpdateActualDuration updates the duration based on actual EOF detection.
 func (p *Player) UpdateActualDuration(actualSamples int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -515,14 +537,15 @@ func (p *Player) UpdateActualDuration(actualSamples int) {
 	}
 }
 
-// IsRecentSeek returns true if a seek operation was performed recently
+// IsRecentSeek returns true if a seek operation was performed recently.
 func (p *Player) IsRecentSeek() bool {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+
 	return time.Since(p.lastSeekTime) < p.seekCooldown
 }
 
-// Close closes the player and releases resources
+// Close closes the player and releases resources.
 func (p *Player) Close() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -540,29 +563,34 @@ func (p *Player) Close() error {
 
 	if p.speakerInitialized {
 		speaker.Close()
+
 		p.speakerInitialized = false
 	}
 
 	return nil
 }
 
-// VolumeUp increases volume by 5%
+// VolumeUp increases volume by 5%.
 func (p *Player) VolumeUp() error {
 	currentVol := p.GetVolume()
+
 	newVol := currentVol + 0.05
 	if newVol > 1.0 {
 		newVol = 1.0
 	}
+
 	return p.SetVolume(newVol)
 }
 
-// VolumeDown decreases volume by 5%
+// VolumeDown decreases volume by 5%.
 func (p *Player) VolumeDown() error {
 	currentVol := p.GetVolume()
+
 	newVol := currentVol - 0.05
 	if newVol < 0.0 {
 		newVol = 0.0
 	}
+
 	return p.SetVolume(newVol)
 }
 

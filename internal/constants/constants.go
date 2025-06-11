@@ -2,14 +2,14 @@ package constants
 
 import "time"
 
-// Queue and worker pool sizes
+// Queue and worker pool sizes.
 const (
 	DefaultQueueSize    = 1000
 	DefaultWorkerCount  = 10
 	DefaultMaxBatchSize = 100
 )
 
-// Timing constants
+// Timing constants.
 const (
 	DefaultSleepMs       = 100 * time.Millisecond
 	MarqueeTickInterval  = 150 * time.Millisecond
@@ -18,7 +18,7 @@ const (
 	CleanupCheckInterval = 24 * time.Hour
 )
 
-// UI constants
+// UI constants.
 const (
 	DefaultPlayerHeight = 5
 	DefaultMaxWidth     = 80
@@ -26,7 +26,7 @@ const (
 	ScrollPadding       = 2
 )
 
-// Audio player constants
+// Audio player constants.
 const (
 	SecondsPerMinute  = 60
 	DefaultSampleRate = 44100
@@ -35,13 +35,13 @@ const (
 	SeekSeconds       = 10   // Seconds to seek forward/backward
 )
 
-// Download constants
+// Download constants.
 const (
 	MaxDownloadRetries = 3
 	AudioQuality       = "0" // Best quality for yt-dlp (deprecated, use AudioQualityBest)
 )
 
-// Audio quality levels
+// Audio quality levels.
 const (
 	AudioQualityBest   = "best"
 	AudioQualityHigh   = "high"
@@ -49,7 +49,7 @@ const (
 	AudioQualityLow    = "low"
 )
 
-// yt-dlp quality mapping
+// yt-dlp quality mapping.
 var AudioQualityMap = map[string]string{
 	AudioQualityBest:   "0", // Best available quality
 	AudioQualityHigh:   "2", // High quality (~192 kbps)
@@ -57,14 +57,14 @@ var AudioQualityMap = map[string]string{
 	AudioQualityLow:    "9", // Low quality (~64-96 kbps)
 }
 
-// File size constants
+// File size constants.
 const (
 	KB = 1024
 	MB = 1024 * KB
 	GB = 1024 * MB
 )
 
-// Database constants
+// Database constants.
 const (
 	DefaultCacheSize = 10000
 	MaxSearchResults = 50

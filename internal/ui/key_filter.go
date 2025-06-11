@@ -4,7 +4,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// getKeyString converts a tea.KeyMsg to a unique string identifier
+// getKeyString converts a tea.KeyMsg to a unique string identifier.
 func getKeyString(msg tea.KeyMsg) string {
 	// For special keys, use the type
 	switch msg.Type {
@@ -42,7 +42,7 @@ func getKeyString(msg tea.KeyMsg) string {
 	}
 }
 
-// shouldProcessKey determines if a key press should be processed based on context and debouncing
+// shouldProcessKey determines if a key press should be processed based on context and debouncing.
 func (m *Model) shouldProcessKey(keyStr string, msg tea.KeyMsg) bool {
 	// Always allow certain keys without debouncing
 	switch keyStr {
@@ -68,7 +68,7 @@ func (m *Model) shouldProcessKey(keyStr string, msg tea.KeyMsg) bool {
 	return true
 }
 
-// isNavigationKey returns true if the key is a navigation key
+// isNavigationKey returns true if the key is a navigation key.
 func isNavigationKey(keyStr string) bool {
 	switch keyStr {
 	case "up", "down", "left", "right", "pgup", "pgdown", "home", "end":
@@ -78,6 +78,6 @@ func isNavigationKey(keyStr string) bool {
 	case "g", "G": // Jump to top/bottom
 		return true
 	}
+
 	return false
 }
-

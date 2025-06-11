@@ -2,10 +2,11 @@ package ui
 
 import (
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/haryoiro/yutemal/internal/structures"
 )
 
-// ThemeManager manages UI styles based on the configured theme
+// ThemeManager manages UI styles based on the configured theme.
 type ThemeManager struct {
 	theme structures.Theme
 
@@ -21,14 +22,15 @@ type ThemeManager struct {
 	helpStyle         lipgloss.Style
 }
 
-// NewThemeManager creates a new theme manager with the given theme
+// NewThemeManager creates a new theme manager with the given theme.
 func NewThemeManager(theme structures.Theme) *ThemeManager {
 	tm := &ThemeManager{theme: theme}
 	tm.initStyles()
+
 	return tm
 }
 
-// initStyles initializes all the cached styles
+// initStyles initializes all the cached styles.
 func (tm *ThemeManager) initStyles() {
 	// Base style with foreground only (no background to avoid partial coloring)
 	tm.baseStyle = lipgloss.NewStyle().
@@ -71,7 +73,7 @@ func (tm *ThemeManager) initStyles() {
 		Italic(true)
 }
 
-// Update updates the theme and reinitializes styles
+// Update updates the theme and reinitializes styles.
 func (tm *ThemeManager) Update(theme structures.Theme) {
 	tm.theme = theme
 	tm.initStyles()
@@ -137,7 +139,7 @@ func (tm *ThemeManager) RenderHelp(text string) string {
 	return tm.helpStyle.Render(text)
 }
 
-// GetDefaultTheme returns the default theme
+// GetDefaultTheme returns the default theme.
 func GetDefaultTheme() structures.Theme {
 	return structures.Theme{
 		Background:       "#1a1b26",  // Tokyo Night Storm background
