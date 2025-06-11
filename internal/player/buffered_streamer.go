@@ -58,68 +58,96 @@ func (bs *BufferedStreamer) fillLoop() {
 	}()
 
 	for {
-		bs.mu.Lock()
+		if !bs.processFillIteration(tempBuffer) {
+			return
+		}
+	}
+}
+
+// processFillIteration handles one iteration of the fill loop.
+func (bs *BufferedStreamer) processFillIteration(tempBuffer [][2]float64) bool {
+	bs.mu.Lock()
+	if bs.closed {
+		bs.mu.Unlock()
+		return false
+	}
+
+	available := bs.bufferSize - bs.filled
+	workBuffer := bs.adjustTempBuffer(tempBuffer, available)
+	bs.mu.Unlock()
+
+	n, ok := bs.source.Stream(workBuffer)
+	if n == 0 && !ok {
+		bs.handleSourceExhausted()
+		return false
+	}
+
+	bs.writeToBuffer(workBuffer, n)
+	bs.handlePostWrite(workBuffer, available)
+
+	return true
+}
+
+// adjustTempBuffer adjusts the temp buffer size based on available space.
+func (bs *BufferedStreamer) adjustTempBuffer(tempBuffer [][2]float64, available int) [][2]float64 {
+	if available >= len(tempBuffer) {
+		return tempBuffer
+	}
+
+	if available == 0 {
+		bs.cond.Wait()
 		if bs.closed {
-			bs.mu.Unlock()
-			return
+			return tempBuffer
 		}
+		available = bs.bufferSize - bs.filled
+	}
 
-		available := bs.bufferSize - bs.filled
-		if available < len(tempBuffer) {
-			if available == 0 {
-				bs.cond.Wait()
+	if available > 0 && available < len(tempBuffer) {
+		return tempBuffer[:available]
+	}
 
-				if bs.closed {
-					bs.mu.Unlock()
-					return
-				}
+	return tempBuffer
+}
 
-				available = bs.bufferSize - bs.filled
-			}
+// handleSourceExhausted handles when the source has no more data.
+func (bs *BufferedStreamer) handleSourceExhausted() {
+	bs.mu.Lock()
+	bs.closed = true
+	bs.cond.Broadcast()
+	bs.mu.Unlock()
+	logger.Debug("BufferedStreamer: source exhausted, filled: %d/%d", bs.filled, bs.bufferSize)
+}
 
-			if available > 0 && available < len(tempBuffer) {
-				tempBuffer = tempBuffer[:available]
-			}
-		}
-		bs.mu.Unlock()
+// writeToBuffer writes samples to the ring buffer.
+func (bs *BufferedStreamer) writeToBuffer(tempBuffer [][2]float64, n int) {
+	bs.mu.Lock()
+	for i := 0; i < n; i++ {
+		bs.buffer[bs.writePos] = tempBuffer[i]
+		bs.writePos = (bs.writePos + 1) % bs.bufferSize
+	}
 
-		n, ok := bs.source.Stream(tempBuffer)
-		if n == 0 && !ok {
-			bs.mu.Lock()
-			bs.closed = true
-			bs.cond.Broadcast()
-			bs.mu.Unlock()
-			logger.Debug("BufferedStreamer: source exhausted, filled: %d/%d", bs.filled, bs.bufferSize)
+	bs.filled += n
+	if bs.filled > bs.maxFilled {
+		bs.maxFilled = bs.filled
+	}
 
-			return
-		}
+	bs.cond.Broadcast()
+	bs.mu.Unlock()
+}
 
-		bs.mu.Lock()
-		for i := 0; i < n; i++ {
-			bs.buffer[bs.writePos] = tempBuffer[i]
-			bs.writePos = (bs.writePos + 1) % bs.bufferSize
-		}
+// handlePostWrite handles actions after writing to buffer.
+func (bs *BufferedStreamer) handlePostWrite(tempBuffer [][2]float64, available int) {
+	if cap(tempBuffer) > len(tempBuffer) {
+		tempBuffer = tempBuffer[:cap(tempBuffer)]
+	}
 
-		bs.filled += n
-		if bs.filled > bs.maxFilled {
-			bs.maxFilled = bs.filled
-		}
+	if available < len(tempBuffer)/2 {
+		time.Sleep(2 * time.Millisecond)
+	}
 
-		bs.cond.Broadcast()
-		bs.mu.Unlock()
-
-		if cap(tempBuffer) > len(tempBuffer) {
-			tempBuffer = tempBuffer[:cap(tempBuffer)]
-		}
-
-		if available < len(tempBuffer)/2 {
-			time.Sleep(2 * time.Millisecond)
-		}
-
-		if bs.filled < bs.bufferSize/4 && !bs.closed {
-			logger.Debug("BufferedStreamer: low buffer warning - filled: %d/%d (%.1f%%)",
-				bs.filled, bs.bufferSize, float64(bs.filled)/float64(bs.bufferSize)*100)
-		}
+	if bs.filled < bs.bufferSize/4 && !bs.closed {
+		logger.Debug("BufferedStreamer: low buffer warning - filled: %d/%d (%.1f%%)",
+			bs.filled, bs.bufferSize, float64(bs.filled)/float64(bs.bufferSize)*100)
 	}
 }
 

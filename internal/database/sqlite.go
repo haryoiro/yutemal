@@ -214,6 +214,7 @@ func (db *SQLiteDatabase) runMigrations() error {
 			if _, err := db.db.Exec(migration); err != nil {
 				// Ignore error if column already exists
 				// SQLite doesn't support IF NOT EXISTS for ALTER TABLE
+				continue
 			}
 		}
 	}
@@ -233,6 +234,8 @@ func (db *SQLiteDatabase) runMigrations() error {
 	if !thumbnailPathExists {
 		if _, err := db.db.Exec(`ALTER TABLE tracks ADD COLUMN thumbnail_path TEXT`); err != nil {
 			// Ignore error if column already exists
+			// SQLite doesn't support IF NOT EXISTS for ALTER TABLE
+			_ = err
 		}
 	}
 
@@ -257,6 +260,8 @@ func (db *SQLiteDatabase) runMigrations() error {
 		for _, migration := range migrations {
 			if _, err := db.db.Exec(migration); err != nil {
 				// Ignore error if column already exists
+				// SQLite doesn't support IF NOT EXISTS for ALTER TABLE
+				continue
 			}
 		}
 	}

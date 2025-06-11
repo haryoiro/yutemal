@@ -99,107 +99,149 @@ func DecodeMiniMP3(file *os.File) (beep.StreamSeekCloser, beep.Format, error) {
 // Stream streams audio samples.
 func (d *minimp3Decoder) Stream(samples [][2]float64) (n int, ok bool) {
 	for i := range samples {
-		// Need more data?
-		if d.bufferIndex >= len(d.buffer) {
-			// Detect potential buffer underrun
-			now := time.Now()
-			if !d.lastReadTime.IsZero() {
-				elapsed := now.Sub(d.lastReadTime)
-				if elapsed < time.Millisecond*10 {
-					d.underrunCount++
-					if d.underrunCount%10 == 0 {
-						logger.Debug("Potential buffer underrun detected: %d occurrences", d.underrunCount)
-					}
-				}
-			}
-
-			d.lastReadTime = now
-
-			// Read more data - use pre-allocated buffer to reduce GC pressure
-			const readSize = 65536 // 64KB buffer for smoother playback
-			if d.readBuffer == nil {
-				d.readBuffer = make([]byte, readSize)
-			}
-
-			buf := d.readBuffer[:readSize]
-
-			startRead := time.Now()
-			n, err := d.decoder.Read(buf)
-			readDuration := time.Since(startRead)
-
-			if readDuration > time.Millisecond*50 {
-				logger.Debug("Slow MP3 decode: took %v to read %d bytes", readDuration, n)
-			}
-
-			if err == io.EOF || n == 0 {
-				// We've reached the end - update total samples to actual length
-				actualTotalSamples := d.position
-				if actualTotalSamples != d.TotalSamples {
-					logger.Debug("minimp3: EOF reached, correcting total samples from %d to %d (%.2fs)",
-						d.TotalSamples, actualTotalSamples, float64(actualTotalSamples)/float64(d.format.SampleRate))
-
-					d.TotalSamples = actualTotalSamples
-
-					// Notify player of actual duration
-					if d.durationUpdateCallback != nil {
-						d.durationUpdateCallback(d.TotalSamples)
-					}
-				}
-
-				// Fill remaining samples with silence for smooth ending
-				for j := i; j < len(samples); j++ {
-					samples[j][0] = 0
-					samples[j][1] = 0
-				}
-
-				return i, i > 0
-			}
-
-			// Convert bytes to int16 samples - reuse buffer if possible
-			requiredSize := n / 2
-			if cap(d.buffer) < requiredSize {
-				d.buffer = make([]int16, requiredSize)
-			} else {
-				d.buffer = d.buffer[:requiredSize]
-			}
-
-			for j := 0; j < requiredSize; j++ {
-				d.buffer[j] = int16(buf[j*2]) | (int16(buf[j*2+1]) << 8)
-			}
-
-			d.bufferIndex = 0
+		if !d.fillSample(samples, i) {
+			return i, i > 0
 		}
+	}
+	return len(samples), true
+}
 
-		// Convert to float64 samples
-		if d.format.NumChannels == 1 {
-			// Mono
-			if d.bufferIndex < len(d.buffer) {
-				sample := float64(d.buffer[d.bufferIndex]) / 32768.0
-				samples[i][0] = sample
-				samples[i][1] = sample
-				d.bufferIndex++
-				d.position++
-			} else {
-				samples[i][0] = 0
-				samples[i][1] = 0
-			}
-		} else {
-			// Stereo
-			if d.bufferIndex+1 < len(d.buffer) {
-				left := float64(d.buffer[d.bufferIndex]) / 32768.0
-				right := float64(d.buffer[d.bufferIndex+1]) / 32768.0
-				samples[i][0] = left
-				samples[i][1] = right
-				d.bufferIndex += 2
-				d.position++
-			} else {
-				samples[i][0] = 0
-				samples[i][1] = 0
-			}
+// fillSample fills a single sample.
+func (d *minimp3Decoder) fillSample(samples [][2]float64, index int) bool {
+	// Need more data?
+	if d.bufferIndex >= len(d.buffer) {
+		if !d.refillBuffer(samples, index) {
+			return false
 		}
 	}
 
-	return len(samples), true
+	// Convert to float64 samples
+	if d.format.NumChannels == 1 {
+		d.fillMonoSample(samples, index)
+	} else {
+		d.fillStereoSample(samples, index)
+	}
+
+	return true
+}
+
+// refillBuffer refills the internal buffer when needed.
+func (d *minimp3Decoder) refillBuffer(samples [][2]float64, startIndex int) bool {
+	d.detectUnderrun()
+
+	// Read more data - use pre-allocated buffer to reduce GC pressure
+	const readSize = 65536 // 64KB buffer for smoother playback
+	if d.readBuffer == nil {
+		d.readBuffer = make([]byte, readSize)
+	}
+
+	buf := d.readBuffer[:readSize]
+	bytesRead, err := d.readWithTiming(buf)
+
+	if err == io.EOF || bytesRead == 0 {
+		d.handleEOF(samples, startIndex)
+		return false
+	}
+
+	d.convertBytesToSamples(buf, bytesRead)
+	return true
+}
+
+// detectUnderrun detects potential buffer underruns.
+func (d *minimp3Decoder) detectUnderrun() {
+	now := time.Now()
+	if !d.lastReadTime.IsZero() {
+		elapsed := now.Sub(d.lastReadTime)
+		if elapsed < time.Millisecond*10 {
+			d.underrunCount++
+			if d.underrunCount%10 == 0 {
+				logger.Debug("Potential buffer underrun detected: %d occurrences", d.underrunCount)
+			}
+		}
+	}
+	d.lastReadTime = now
+}
+
+// readWithTiming reads data with timing measurement.
+func (d *minimp3Decoder) readWithTiming(buf []byte) (int, error) {
+	startRead := time.Now()
+	bytesRead, err := d.decoder.Read(buf)
+	readDuration := time.Since(startRead)
+
+	if readDuration > time.Millisecond*50 {
+		logger.Debug("Slow MP3 decode: took %v to read %d bytes", readDuration, bytesRead)
+	}
+
+	return bytesRead, err
+}
+
+// handleEOF handles end of file condition.
+func (d *minimp3Decoder) handleEOF(samples [][2]float64, startIndex int) {
+	// We've reached the end - update total samples to actual length
+	actualTotalSamples := d.position
+	if actualTotalSamples != d.TotalSamples {
+		logger.Debug("minimp3: EOF reached, correcting total samples from %d to %d (%.2fs)",
+			d.TotalSamples, actualTotalSamples, float64(actualTotalSamples)/float64(d.format.SampleRate))
+
+		d.TotalSamples = actualTotalSamples
+
+		// Notify player of actual duration
+		if d.durationUpdateCallback != nil {
+			d.durationUpdateCallback(d.TotalSamples)
+		}
+	}
+
+	// Fill remaining samples with silence for smooth ending
+	for j := startIndex; j < len(samples); j++ {
+		samples[j][0] = 0
+		samples[j][1] = 0
+	}
+}
+
+// convertBytesToSamples converts bytes to int16 samples.
+func (d *minimp3Decoder) convertBytesToSamples(buf []byte, bytesRead int) {
+	// Convert bytes to int16 samples - reuse buffer if possible
+	requiredSize := bytesRead / 2
+	if cap(d.buffer) < requiredSize {
+		d.buffer = make([]int16, requiredSize)
+	} else {
+		d.buffer = d.buffer[:requiredSize]
+	}
+
+	for j := 0; j < requiredSize; j++ {
+		d.buffer[j] = int16(buf[j*2]) | (int16(buf[j*2+1]) << 8)
+	}
+
+	d.bufferIndex = 0
+}
+
+// fillMonoSample fills a mono sample.
+func (d *minimp3Decoder) fillMonoSample(samples [][2]float64, index int) {
+	if d.bufferIndex < len(d.buffer) {
+		sample := float64(d.buffer[d.bufferIndex]) / 32768.0
+		samples[index][0] = sample
+		samples[index][1] = sample
+		d.bufferIndex++
+		d.position++
+	} else {
+		samples[index][0] = 0
+		samples[index][1] = 0
+	}
+}
+
+// fillStereoSample fills a stereo sample.
+func (d *minimp3Decoder) fillStereoSample(samples [][2]float64, index int) {
+	if d.bufferIndex+1 < len(d.buffer) {
+		left := float64(d.buffer[d.bufferIndex]) / 32768.0
+		right := float64(d.buffer[d.bufferIndex+1]) / 32768.0
+		samples[index][0] = left
+		samples[index][1] = right
+		d.bufferIndex += 2
+		d.position++
+	} else {
+		samples[index][0] = 0
+		samples[index][1] = 0
+	}
 }
 
 // Err returns any error.
@@ -259,12 +301,12 @@ func (d *minimp3Decoder) seekFromBeginning(targetPos int) error {
 	samplesToSkip := targetPos
 
 	for samplesToSkip > 0 {
-		n, err := d.decoder.Read(skipBuffer)
-		if err == io.EOF || n == 0 {
+		bytesRead, err := d.decoder.Read(skipBuffer)
+		if err == io.EOF || bytesRead == 0 {
 			break
 		}
 
-		samplesRead := n / (2 * d.format.NumChannels)
+		samplesRead := bytesRead / (2 * d.format.NumChannels)
 		if samplesRead > samplesToSkip {
 			samplesRead = samplesToSkip
 		}

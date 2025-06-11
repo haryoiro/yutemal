@@ -244,27 +244,30 @@ func extractPlaylistFromItem(item map[string]any) *PlaylistRef {
 	}
 
 	for _, renderer := range renderers {
-		if data, ok := item[renderer].(map[string]any); ok {
-			playlist := &PlaylistRef{}
+		data, ok := item[renderer].(map[string]any)
+		if !ok {
+			continue
+		}
 
-			// Extract title
-			if title := extractTitle(data); title != "" {
-				playlist.Name = title
-			}
+		playlist := &PlaylistRef{}
 
-			// Extract subtitle
-			if subtitle := extractSubtitle(data); subtitle != "" {
-				playlist.Subtitle = subtitle
-			}
+		// Extract title
+		if title := extractTitle(data); title != "" {
+			playlist.Name = title
+		}
 
-			// Extract browse ID
-			if browseID := extractBrowseID(data); browseID != "" {
-				playlist.BrowseID = browseID
-			}
+		// Extract subtitle
+		if subtitle := extractSubtitle(data); subtitle != "" {
+			playlist.Subtitle = subtitle
+		}
 
-			if playlist.Name != "" && playlist.BrowseID != "" {
-				return playlist
-			}
+		// Extract browse ID
+		if browseID := extractBrowseID(data); browseID != "" {
+			playlist.BrowseID = browseID
+		}
+
+		if playlist.Name != "" && playlist.BrowseID != "" {
+			return playlist
 		}
 	}
 

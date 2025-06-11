@@ -74,6 +74,7 @@ func NewClient(headers map[string]string, accountID string) (*Client, error) {
 	// Check if login is required
 	if strings.Contains(bodyStr, `<base href="https://accounts.google.com/v3/signin/">`) ||
 		strings.Contains(bodyStr, `<base href="https://consent.youtube.com/">`) {
+
 		return nil, fmt.Errorf("need to login")
 	}
 
@@ -267,33 +268,23 @@ func (c *Client) GetHomeEnhanced() (*SearchResults, error) {
 		return nil, err
 	}
 
+	return c.extractHomeContent(resp)
+}
+
+// extractHomeContent extracts content from home page response.
+func (c *Client) extractHomeContent(resp *BrowseResponse) (*SearchResults, error) {
 	// Use the navigation functions to extract content more thoroughly
 	contents := navigateToContents(*resp)
 	var tracks []TrackRef
 	var playlists []PlaylistRef
 
 	for _, content := range contents {
-		// Extract from music shelves
-		if shelfItems := extractMusicShelfItems(content); shelfItems != nil {
-			for _, item := range shelfItems {
-				if track := extractTrackFromItem(item); track != nil {
-					tracks = append(tracks, *track)
-				}
+		tracksFromShelf, playlistsFromShelf := c.extractFromShelf(content)
+		tracks = append(tracks, tracksFromShelf...)
+		playlists = append(playlists, playlistsFromShelf...)
 
-				if playlist := extractPlaylistFromItem(item); playlist != nil {
-					playlists = append(playlists, *playlist)
-				}
-			}
-		}
-
-		// Extract from grids
-		if gridItems := extractGridItems(content); gridItems != nil {
-			for _, item := range gridItems {
-				if playlist := extractPlaylistFromItem(item); playlist != nil {
-					playlists = append(playlists, *playlist)
-				}
-			}
-		}
+		playlistsFromGrid := c.extractFromGrid(content)
+		playlists = append(playlists, playlistsFromGrid...)
 	}
 
 	// Also use the generic extractors as fallback
@@ -301,28 +292,96 @@ func (c *Client) GetHomeEnhanced() (*SearchResults, error) {
 	genericPlaylists := extractPlaylists(*resp)
 
 	// Merge results, avoiding duplicates
+	finalTracks := c.deduplicateTracks(tracks, genericTracks)
+	finalPlaylists := c.deduplicatePlaylists(playlists, genericPlaylists)
+
+	return &SearchResults{
+		Tracks:    finalTracks,
+		Playlists: finalPlaylists,
+	}, nil
+}
+
+// extractFromShelf extracts tracks and playlists from music shelf items.
+func (c *Client) extractFromShelf(content any) ([]TrackRef, []PlaylistRef) {
+	var tracks []TrackRef
+	var playlists []PlaylistRef
+
+	contentMap, ok := content.(map[string]any)
+	if !ok {
+		return tracks, playlists
+	}
+
+	shelfItems := extractMusicShelfItems(contentMap)
+	if shelfItems == nil {
+		return tracks, playlists
+	}
+
+	for _, item := range shelfItems {
+		if track := extractTrackFromItem(item); track != nil {
+			tracks = append(tracks, *track)
+		}
+
+		if playlist := extractPlaylistFromItem(item); playlist != nil {
+			playlists = append(playlists, *playlist)
+		}
+	}
+
+	return tracks, playlists
+}
+
+// extractFromGrid extracts playlists from grid items.
+func (c *Client) extractFromGrid(content any) []PlaylistRef {
+	var playlists []PlaylistRef
+
+	contentMap, ok := content.(map[string]any)
+	if !ok {
+		return playlists
+	}
+
+	gridItems := extractGridItems(contentMap)
+	if gridItems == nil {
+		return playlists
+	}
+
+	for _, item := range gridItems {
+		if playlist := extractPlaylistFromItem(item); playlist != nil {
+			playlists = append(playlists, *playlist)
+		}
+	}
+
+	return playlists
+}
+
+// deduplicateTracks removes duplicate tracks.
+func (c *Client) deduplicateTracks(primary, secondary []TrackRef) []TrackRef {
 	trackMap := make(map[string]TrackRef)
-	for _, t := range tracks {
+
+	for _, t := range primary {
 		trackMap[t.TrackID] = t
 	}
 
-	for _, t := range genericTracks {
+	for _, t := range secondary {
 		trackMap[t.TrackID] = t
 	}
 
-	playlistMap := make(map[string]PlaylistRef)
-	for _, p := range playlists {
-		playlistMap[p.BrowseID] = p
-	}
-
-	for _, p := range genericPlaylists {
-		playlistMap[p.BrowseID] = p
-	}
-
-	// Convert maps back to slices
 	finalTracks := make([]TrackRef, 0, len(trackMap))
 	for _, t := range trackMap {
 		finalTracks = append(finalTracks, t)
+	}
+
+	return finalTracks
+}
+
+// deduplicatePlaylists removes duplicate playlists.
+func (c *Client) deduplicatePlaylists(primary, secondary []PlaylistRef) []PlaylistRef {
+	playlistMap := make(map[string]PlaylistRef)
+
+	for _, p := range primary {
+		playlistMap[p.BrowseID] = p
+	}
+
+	for _, p := range secondary {
+		playlistMap[p.BrowseID] = p
 	}
 
 	finalPlaylists := make([]PlaylistRef, 0, len(playlistMap))
@@ -330,10 +389,7 @@ func (c *Client) GetHomeEnhanced() (*SearchResults, error) {
 		finalPlaylists = append(finalPlaylists, p)
 	}
 
-	return &SearchResults{
-		Tracks:    finalTracks,
-		Playlists: finalPlaylists,
-	}, nil
+	return finalPlaylists
 }
 
 // GetStreamingData fetches streaming information for a video/track.

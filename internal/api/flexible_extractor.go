@@ -52,49 +52,94 @@ func findTitle(obj map[string]any) string {
 
 // findArtists searches for artist information.
 func findArtists(obj map[string]any) []string {
-	var artists []string
-
-	// Try flexColumns approach (common in music lists)
-	if flexCols, ok := obj["flexColumns"].([]any); ok && len(flexCols) > 1 {
-		if col, ok2 := flexCols[1].(map[string]any); ok2 {
-			if renderer, ok3 := col["musicResponsiveListItemFlexColumnRenderer"].(map[string]any); ok3 {
-				if text, ok4 := renderer["text"].(map[string]any); ok4 {
-					if runs, ok5 := text["runs"].([]any); ok5 {
-						for _, run := range runs {
-							if runObj, ok6 := run.(map[string]any); ok6 {
-								if runText, ok7 := runObj["text"].(string); ok7 && runText != " • " {
-									artists = append(artists, runText)
-								}
-							}
-						}
-					}
-				}
-			}
-		}
+	// Try flexColumns approach first
+	artists := extractArtistsFromFlexColumns(obj)
+	if len(artists) > 0 {
+		return artists
 	}
 
 	// Try subtitle approach
-	if len(artists) == 0 {
-		if subtitle := getPathString(obj, "subtitle", "runs", "0", "text"); subtitle != "" {
-			// Parse subtitle for artist info
-			parts := strings.Split(subtitle, " • ")
-			if len(parts) > 0 {
-				artists = append(artists, parts[0])
-			}
-		}
+	artists = extractArtistsFromSubtitle(obj)
+	if len(artists) > 0 {
+		return artists
 	}
 
 	// Try simpleText subtitle
-	if len(artists) == 0 {
-		if subtitle := getPathString(obj, "subtitle", "simpleText"); subtitle != "" {
-			parts := strings.Split(subtitle, " • ")
-			if len(parts) > 0 {
-				artists = append(artists, parts[0])
-			}
+	return extractArtistsFromSimpleSubtitle(obj)
+}
+
+// extractArtistsFromFlexColumns extracts artists from flex columns structure.
+func extractArtistsFromFlexColumns(obj map[string]any) []string {
+	var artists []string
+
+	flexCols, ok := obj["flexColumns"].([]any)
+	if !ok || len(flexCols) <= 1 {
+		return artists
+	}
+
+	col, ok := flexCols[1].(map[string]any)
+	if !ok {
+		return artists
+	}
+
+	renderer, ok := col["musicResponsiveListItemFlexColumnRenderer"].(map[string]any)
+	if !ok {
+		return artists
+	}
+
+	text, ok := renderer["text"].(map[string]any)
+	if !ok {
+		return artists
+	}
+
+	runs, ok := text["runs"].([]any)
+	if !ok {
+		return artists
+	}
+
+	for _, run := range runs {
+		runObj, ok := run.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		runText, ok := runObj["text"].(string)
+		if ok && runText != " • " {
+			artists = append(artists, runText)
 		}
 	}
 
 	return artists
+}
+
+// extractArtistsFromSubtitle extracts artists from subtitle runs.
+func extractArtistsFromSubtitle(obj map[string]any) []string {
+	subtitle := getPathString(obj, "subtitle", "runs", "0", "text")
+	if subtitle == "" {
+		return nil
+	}
+
+	return parseArtistsFromString(subtitle)
+}
+
+// extractArtistsFromSimpleSubtitle extracts artists from simple subtitle text.
+func extractArtistsFromSimpleSubtitle(obj map[string]any) []string {
+	subtitle := getPathString(obj, "subtitle", "simpleText")
+	if subtitle == "" {
+		return nil
+	}
+
+	return parseArtistsFromString(subtitle)
+}
+
+// parseArtistsFromString parses artist info from a subtitle string.
+func parseArtistsFromString(subtitle string) []string {
+	parts := strings.Split(subtitle, " • ")
+	if len(parts) == 0 {
+		return nil
+	}
+
+	return []string{parts[0]}
 }
 
 // findDuration searches for duration information.
@@ -124,15 +169,25 @@ func findThumbnail(obj map[string]any) string {
 	}
 
 	for _, path := range paths {
-		if thumbnails := getPath(obj, convertToInterface(path)...); thumbnails != nil {
-			if thumbArray, ok := thumbnails.([]any); ok && len(thumbArray) > 0 {
-				// Get the largest thumbnail (usually the last one)
-				if lastThumb, ok2 := thumbArray[len(thumbArray)-1].(map[string]any); ok2 {
-					if url, ok3 := lastThumb["url"].(string); ok3 {
-						return url
-					}
-				}
-			}
+		thumbnails := getPath(obj, convertToInterface(path)...)
+		if thumbnails == nil {
+			continue
+		}
+
+		thumbArray, ok := thumbnails.([]any)
+		if !ok || len(thumbArray) == 0 {
+			continue
+		}
+
+		// Get the largest thumbnail (usually the last one)
+		lastThumb, ok := thumbArray[len(thumbArray)-1].(map[string]any)
+		if !ok {
+			continue
+		}
+
+		url, ok := lastThumb["url"].(string)
+		if ok {
+			return url
 		}
 	}
 

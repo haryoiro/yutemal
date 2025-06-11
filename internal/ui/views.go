@@ -52,7 +52,6 @@ func (m *Model) getStyles() (titleStyle, selectedStyle, normalStyle, dimStyle, e
 	return titleStyle, selectedStyle, normalStyle, dimStyle, errorStyle
 }
 
-
 func (m Model) renderPlaylistDetail(maxWidth int) string {
 	titleStyle, selectedStyle, normalStyle, dimStyle, _ := m.getStyles()
 
