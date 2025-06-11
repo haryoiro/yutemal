@@ -63,7 +63,8 @@ func (m Model) renderPlaylistList(maxWidth int) string {
 	}
 
 	if len(m.playlists) == 0 {
-		b.WriteString(dimStyle.Render("No playlists found.\n\nPress 'f' to search"))
+		emptyHint := m.shortcutFormatter.GetEmptyStateHint("search", m.config.KeyBindings.Search)
+		b.WriteString(dimStyle.Render("No playlists found.\n\n" + emptyHint))
 		return b.String()
 	}
 
@@ -115,7 +116,7 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 
 	// Header with title and shortcuts
 	b.WriteString(titleStyle.Render(fmt.Sprintf("🎶 %s", m.playlistName)))
-	b.WriteString(" " + dimStyle.Render("[Enter: play] [d: delete] [q: queue]"))
+	b.WriteString(" " + dimStyle.Render(m.shortcutFormatter.FormatHints(m.shortcutFormatter.GetPlaylistHints())))
 	b.WriteString("\n\n")
 
 	if len(m.playlistTracks) == 0 {
@@ -267,7 +268,9 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 	footerInfo = append(footerInfo, fmt.Sprintf("%d/%d", m.playlistSelectedIndex+1, len(m.playlistTracks)))
 
 	// Navigation help
-	footerInfo = append(footerInfo, "[↑↓: nav] [Enter: play from here]")
+	navHints := m.shortcutFormatter.GetNavigationHints()
+	navHints[1].Action = "play from here" // Override action text for this context
+	footerInfo = append(footerInfo, m.shortcutFormatter.FormatHints(navHints))
 
 	// Focus help
 	focusHelp := m.getFocusHelpText()
@@ -510,11 +513,11 @@ func (m Model) renderSectionTabs(maxWidth int) string {
 	if runewidth.StringWidth(tabsStr) > maxWidth {
 		// 簡単な実装：現在のタブだけを表示
 		currentTab := selectedStyle.Copy().PaddingLeft(2).PaddingRight(2).Render(m.sections[m.currentSectionIndex].Title)
-		return currentTab + dimStyle.Render(" (Tab/Shift+Tab to switch)")
+		return currentTab + dimStyle.Render(" " + m.shortcutFormatter.GetSectionNavigationHint(true))
 	}
 
 	if m.showQueue {
-		return tabsStr + "\n" + dimStyle.Render("Tab to switch sections disabled (queue is shown)")
+		return tabsStr + "\n" + dimStyle.Render(m.shortcutFormatter.GetSectionNavigationHint(false))
 	}
 	return tabsStr + "\n" + dimStyle.Render("Tab to switch sections")
 }
@@ -728,10 +731,9 @@ func (m *Model) renderQueue(maxWidth int, maxHeight int) string {
 
 	// Header
 	b.WriteString(titleStyle.Render("🎵 Queue"))
-	if m.hasFocus("queue") {
-		b.WriteString(" " + dimStyle.Render("[Tab: back to main]"))
-	} else {
-		b.WriteString(" " + dimStyle.Render("[Tab: focus queue]"))
+	hints := m.shortcutFormatter.GetQueueHints(m.hasFocus("queue"))
+	if len(hints) > 0 {
+		b.WriteString(" " + dimStyle.Render(m.shortcutFormatter.FormatHint(hints[0])))
 	}
 	b.WriteString("\n\n")
 
@@ -846,7 +848,10 @@ func (m *Model) renderQueue(maxWidth int, maxHeight int) string {
 
 		// Help text when focused
 		if m.hasFocus("queue") {
-			info = append(info, "[↑↓: nav] [Enter: play] [d: delete]")
+			hints := m.shortcutFormatter.GetQueueHints(true)
+			if len(hints) > 1 {
+				info = append(info, m.shortcutFormatter.FormatHints(hints[1:])) // Skip the Tab hint
+			}
 		}
 
 		b.WriteString(dimStyle.Render(strings.Join(info, " ")))

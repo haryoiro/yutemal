@@ -104,26 +104,5 @@ func (m *Model) canNavigate() bool {
 
 // getFocusHelpText returns help text for the current focus state
 func (m *Model) getFocusHelpText() string {
-	switch m.getFocusedPane() {
-	case FocusMain:
-		switch m.state {
-		case HomeView:
-			if m.showQueue {
-				return "[Tab: focus queue] [/: search]"
-			}
-			return "[q: show queue] [/: search]"
-		case PlaylistDetailView:
-			if m.showQueue {
-				return "[Tab: focus queue] [Back: home]"
-			}
-			return "[q: show queue] [Back: home]"
-		default:
-			return ""
-		}
-	case FocusQueue:
-		return "[Tab: back to main] [q: hide queue]"
-	case FocusSearch:
-		return "[Enter: search] [Esc: cancel]"
-	}
-	return ""
+	return m.shortcutFormatter.GetContextualHints(m.state, m.showQueue, m.hasFocus)
 }

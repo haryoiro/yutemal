@@ -332,7 +332,7 @@ func (m *Model) renderControls(availableWidth int) string {
 	}
 
 	// Controls hint
-	hint := "[Space: Play/Pause] [←/→: Seek] [s: Shuffle] [q: Queue] [Ctrl+D: Quit]"
+	hint := m.shortcutFormatter.FormatHints(m.shortcutFormatter.GetPlayerHints())
 	parts = append(parts, dimStyle.Render(hint))
 
 	// 利用可能幅に収まるように調整

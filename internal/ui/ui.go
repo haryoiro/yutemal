@@ -45,6 +45,7 @@ type Model struct {
 	systems            *systems.Systems
 	config             *structures.Config
 	themeManager       *ThemeManager
+	shortcutFormatter  *ShortcutFormatter
 	state              ViewState
 	width              int
 	height             int
@@ -109,14 +110,15 @@ type errorMsg error
 
 func RunSimple(systems *systems.Systems, config *structures.Config) error {
 	m := Model{
-		systems:        systems,
-		config:         config,
-		themeManager:   NewThemeManager(config.Theme),
-		state:          HomeView,
-		playerHeight:   5,
-		marqueeTicker:  time.NewTicker(500 * time.Millisecond), // Match the tickCmd frequency
-		scrollCooldown: 20 * time.Millisecond, // 50ms between scroll events
-		keyDebouncer:   NewKeyDebouncer(),
+		systems:           systems,
+		config:            config,
+		themeManager:      NewThemeManager(config.Theme),
+		shortcutFormatter: NewShortcutFormatter(config),
+		state:             HomeView,
+		playerHeight:      5,
+		marqueeTicker:     time.NewTicker(500 * time.Millisecond), // Match the tickCmd frequency
+		scrollCooldown:    20 * time.Millisecond, // 50ms between scroll events
+		keyDebouncer:      NewKeyDebouncer(),
 	}
 
 	opts := []tea.ProgramOption{
@@ -400,7 +402,7 @@ func (m *Model) View() string {
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#00FF00"))
 
-		debugInfo := "=== DEBUG INFO (Ctrl+D to hide) ===\n"
+		debugInfo := fmt.Sprintf("=== DEBUG INFO (%s to hide) ===\n", m.shortcutFormatter.formatKey("ctrl+d"))
 		debugInfo += "Current State: " + m.state.String() + "\n"
 		debugInfo += "Selected Index: " + fmt.Sprintf("%d", m.selectedIndex) + "\n"
 		debugInfo += "Playlist Selected: " + fmt.Sprintf("%d", m.playlistSelectedIndex) + "\n"
