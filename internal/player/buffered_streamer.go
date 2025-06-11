@@ -33,6 +33,9 @@ type BufferedStreamer struct {
 	resizeInProgress     bool
 	consecutiveUnderruns int
 	lastUnderrunTime     time.Time
+	
+	// Track source exhaustion separately from closed state
+	sourceExhausted bool
 }
 
 // NewBufferedStreamer creates a new buffered streamer.
@@ -91,9 +94,17 @@ func (bs *BufferedStreamer) fillLoop() {
 // processFillIteration handles one iteration of the fill loop.
 func (bs *BufferedStreamer) processFillIteration(tempBuffer [][2]float64) bool {
 	bs.mu.Lock()
-	if bs.closed {
+	// Stop if closed or if source is exhausted and buffer is empty
+	if bs.closed || (bs.sourceExhausted && bs.filled == 0) {
 		bs.mu.Unlock()
 		return false
+	}
+	
+	// If source is exhausted but buffer still has data, sleep a bit
+	if bs.sourceExhausted {
+		bs.mu.Unlock()
+		time.Sleep(10 * time.Millisecond)
+		return true
 	}
 
 	available := bs.bufferSize - bs.filled
@@ -103,10 +114,12 @@ func (bs *BufferedStreamer) processFillIteration(tempBuffer [][2]float64) bool {
 	n, ok := bs.source.Stream(workBuffer)
 	if n == 0 && !ok {
 		bs.handleSourceExhausted()
-		return false
+		return true // Continue running to allow buffer to drain
 	}
 
-	bs.writeToBuffer(workBuffer, n)
+	if n > 0 {
+		bs.writeToBuffer(workBuffer, n)
+	}
 	bs.handlePostWrite(workBuffer, available)
 
 	return true
@@ -138,10 +151,15 @@ func (bs *BufferedStreamer) adjustTempBuffer(tempBuffer [][2]float64, available 
 // handleSourceExhausted handles when the source has no more data.
 func (bs *BufferedStreamer) handleSourceExhausted() {
 	bs.mu.Lock()
-	bs.closed = true
+	defer bs.mu.Unlock()
+	
+	// Don't close immediately - we still have buffered data to play
+	logger.Debug("BufferedStreamer: source exhausted, but buffer still has %d/%d samples (%.1f%%) to play",
+		bs.filled, bs.bufferSize, float64(bs.filled)/float64(bs.bufferSize)*100)
+	
+	// Mark that source is exhausted but don't set closed=true yet
+	bs.sourceExhausted = true
 	bs.cond.Broadcast()
-	bs.mu.Unlock()
-	logger.Debug("BufferedStreamer: source exhausted, filled: %d/%d", bs.filled, bs.bufferSize)
 }
 
 // writeToBuffer writes samples to the ring buffer.
@@ -193,6 +211,13 @@ func (bs *BufferedStreamer) Stream(samples [][2]float64) (n int, ok bool) {
 	}
 
 	if bs.filled == 0 {
+		// Check if we've exhausted both source and buffer
+		if bs.sourceExhausted {
+			// No more data to play
+			logger.Debug("BufferedStreamer: all data played, closing stream")
+			bs.closed = true
+			return 0, false
+		}
 		if !bs.closed {
 			bs.handleUnderrun()
 		} else {
@@ -202,7 +227,12 @@ func (bs *BufferedStreamer) Stream(samples [][2]float64) (n int, ok bool) {
 
 	for i := range samples {
 		if bs.filled == 0 {
-			if bs.closed {
+			// Check if source is exhausted and buffer is empty
+			if bs.sourceExhausted {
+				// We've played all available data
+				bs.closed = true
+				ok = i > 0
+			} else if bs.closed {
 				ok = i > 0
 			} else {
 				ok = true
