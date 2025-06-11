@@ -21,6 +21,7 @@ import (
 type Player struct {
 	mu                 sync.RWMutex
 	streamer           beep.StreamSeekCloser
+	bufferedStreamer   *BufferedStreamer
 	ctrl               *beep.Ctrl
 	volume             *effects.Volume
 	format             beep.Format
@@ -64,6 +65,7 @@ func (p *Player) LoadFile(filepath string) error {
 	if p.streamer != nil {
 		p.streamer.Close()
 		p.streamer = nil
+		p.bufferedStreamer = nil
 	}
 
 	if p.speakerInitialized {
@@ -74,6 +76,7 @@ func (p *Player) LoadFile(filepath string) error {
 	p.iseeking = false
 	p.ctrl = nil
 	p.volume = nil
+	p.bufferedStreamer = nil
 
 	file, err := os.Open(filepath)
 	if err != nil {
@@ -107,6 +110,7 @@ func (p *Player) LoadFile(filepath string) error {
 	p.streamer = streamer
 
 	bufferedStreamer := NewBufferedStreamer(streamer, format, 4.0)
+	p.bufferedStreamer = bufferedStreamer
 
 	var volumeToApply float64 = 0.7
 	if p.savedVolumeSet {
@@ -344,14 +348,29 @@ func (p *Player) Seek(pos time.Duration) error {
 		speaker.Clear()
 	}
 
-	if err := p.streamer.Seek(samplePos); err != nil {
-		if err := p.streamer.Seek(0); err != nil {
-			return fmt.Errorf("failed to reset position: %w", err)
+	// Seek the buffered streamer if available
+	if p.bufferedStreamer != nil {
+		if err := p.bufferedStreamer.Seek(samplePos); err != nil {
+			logger.Debug("BufferedStreamer seek failed: %v", err)
+			// Try to reset to start
+			if err := p.bufferedStreamer.Seek(0); err != nil {
+				return fmt.Errorf("failed to reset position: %w", err)
+			}
+			pos = 0
 		}
-		pos = 0
+	} else {
+		// Fallback to direct streamer seek
+		if err := p.streamer.Seek(samplePos); err != nil {
+			if err := p.streamer.Seek(0); err != nil {
+				return fmt.Errorf("failed to reset position: %w", err)
+			}
+			pos = 0
+		}
 	}
 
 	if wasPlaying && p.ctrl != nil {
+		// Give a tiny bit of time for buffer to fill before resuming
+		time.Sleep(100 * time.Millisecond)
 		speaker.Play(p.ctrl)
 		speaker.Lock()
 		p.ctrl.Paused = false
@@ -390,12 +409,15 @@ func (p *Player) GetPosition() time.Duration {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	if p.streamer == nil {
-		return 0
+	if p.bufferedStreamer != nil {
+		streamPos := p.bufferedStreamer.Position()
+		return p.format.SampleRate.D(streamPos)
+	} else if p.streamer != nil {
+		streamPos := p.streamer.Position()
+		return p.format.SampleRate.D(streamPos)
 	}
 
-	streamPos := p.streamer.Position()
-	return p.format.SampleRate.D(streamPos)
+	return 0
 }
 
 // HasEnded checks if playback has reached the end
@@ -407,8 +429,14 @@ func (p *Player) HasEnded() bool {
 		return false
 	}
 
-	currentPos := p.streamer.Position()
-	totalLen := p.streamer.Len()
+	var currentPos, totalLen int
+	if p.bufferedStreamer != nil {
+		currentPos = p.bufferedStreamer.Position()
+		totalLen = p.bufferedStreamer.Len()
+	} else {
+		currentPos = p.streamer.Position()
+		totalLen = p.streamer.Len()
+	}
 
 	threshold := 100
 	hasEnded := currentPos >= totalLen-threshold
@@ -441,20 +469,24 @@ func (p *Player) GetCurrentFile() string {
 func (p *Player) GetRawPosition() int {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	if p.streamer == nil {
-		return 0
+	if p.bufferedStreamer != nil {
+		return p.bufferedStreamer.Position()
+	} else if p.streamer != nil {
+		return p.streamer.Position()
 	}
-	return p.streamer.Position()
+	return 0
 }
 
 // GetRawLength returns the total samples
 func (p *Player) GetRawLength() int {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	if p.streamer == nil {
-		return 0
+	if p.bufferedStreamer != nil {
+		return p.bufferedStreamer.Len()
+	} else if p.streamer != nil {
+		return p.streamer.Len()
 	}
-	return p.streamer.Len()
+	return 0
 }
 
 // GetSampleRate returns the current sample rate
@@ -499,6 +531,11 @@ func (p *Player) Close() error {
 
 	if p.streamer != nil {
 		p.streamer.Close()
+	}
+
+	if p.bufferedStreamer != nil {
+		p.bufferedStreamer.Close()
+		p.bufferedStreamer = nil
 	}
 
 	if p.speakerInitialized {

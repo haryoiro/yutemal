@@ -20,6 +20,7 @@ type BufferedStreamer struct {
 	cond       *sync.Cond
 	closed     bool
 	format     beep.Format
+	position   int // Track actual stream position
 
 	underruns int
 	maxFilled int
@@ -34,6 +35,7 @@ func NewBufferedStreamer(source beep.Streamer, format beep.Format, bufferSeconds
 		buffer:     make([][2]float64, bufferSize),
 		bufferSize: bufferSize,
 		format:     format,
+		position:   0,
 	}
 	bs.cond = sync.NewCond(&bs.mu)
 
@@ -46,7 +48,7 @@ func NewBufferedStreamer(source beep.Streamer, format beep.Format, bufferSeconds
 
 // fillLoop continuously fills the buffer in the background
 func (bs *BufferedStreamer) fillLoop() {
-	tempBuffer := make([][2]float64, 8192)
+	tempBuffer := make([][2]float64, 8192*2)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -108,7 +110,7 @@ func (bs *BufferedStreamer) fillLoop() {
 		}
 
 		if bs.filled < bs.bufferSize/4 && !bs.closed {
-			logger.Debug("BufferedStreamer: low buffer warning - filled: %d/%d (%.1f%%)", 
+			logger.Debug("BufferedStreamer: low buffer warning - filled: %d/%d (%.1f%%)",
 				bs.filled, bs.bufferSize, float64(bs.filled)/float64(bs.bufferSize)*100)
 		}
 	}
@@ -119,7 +121,9 @@ func (bs *BufferedStreamer) Stream(samples [][2]float64) (n int, ok bool) {
 	bs.mu.Lock()
 	defer bs.mu.Unlock()
 
-	if bs.readPos == 0 && bs.filled < bs.bufferSize*3/4 && !bs.closed {
+	// Don't wait for initial fill if we've already started reading
+	// This helps with seeking to work immediately
+	if bs.position == 0 && bs.filled < bs.bufferSize*3/4 && !bs.closed && bs.underruns == 0 {
 		logger.Debug("Waiting for initial buffer fill: %d/%d samples", bs.filled, bs.bufferSize*3/4)
 		for bs.filled < bs.bufferSize*3/4 && !bs.closed {
 			bs.cond.Wait()
@@ -130,7 +134,7 @@ func (bs *BufferedStreamer) Stream(samples [][2]float64) (n int, ok bool) {
 		if !bs.closed {
 			bs.underruns++
 			logger.Warn("Audio buffer underrun #%d detected at position %d (max fill: %d/%d = %.1f%%)",
-				bs.underruns, bs.readPos, bs.maxFilled, bs.bufferSize,
+				bs.underruns, bs.position, bs.maxFilled, bs.bufferSize,
 				float64(bs.maxFilled)/float64(bs.bufferSize)*100)
 			time.Sleep(100 * time.Millisecond)
 		} else {
@@ -153,6 +157,7 @@ func (bs *BufferedStreamer) Stream(samples [][2]float64) (n int, ok bool) {
 		samples[i] = bs.buffer[bs.readPos]
 		bs.readPos = (bs.readPos + 1) % bs.bufferSize
 		bs.filled--
+		bs.position++
 	}
 
 	bs.cond.Broadcast()
@@ -187,4 +192,46 @@ func (bs *BufferedStreamer) Close() error {
 	}
 
 	return nil
+}
+
+// Seek clears the buffer and seeks the underlying source
+func (bs *BufferedStreamer) Seek(position int) error {
+	bs.mu.Lock()
+	defer bs.mu.Unlock()
+
+	// Clear the buffer and reset state
+	bs.readPos = 0
+	bs.writePos = 0
+	bs.filled = 0
+	bs.position = position
+	// Don't reset underruns count as it's useful for debugging
+
+	// Seek the underlying source if it supports seeking
+	if seeker, ok := bs.source.(beep.StreamSeeker); ok {
+		if err := seeker.Seek(position); err != nil {
+			return err
+		}
+	}
+
+	// Wake up the fill loop to start buffering from the new position
+	bs.cond.Broadcast()
+
+	logger.Debug("BufferedStreamer: buffer cleared after seek to position %d", position)
+
+	return nil
+}
+
+// Position returns the current position
+func (bs *BufferedStreamer) Position() int {
+	bs.mu.Lock()
+	defer bs.mu.Unlock()
+	return bs.position
+}
+
+// Len returns the total length if the source implements StreamSeeker
+func (bs *BufferedStreamer) Len() int {
+	if seeker, ok := bs.source.(beep.StreamSeeker); ok {
+		return seeker.Len()
+	}
+	return 0
 }
