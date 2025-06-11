@@ -1,0 +1,355 @@
+run:
+  # Timeout for analysis
+  timeout: 5m
+  
+  # Go version
+  go: "1.24"
+
+  # By default, list of stable checks is used
+
+  # By default, list of stable checks is used
+  tests: true
+
+  # List of build tags to use
+  build-tags:
+    - integration
+
+# Output configuration
+output:
+  # Format: colored-line-number|line-number|json|tab|checkstyle|code-climate|junit-xml|github-actions
+  formats:
+    - format: colored-line-number
+      path: stdout
+
+  # Print lines of code with issue
+  print-issued-lines: true
+
+  # Print linter name in the end of issue text
+  print-linter-name: true
+
+  # Sort results by: filepath, line and column
+  sort-results: true
+
+# Linter settings
+linters-settings:
+  # Error checking
+  errcheck:
+    # Report about not checking of errors in type assertions
+    check-type-assertions: true
+    # Report about assignment of errors to blank identifier
+    check-blank: true
+    # List of functions to exclude from checking
+    exclude-functions:
+      - io/ioutil.ReadFile
+      - io.Copy(*bytes.Buffer)
+      - io.Copy(os.Stdout)
+
+  # Go fmt
+  gofmt:
+    # Simplify code
+    simplify: true
+    rewrite-rules:
+      - pattern: "interface{}"
+        replacement: "any"
+      - pattern: "a[b:len(a)]"
+        replacement: "a[b:]"
+
+  # Go imports
+  goimports:
+    # Put imports beginning with prefix after 3rd-party packages
+    local-prefixes: github.com/haryoiro/yutemal
+
+  # Go vet
+  govet:
+    # Settings per analyzer
+    settings:
+      printf:
+        funcs:
+          - (github.com/haryoiro/yutemal/internal/logger).Debug
+          - (github.com/haryoiro/yutemal/internal/logger).Info
+          - (github.com/haryoiro/yutemal/internal/logger).Warn
+          - (github.com/haryoiro/yutemal/internal/logger).Error
+      shadow:
+        strict: true
+    enable-all: true
+    disable:
+      - fieldalignment # Too many false positives
+
+  # Staticcheck
+  staticcheck:
+    # https://staticcheck.io/docs/options#checks
+    checks: ["all"]
+
+  # Gosec - Security problems
+  gosec:
+    # Filter out the issues with a lower severity than the given value
+    severity: "low"
+    # Filter out the issues with a lower confidence than the given value
+    confidence: "low"
+    # Exclude specific rules
+    excludes:
+      - G104 # Errors unhandled (duplicate of errcheck)
+      - G304 # Potential file inclusion via variable (false positives)
+
+  # Golint
+  revive:
+    # Minimal confidence for issues
+    confidence: 0.8
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+      - name: if-return
+      - name: increment-decrement
+      - name: var-naming
+      - name: var-declaration
+      - name: package-comments
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      - name: indent-error-flow
+      - name: errorf
+      - name: empty-block
+      - name: superfluous-else
+      - name: unreachable-code
+      - name: redefines-builtin-id
+
+  # Misspell
+  misspell:
+    # Locale to use
+    locale: US
+    ignore-words:
+      - cancelled # British spelling
+
+  # Unused
+  unused:
+    # Go version to target
+    go: "1.24"
+
+  # Gocyclo - Cyclomatic complexity
+  gocyclo:
+    # Minimal code complexity to report
+    min-complexity: 15
+
+  # Dupl - Code duplication
+  dupl:
+    # Tokens count to trigger issue
+    threshold: 150
+
+  # Goconst - Repeated strings
+  goconst:
+    # Minimal length of string constant
+    min-len: 3
+    # Minimal occurrences count to trigger
+    min-occurrences: 3
+    # Ignore test files
+    ignore-tests: true
+
+  # Gocognit - Cognitive complexity
+  gocognit:
+    # Minimal code complexity to report
+    min-complexity: 20
+
+  # Nestif - Nested if statements
+  nestif:
+    # Minimal complexity of if statements to report
+    min-complexity: 4
+
+  # Lll - Line length limit
+  lll:
+    # Max line length, lines longer will be reported
+    line-length: 120
+    # Tab width in spaces
+    tab-width: 1
+
+  # Maintainability index
+  maintidx:
+    # Show functions with maintainability index lower than N
+    under: 20
+
+  # White space
+  whitespace:
+    multi-if: true # Check that multi-line if statements have curly braces
+    multi-func: true # Check that multi-line functions have curly braces
+
+  # WSL - White space linter
+  wsl:
+    # Allow declarations (var) to be cuddled
+    allow-cuddle-declarations: true
+    # Allow trailing comments
+    allow-trailing-comment: true
+    # Force case trailing comment
+    force-case-trailing-whitespace: 0
+    # Allow separated leading comment
+    allow-separated-leading-comment: false
+
+
+# Enabled linters
+linters:
+  enable:
+    # Default linters
+    - errcheck # Checking for unchecked errors
+    - gosimple # Simplifying code
+    - govet # Vet examines Go source code
+    - ineffassign # Detects when assignments to existing variables are not used
+    - staticcheck # Staticcheck
+    - typecheck # Like the front-end of a Go compiler
+    - unused # Checks for unused constants, variables, functions and types
+
+    # Additional linters for better code quality
+    - bodyclose # Checks whether HTTP response body is closed successfully
+    - dogsled # Checks assignments with too many blank identifiers
+    - dupl # Tool for code clone detection
+    - copyloopvar # Checks for pointers to enclosing loop variables
+    - gochecknoinits # Checks that no init functions are present
+    - goconst # Finds repeated strings that could be replaced by constants
+    - gocritic # Provides many diagnostics
+    - gocyclo # Computes cyclomatic complexity
+    - gofmt # Gofmt checks whether code was gofmt-ed
+    - goimports # Check import statements are formatted
+    - goprintffuncname # Checks that printf-like functions are named with `f` at the end
+    - gosec # Inspects source code for security problems
+    - lll # Reports long lines
+    - misspell # Finds commonly misspelled English words
+    - nakedret # Finds naked returns in functions greater than a specified length
+    - nestif # Reports deeply nested if statements
+    - noctx # Finds sending http request without context.Context
+    - nolintlint # Reports ill-formed or insufficient nolint directives
+    - prealloc # Finds slice declarations that could potentially be preallocated
+    - revive # Fast, configurable, extensible, flexible, and beautiful linter
+    - stylecheck # Stylecheck is a replacement for golint
+    - unconvert # Remove unnecessary type conversions
+    - unparam # Reports unused function parameters
+    - whitespace # Detection of leading and trailing whitespace
+    - wsl # Whitespace Linter
+
+  disable:
+    # Disabled as they are too strict or have too many false positives
+    - cyclop # Checks function and package cyclomatic complexity
+    - exhaustive # Check exhaustiveness of enum switch statements
+    - exhaustruct # Checks if all struct's fields are initialized
+    - forbidigo # Forbids identifiers
+    - funlen # Tool for detection of long functions
+    - gci # Gci controls Go package import order
+    - gochecknoglobals # Check that no global variables exist
+    - gocognit # Computes cognitive complexity
+    - godox # Tool for detection of FIXME, TODO and other comments
+    - err113 # Golang linter to check the errors handling expressions
+    - mnd # An analyzer to detect magic numbers
+    - gomoddirectives # Manage the use of 'replace', 'retract', and 'excludes' in go.mod
+    - gomodguard # Allow and block list linter for direct module dependencies
+    - interfacebloat # Checks the number of methods inside an interface
+    - ireturn # Accept interfaces, return concrete types
+    - maintidx # Measures the maintainability index
+    - nlreturn # Checks for a new line before return and branch statements
+    - paralleltest # Detects missing usage of t.Parallel()
+    - testpackage # Makes you use a separate _test package
+    - tparallel # Detects inappropriate usage of t.Parallel()
+    - varnamelen # Checks that the length of a variable's name matches its scope
+    - wrapcheck # Checks that errors returned from external packages are wrapped
+
+# Issues configuration
+issues:
+  # Make issues output unique by line
+  uniq-by-line: true
+
+  # Exclude directories
+  exclude-dirs:
+    - vendor
+    - third_party
+    - testdata
+    - examples
+    - Godeps
+    - builtin
+
+  # Exclude files
+  exclude-files:
+    - ".*\\.pb\\.go$"
+    - ".*\\.gen\\.go$"
+    - "mock_.*\\.go$"
+
+  # List of regexps of issue texts to exclude
+  exclude:
+    # Exclude error checks on fmt.Fprintf to stdout
+    - "Error return value of .((os\\.)?std(out|err)\\..*|.*Close|.*Flush|os\\.Remove(All)?|.*print(f|ln)?|os\\.(Un)?Setenv). is not checked"
+    # Exclude certain staticcheck messages
+    - 'SA1019: "io/ioutil" has been deprecated' # We know, but we support older Go versions
+
+  # Excluding configuration per-path, per-linter, per-text and per-source
+  exclude-rules:
+    # Exclude lll issues for long lines with go:generate
+    - linters:
+        - lll
+      source: "^//go:generate "
+
+    # Exclude some linters from running on tests files
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - dupl
+        - gosec
+        - goconst
+
+    # Exclude known issues in vendor
+    - path: vendor/
+      linters:
+        - typecheck
+
+    # Exclude certain messages for TODO/FIXME comments
+    - linters:
+        - godox
+      text: "TODO|FIXME|HACK|BUG|OPTIMIZE|IDEA|TBD"
+
+    # Exclude magic numbers in tests
+    - path: _test\.go
+      linters:
+        - gomnd
+
+    # Allow unused parameters in certain cases
+    - linters:
+        - unparam
+      text: "unused parameter"
+
+    # Allow dot imports in tests
+    - path: _test\.go
+      linters:
+        - revive
+      text: "should not use dot imports"
+
+  # Maximum issues count per one linter
+  max-issues-per-linter: 50
+
+  # Maximum count of issues with the same text
+  max-same-issues: 3
+
+  # Show only new issues created after git revision
+  new: false
+
+  # Fix found issues (if it's supported by the linter)
+  fix: false
+
+severity:
+  # Default value is empty string.
+  # Set the default severity for issues. If severity rules are defined and the issues
+  # do not match or no severity is provided to the rule this will be the default
+  # severity applied.
+  default-severity: error
+
+  # If set to true severity-rules regular expressions become case sensitive
+  case-sensitive: false
+
+  # Define severity rules
+  rules:
+    - linters:
+        - dupl
+      severity: info
+    - linters:
+        - goconst
+      severity: warning

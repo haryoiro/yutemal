@@ -3,11 +3,12 @@ package config
 import (
 	"os"
 
+	toml "github.com/pelletier/go-toml/v2"
+
 	"github.com/haryoiro/yutemal/internal/structures"
-	"github.com/pelletier/go-toml/v2"
 )
 
-// Load loads the configuration from a TOML file
+// Load loads the configuration from a TOML file.
 func Load(path string) (*structures.Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -15,14 +16,14 @@ func Load(path string) (*structures.Config, error) {
 	}
 
 	cfg := Default()
-	if err := toml.Unmarshal(data, cfg); err != nil {
-		return nil, err
+	if err2 := toml.Unmarshal(data, cfg); err2 != nil {
+		return nil, err2
 	}
 
 	return cfg, nil
 }
 
-// Save saves the configuration to a TOML file
+// Save saves the configuration to a TOML file.
 func Save(cfg *structures.Config, path string) error {
 	data, err := toml.Marshal(cfg)
 	if err != nil {
@@ -32,7 +33,7 @@ func Save(cfg *structures.Config, path string) error {
 	return os.WriteFile(path, data, 0644)
 }
 
-// Default returns the default configuration
+// Default returns the default configuration.
 func Default() *structures.Config {
 	return &structures.Config{
 		MaxConcurrentDownloads: 4,
@@ -63,7 +64,7 @@ func Default() *structures.Config {
 			MoveUp:      []string{"up", "k"},
 			MoveDown:    []string{"down", "j"},
 			Select:      []string{"enter", "l"},
-			Back:        []string{"backspace", "b"},  // ESC removed to prevent mouse-triggered navigation
+			Back:        []string{"backspace", "b"}, // ESC removed to prevent mouse-triggered navigation
 			NextSection: "tab",
 			PrevSection: "shift+tab",
 

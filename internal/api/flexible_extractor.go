@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// findTrackID searches for track ID in various possible locations
+// findTrackID searches for track ID in various possible locations.
 func findTrackID(obj map[string]any) string {
 	// Direct videoId field
 	if trackID, ok := obj["videoId"].(string); ok {
@@ -29,7 +29,7 @@ func findTrackID(obj map[string]any) string {
 	return ""
 }
 
-// findTitle searches for title in various possible locations
+// findTitle searches for title in various possible locations.
 func findTitle(obj map[string]any) string {
 	// Try different title paths
 	paths := [][]string{
@@ -47,19 +47,19 @@ func findTitle(obj map[string]any) string {
 	return ""
 }
 
-// findArtists searches for artist information
+// findArtists searches for artist information.
 func findArtists(obj map[string]any) []string {
 	var artists []string
 
 	// Try flexColumns approach (common in music lists)
 	if flexCols, ok := obj["flexColumns"].([]any); ok && len(flexCols) > 1 {
-		if col, ok := flexCols[1].(map[string]any); ok {
-			if renderer, ok := col["musicResponsiveListItemFlexColumnRenderer"].(map[string]any); ok {
-				if text, ok := renderer["text"].(map[string]any); ok {
-					if runs, ok := text["runs"].([]any); ok {
+		if col, ok2 := flexCols[1].(map[string]any); ok2 {
+			if renderer, ok3 := col["musicResponsiveListItemFlexColumnRenderer"].(map[string]any); ok3 {
+				if text, ok4 := renderer["text"].(map[string]any); ok4 {
+					if runs, ok5 := text["runs"].([]any); ok5 {
 						for _, run := range runs {
-							if runObj, ok := run.(map[string]any); ok {
-								if runText, ok := runObj["text"].(string); ok && runText != " • " {
+							if runObj, ok6 := run.(map[string]any); ok6 {
+								if runText, ok7 := runObj["text"].(string); ok7 && runText != " • " {
 									artists = append(artists, runText)
 								}
 							}
@@ -94,7 +94,7 @@ func findArtists(obj map[string]any) []string {
 	return artists
 }
 
-// findDuration searches for duration information
+// findDuration searches for duration information.
 func findDuration(obj map[string]any) int {
 	// Try different duration paths
 	paths := [][]string{
@@ -112,7 +112,7 @@ func findDuration(obj map[string]any) int {
 	return 0
 }
 
-// findThumbnail searches for thumbnail URL
+// findThumbnail searches for thumbnail URL.
 func findThumbnail(obj map[string]any) string {
 	// Try different thumbnail paths
 	paths := [][]string{
@@ -124,8 +124,8 @@ func findThumbnail(obj map[string]any) string {
 		if thumbnails := getPath(obj, convertToInterface(path)...); thumbnails != nil {
 			if thumbArray, ok := thumbnails.([]any); ok && len(thumbArray) > 0 {
 				// Get the largest thumbnail (usually the last one)
-				if lastThumb, ok := thumbArray[len(thumbArray)-1].(map[string]any); ok {
-					if url, ok := lastThumb["url"].(string); ok {
+				if lastThumb, ok2 := thumbArray[len(thumbArray)-1].(map[string]any); ok2 {
+					if url, ok3 := lastThumb["url"].(string); ok3 {
 						return url
 					}
 				}
@@ -136,19 +136,21 @@ func findThumbnail(obj map[string]any) string {
 	return ""
 }
 
-// getPathString gets a string value from a nested path
+// getPathString gets a string value from a nested path.
 func getPathString(data map[string]any, keys ...string) string {
 	if result := getPath(data, convertToInterface(keys)...); result != nil {
 		if s, ok := result.(string); ok {
 			return s
 		}
 	}
+
 	return ""
 }
 
-// convertToInterface converts string slice to interface slice
+// convertToInterface converts string slice to interface slice.
 func convertToInterface(strings []string) []any {
 	interfaces := make([]any, len(strings))
+
 	for i, s := range strings {
 		// Try to convert to int if it's a number
 		if num, err := strconv.Atoi(s); err == nil {
@@ -157,10 +159,11 @@ func convertToInterface(strings []string) []any {
 			interfaces[i] = s
 		}
 	}
+
 	return interfaces
 }
 
-// parseDurationString parses duration string like "3:45" to seconds
+// parseDurationString parses duration string like "3:45" to seconds.
 func parseDurationString(duration string) int {
 	parts := strings.Split(duration, ":")
 	if len(parts) == 0 {
@@ -168,6 +171,7 @@ func parseDurationString(duration string) int {
 	}
 
 	seconds := 0
+
 	for i := len(parts) - 1; i >= 0; i-- {
 		val, err := strconv.Atoi(parts[i])
 		if err != nil {
@@ -187,7 +191,7 @@ func parseDurationString(duration string) int {
 	return seconds
 }
 
-// Enhanced playlist extraction
+// Enhanced playlist extraction.
 func extractPlaylistFromObject(obj map[string]any) *PlaylistRef {
 	// Check if this looks like a playlist object
 	browseID := findPlaylistBrowseID(obj)
@@ -217,7 +221,7 @@ func extractPlaylistFromObject(obj map[string]any) *PlaylistRef {
 	return nil
 }
 
-// findPlaylistBrowseID searches for playlist browse ID
+// findPlaylistBrowseID searches for playlist browse ID.
 func findPlaylistBrowseID(obj map[string]any) string {
 	paths := [][]string{
 		{"navigationEndpoint", "browseEndpoint", "browseId"},
@@ -233,7 +237,7 @@ func findPlaylistBrowseID(obj map[string]any) string {
 	return ""
 }
 
-// findSubtitle searches for subtitle text
+// findSubtitle searches for subtitle text.
 func findSubtitle(obj map[string]any) string {
 	paths := [][]string{
 		{"subtitle", "runs", "0", "text"},

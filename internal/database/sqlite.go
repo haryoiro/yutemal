@@ -8,18 +8,19 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/haryoiro/yutemal/internal/structures"
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/haryoiro/yutemal/internal/structures"
 )
 
-// SQLiteDatabase represents the SQLite-based music database
+// SQLiteDatabase represents the SQLite-based music database.
 type SQLiteDatabase struct {
 	mu   sync.RWMutex
 	db   *sql.DB
 	path string
 }
 
-// OpenSQLite opens or creates a SQLite database
+// OpenSQLite opens or creates a SQLite database.
 func OpenSQLite(path string) (*SQLiteDatabase, error) {
 	// Ensure the directory exists with proper permissions
 	dir := filepath.Dir(path)
@@ -34,15 +35,16 @@ func OpenSQLite(path string) (*SQLiteDatabase, error) {
 
 	// Create the file if it doesn't exist with proper permissions
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		file, err := os.Create(path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create database file: %w", err)
+		file, err2 := os.Create(path)
+		if err2 != nil {
+			return nil, fmt.Errorf("failed to create database file: %w", err2)
 		}
+
 		file.Close()
 
 		// Set file permissions explicitly
-		if err := os.Chmod(path, 0644); err != nil {
-			return nil, fmt.Errorf("failed to set file permissions: %w", err)
+		if err3 := os.Chmod(path, 0644); err3 != nil {
+			return nil, fmt.Errorf("failed to set file permissions: %w", err3)
 		}
 	}
 
@@ -53,9 +55,9 @@ func OpenSQLite(path string) (*SQLiteDatabase, error) {
 	}
 
 	// Test basic connectivity first
-	if err := db.Ping(); err != nil {
+	if pingErr := db.Ping(); pingErr != nil {
 		db.Close()
-		return nil, fmt.Errorf("failed to ping database: %w", err)
+		return nil, fmt.Errorf("failed to ping database: %w", pingErr)
 	}
 
 	// Set pragmas one by one with error handling
@@ -68,9 +70,9 @@ func OpenSQLite(path string) (*SQLiteDatabase, error) {
 	}
 
 	for _, pragma := range pragmas {
-		if _, err := db.Exec(pragma); err != nil {
+		if _, pragmaErr := db.Exec(pragma); pragmaErr != nil {
 			db.Close()
-			return nil, fmt.Errorf("failed to set pragma '%s': %w", pragma, err)
+			return nil, fmt.Errorf("failed to set pragma '%s': %w", pragma, pragmaErr)
 		}
 	}
 
@@ -79,15 +81,15 @@ func OpenSQLite(path string) (*SQLiteDatabase, error) {
 		path: path,
 	}
 
-	if err := sqliteDB.createTables(); err != nil {
+	if createErr := sqliteDB.createTables(); createErr != nil {
 		db.Close()
-		return nil, fmt.Errorf("failed to create tables: %w", err)
+		return nil, fmt.Errorf("failed to create tables: %w", createErr)
 	}
 
 	return sqliteDB, nil
 }
 
-// createTables creates the necessary database tables
+// createTables creates the necessary database tables.
 func (db *SQLiteDatabase) createTables() error {
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS tracks (
@@ -188,7 +190,7 @@ func (db *SQLiteDatabase) createTables() error {
 	return nil
 }
 
-// runMigrations applies schema updates to existing databases
+// runMigrations applies schema updates to existing databases.
 func (db *SQLiteDatabase) runMigrations() error {
 	// Check if playlists table has sync columns
 	var columnExists bool
@@ -262,12 +264,12 @@ func (db *SQLiteDatabase) runMigrations() error {
 	return nil
 }
 
-// Close closes the database
+// Close closes the database.
 func (db *SQLiteDatabase) Close() error {
 	return db.db.Close()
 }
 
-// Add adds a new track to the database
+// Add adds a new track to the database.
 func (db *SQLiteDatabase) Add(entry structures.DatabaseEntry) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
@@ -302,16 +304,17 @@ func (db *SQLiteDatabase) Add(entry structures.DatabaseEntry) error {
 	return err
 }
 
-// Remove removes a track from the database
+// Remove removes a track from the database.
 func (db *SQLiteDatabase) Remove(trackID string) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
 	_, err := db.db.Exec("DELETE FROM tracks WHERE track_id = ?", trackID)
+
 	return err
 }
 
-// Get retrieves a track by ID
+// Get retrieves a track by ID.
 func (db *SQLiteDatabase) Get(trackID string) (*structures.DatabaseEntry, bool) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
@@ -351,11 +354,12 @@ func (db *SQLiteDatabase) Get(trackID string) (*structures.DatabaseEntry, bool) 
 		if err == sql.ErrNoRows {
 			return nil, false
 		}
+
 		return nil, false
 	}
 
 	// Parse artists JSON
-	if err := json.Unmarshal([]byte(artistsJSON), &entry.Track.Artists); err != nil {
+	if unmarshalErr := json.Unmarshal([]byte(artistsJSON), &entry.Track.Artists); unmarshalErr != nil {
 		return nil, false
 	}
 
@@ -365,10 +369,11 @@ func (db *SQLiteDatabase) Get(trackID string) (*structures.DatabaseEntry, bool) 
 	entry.FileSize = fileSize.Int64
 	entry.Track.AudioBitrate = int(audioBitrate.Int64)
 	entry.Track.AudioQuality = audioQuality.String
+
 	return &entry, true
 }
 
-// GetAll returns all tracks
+// GetAll returns all tracks.
 func (db *SQLiteDatabase) GetAll() []structures.DatabaseEntry {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
@@ -396,7 +401,7 @@ func (db *SQLiteDatabase) GetAll() []structures.DatabaseEntry {
 		var audioBitrate sql.NullInt64
 		var audioQuality sql.NullString
 
-		err := rows.Scan(
+		scanErr := rows.Scan(
 			&entry.Track.TrackID,
 			&entry.Track.Title,
 			&artistsJSON,
@@ -411,12 +416,12 @@ func (db *SQLiteDatabase) GetAll() []structures.DatabaseEntry {
 			&audioQuality,
 		)
 
-		if err != nil {
+		if scanErr != nil {
 			continue
 		}
 
 		// Parse artists JSON
-		if err := json.Unmarshal([]byte(artistsJSON), &entry.Track.Artists); err != nil {
+		if unmarshalErr := json.Unmarshal([]byte(artistsJSON), &entry.Track.Artists); unmarshalErr != nil {
 			continue
 		}
 
@@ -433,7 +438,7 @@ func (db *SQLiteDatabase) GetAll() []structures.DatabaseEntry {
 	return entries
 }
 
-// GetCache retrieves cached data by key
+// GetCache retrieves cached data by key.
 func (db *SQLiteDatabase) GetCache(cacheKey string) (string, bool) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
@@ -451,7 +456,7 @@ func (db *SQLiteDatabase) GetCache(cacheKey string) (string, bool) {
 	return responseData, true
 }
 
-// SetCache stores data in the cache
+// SetCache stores data in the cache.
 func (db *SQLiteDatabase) SetCache(cacheKey, cacheType, responseData string, ttlSeconds int) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
@@ -463,32 +468,36 @@ func (db *SQLiteDatabase) SetCache(cacheKey, cacheType, responseData string, ttl
 	`
 
 	_, err := db.db.Exec(query, cacheKey, cacheType, responseData, ttlSeconds)
+
 	return err
 }
 
-// InvalidateCache removes a specific cache entry
+// InvalidateCache removes a specific cache entry.
 func (db *SQLiteDatabase) InvalidateCache(cacheKey string) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
 	_, err := db.db.Exec("DELETE FROM api_cache WHERE cache_key = ?", cacheKey)
+
 	return err
 }
 
-// InvalidateCacheByType removes all cache entries of a specific type
+// InvalidateCacheByType removes all cache entries of a specific type.
 func (db *SQLiteDatabase) InvalidateCacheByType(cacheType string) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
 	_, err := db.db.Exec("DELETE FROM api_cache WHERE cache_type = ?", cacheType)
+
 	return err
 }
 
-// CleanExpiredCache removes expired cache entries
+// CleanExpiredCache removes expired cache entries.
 func (db *SQLiteDatabase) CleanExpiredCache() error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
 	_, err := db.db.Exec("DELETE FROM api_cache WHERE expires_at <= CURRENT_TIMESTAMP")
+
 	return err
 }

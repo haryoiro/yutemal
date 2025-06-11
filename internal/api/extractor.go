@@ -1,7 +1,6 @@
 package api
 
-// fromJSON applies a transformer function recursively to extract data from JSON
-// This matches the Rust implementation's approach
+// This matches the Rust implementation's approach.
 func fromJSON[T any](data any, transformer func(any) *T, keyFunc func(T) string) []T {
 	var results []T
 	seen := make(map[string]bool)
@@ -15,6 +14,7 @@ func fromJSON[T any](data any, transformer func(any) *T, keyFunc func(T) string)
 				results = append(results, *result)
 				seen[key] = true
 			}
+
 			return // Don't recurse if we found something
 		}
 
@@ -36,20 +36,21 @@ func fromJSON[T any](data any, transformer func(any) *T, keyFunc func(T) string)
 	}
 
 	crawl(data)
+
 	return results
 }
 
-// extractPlaylists extracts playlist references from API response
+// extractPlaylists extracts playlist references from API response.
 func extractPlaylists(resp BrowseResponse) []PlaylistRef {
 	return fromJSON(resp, extractPlaylistFromAny, func(p PlaylistRef) string { return p.BrowseID })
 }
 
-// extractTracks extracts video references from API response
+// extractTracks extracts video references from API response.
 func extractTracks(resp BrowseResponse) []TrackRef {
 	return fromJSON(resp, extractTrackFromItem, func(v TrackRef) string { return v.TrackID })
 }
 
-// extractPlaylistFromAny tries to extract a playlist from any JSON value
+// extractPlaylistFromAny tries to extract a playlist from any JSON value.
 func extractPlaylistFromAny(value any) *PlaylistRef {
 	obj, ok := value.(map[string]any)
 	if !ok {
@@ -60,10 +61,10 @@ func extractPlaylistFromAny(value any) *PlaylistRef {
 	var playlistObj map[string]any
 
 	// Look for musicTwoRowItemRenderer first (library playlists)
-	if renderer, ok := obj["musicTwoRowItemRenderer"].(map[string]any); ok {
+	if renderer, ok2 := obj["musicTwoRowItemRenderer"].(map[string]any); ok2 {
 		playlistObj = renderer
-	} else if renderer, ok := obj["musicResponsiveListItemRenderer"].(map[string]any); ok {
-		playlistObj = renderer
+	} else if renderer2, ok3 := obj["musicResponsiveListItemRenderer"].(map[string]any); ok3 {
+		playlistObj = renderer2
 	} else {
 		// If it's already a playlist object, use it directly
 		playlistObj = obj
@@ -73,7 +74,7 @@ func extractPlaylistFromAny(value any) *PlaylistRef {
 	return extractPlaylistFromObject(playlistObj)
 }
 
-// extractTrackFromItem tries to extract a video from any JSON value
+// extractTrackFromItem tries to extract a video from any JSON value.
 func extractTrackFromItem(value any) *TrackRef {
 	obj, ok := value.(map[string]any)
 	if !ok {
@@ -107,7 +108,7 @@ func extractTrackFromItem(value any) *TrackRef {
 
 // Utility functions
 
-// getPath extracts a value from nested path in JSON
+// getPath extracts a value from nested path in JSON.
 func getPath(data map[string]any, keys ...any) any {
 	current := any(data)
 
@@ -118,12 +119,14 @@ func getPath(data map[string]any, keys ...any) any {
 			if !ok {
 				return nil
 			}
+
 			current = m[k]
 		case int:
 			a, ok := current.([]any)
 			if !ok || k >= len(a) {
 				return nil
 			}
+
 			current = a[k]
 		default:
 			return nil
@@ -133,14 +136,16 @@ func getPath(data map[string]any, keys ...any) any {
 	return current
 }
 
-// interfaceSliceToMapSlice converts []any to []map[string]any
+// interfaceSliceToMapSlice converts []any to []map[string]any.
 func interfaceSliceToMapSlice(slice []any) []map[string]any {
 	var result []map[string]any
+
 	for _, item := range slice {
 		if m, ok := item.(map[string]any); ok {
 			result = append(result, m)
 		}
 	}
+
 	return result
 }
 
@@ -169,6 +174,7 @@ func getContents(data map[string]any) []map[string]any {
 	if contents, ok := getPath(data, "contents").(map[string]any); ok {
 		return extractContentItems(contents)
 	}
+
 	return nil
 }
 
@@ -176,6 +182,7 @@ func getTabs(data map[string]any) []map[string]any {
 	if tabs, ok := getPath(data, "contents", "singleColumnBrowseResultsRenderer", "tabs").([]any); ok {
 		return interfaceSliceToMapSlice(tabs)
 	}
+
 	return nil
 }
 
@@ -183,6 +190,7 @@ func getTabContents(tab map[string]any) []map[string]any {
 	if content, ok := getPath(tab, "tabRenderer", "content").(map[string]any); ok {
 		return extractContentItems(content)
 	}
+
 	return nil
 }
 
@@ -191,7 +199,7 @@ func extractContentItems(content map[string]any) []map[string]any {
 
 	// Check different content types
 	if sectionList, ok := content["sectionListRenderer"].(map[string]any); ok {
-		if contents, ok := sectionList["contents"].([]any); ok {
+		if contents, ok2 := sectionList["contents"].([]any); ok2 {
 			items = append(items, interfaceSliceToMapSlice(contents)...)
 		}
 	}
@@ -209,19 +217,21 @@ func extractContentItems(content map[string]any) []map[string]any {
 
 func extractMusicShelfItems(content map[string]any) []map[string]any {
 	if shelf, ok := content["musicShelfRenderer"].(map[string]any); ok {
-		if contents, ok := shelf["contents"].([]any); ok {
+		if contents, ok2 := shelf["contents"].([]any); ok2 {
 			return interfaceSliceToMapSlice(contents)
 		}
 	}
+
 	return nil
 }
 
 func extractGridItems(content map[string]any) []map[string]any {
 	if grid, ok := content["gridRenderer"].(map[string]any); ok {
-		if items, ok := grid["items"].([]any); ok {
+		if items, ok2 := grid["items"].([]any); ok2 {
 			return interfaceSliceToMapSlice(items)
 		}
 	}
+
 	return nil
 }
 
