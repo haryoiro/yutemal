@@ -90,8 +90,10 @@ type Model struct {
 	needsMarquee  bool // Track if marquee is needed for current content
 
 	// Rainbow seekbar animation
-	rainbowOffset     int
-	rainbowTickActive bool
+	rainbowOffset int
+
+	// Unified tick management
+	tickActive bool
 
 	// Mouse wheel throttling
 	lastScrollTime time.Time
@@ -207,28 +209,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		m.lastUpdate = time.Time(msg)
 
-		var cmds []tea.Cmd
 		// Handle marquee animation
 		if m.needsMarquee {
 			m.marqueeOffset++
-			cmds = append(cmds, m.tickCmd())
 		}
 
 		// Handle rainbow animation for rainbow seekbar style
 		if m.config.Theme.ProgressBarStyle == "rainbow" && m.playerState.TotalTime > 0 {
 			m.rainbowOffset = (m.rainbowOffset + 1) % 360
-			// Continue the tick cycle if active
-			if m.rainbowTickActive {
-				cmds = append(cmds, m.rainbowTickCmd())
-			}
-		} else {
-			// Stop rainbow animation if conditions are not met
-			m.rainbowTickActive = false
 		}
 
-		if len(cmds) > 0 {
-			return m, tea.Batch(cmds...)
+		// Continue tick if any animation needs it
+		if m.shouldTick() && m.tickActive {
+			return m, m.unifiedTickCmd()
 		}
+
+		// Stop ticking if no longer needed
+		m.tickActive = false
 
 		return m, nil
 
@@ -263,13 +260,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.listenToPlayer())
 		cmds = append(cmds, m.checkMarqueeCmd())
 
-		// Start rainbow animation if needed
-		if m.config.Theme.ProgressBarStyle == "rainbow" && m.playerState.TotalTime > 0 && !m.rainbowTickActive {
-			m.rainbowTickActive = true
-			cmds = append(cmds, m.rainbowTickCmd())
-		} else if m.config.Theme.ProgressBarStyle != "rainbow" || m.playerState.TotalTime == 0 {
-			// Stop rainbow animation if conditions are not met
-			m.rainbowTickActive = false
+		// Start unified tick if needed (for rainbow or marquee)
+		if m.shouldTick() && !m.tickActive {
+			m.tickActive = true
+			cmds = append(cmds, m.unifiedTickCmd())
 		}
 
 		return m, tea.Batch(cmds...)
@@ -481,8 +475,21 @@ func (m *Model) View() string {
 	return result
 }
 
-func (m *Model) rainbowTickCmd() tea.Cmd {
-	return tea.Tick(2000*time.Millisecond, func(t time.Time) tea.Msg {
+func (m *Model) shouldTick() bool {
+	// Tick if marquee is needed
+	if m.needsMarquee {
+		return true
+	}
+	// Tick if rainbow animation is active
+	if m.config.Theme.ProgressBarStyle == "rainbow" && m.playerState.TotalTime > 0 {
+		return true
+	}
+
+	return false
+}
+
+func (m *Model) unifiedTickCmd() tea.Cmd {
+	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }

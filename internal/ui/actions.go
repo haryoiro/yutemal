@@ -160,18 +160,14 @@ func (m *Model) downloadAllSongs(tracks []structures.Track) tea.Cmd {
 }
 
 func (m *Model) checkMarqueeCmd() tea.Cmd {
-	if m.needsMarquee {
-		return m.tickCmd()
+	// Start unified tick if any animation needs it
+	if m.shouldTick() && !m.tickActive {
+		m.tickActive = true
+		return m.unifiedTickCmd()
 	}
-
 	return nil
 }
 
-func (m *Model) tickCmd() tea.Cmd {
-	return tea.Every(500*time.Millisecond, func(t time.Time) tea.Msg {
-		return tickMsg(t)
-	})
-}
 
 func (m *Model) listenToPlayer() tea.Cmd {
 	return func() tea.Msg {
