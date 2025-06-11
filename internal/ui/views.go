@@ -397,7 +397,7 @@ func (m Model) renderHome(maxWidth int) string {
 	b.WriteString(titleStyle.Render(headerTitle))
 	b.WriteString("\n\033[A")
 
-	shortcuts := m.shortcutFormatter.FormatHints(m.shortcutFormatter.GetHomeHints(m.showQueue, len(m.sections) > 1))
+	shortcuts := m.shortcutFormatter.FormatHints(m.shortcutFormatter.GetHomeHints(m.showQueue))
 	if runewidth.StringWidth(headerTitle) + runewidth.StringWidth(shortcuts) + 2 <= maxWidth {
 		b.WriteString(dimStyle.Render(shortcuts))
 	}
@@ -509,7 +509,7 @@ func (m Model) renderHome(maxWidth int) string {
 
 // renderSectionTabs renders the section tabs at the top
 func (m Model) renderSectionTabs(maxWidth int) string {
-	titleStyle, selectedStyle, normalStyle, dimStyle, _ := m.getStyles()
+	titleStyle, selectedStyle, normalStyle, _, _ := m.getStyles()
 
 	// Apply focus style if home view has focus
 	if m.hasFocus("home") {
@@ -537,17 +537,9 @@ func (m Model) renderSectionTabs(maxWidth int) string {
 	if runewidth.StringWidth(tabsStr) > maxWidth {
 		// 簡単な実装：現在のタブだけを表示
 		currentTab := selectedStyle.PaddingLeft(2).PaddingRight(2).Render(m.sections[m.currentSectionIndex].Title)
-		hint := m.shortcutFormatter.GetSectionNavigationHint(len(m.sections) > 1)
-		if hint != "" {
-			return currentTab + "  " + dimStyle.Render(hint)
-		}
 		return currentTab
 	}
 
-	hint := m.shortcutFormatter.GetSectionNavigationHint(len(m.sections) > 1)
-	if hint != "" {
-		return tabsStr + "\n  " + dimStyle.Render(hint)
-	}
 	return tabsStr
 }
 

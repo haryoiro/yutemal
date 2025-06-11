@@ -205,16 +205,9 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // handleHomeKeys handles keys specific to the home view
 func (m *Model) handleHomeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	kb := m.config.KeyBindings
-
-	// Section navigation
-	if m.isKey(msg, kb.NextSection) || m.isKey(msg, "right") {
-		return m.nextSection()
-	}
-	if m.isKey(msg, kb.PrevSection) || m.isKey(msg, "left") {
-		return m.prevSection()
-	}
-
+	// Currently no home-specific keys since section navigation conflicts with player controls
+	// Tab is used for queue focus toggle
+	// Left/Right are used for seeking
 	return m, nil
 }
 

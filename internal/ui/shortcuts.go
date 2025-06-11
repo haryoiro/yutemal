@@ -194,19 +194,12 @@ func (sf *ShortcutFormatter) GetNavigationHints() []ShortcutHint {
 }
 
 // GetHomeHints returns shortcuts for the home view
-func (sf *ShortcutFormatter) GetHomeHints(showQueue bool, hasMultipleSections bool) []ShortcutHint {
+func (sf *ShortcutFormatter) GetHomeHints(showQueue bool) []ShortcutHint {
 	kb := sf.config.KeyBindings
 	hints := []ShortcutHint{
 		{Key: sf.formatKeys(kb.Select), Action: "Open"},
+		{Key: sf.formatKey(kb.Search), Action: "Search"},
 	}
-	
-	// Only show section navigation if there are multiple sections
-	if hasMultipleSections && !showQueue {
-		// Show both configured keys and arrow keys
-		hints = append(hints, ShortcutHint{Key: "←/→ or " + sf.formatKey(kb.NextSection), Action: "Switch Section"})
-	}
-	
-	hints = append(hints, ShortcutHint{Key: sf.formatKey(kb.Search), Action: "Search"})
 	
 	if showQueue {
 		hints = append(hints, ShortcutHint{Key: sf.formatKey("tab"), Action: "Focus Queue"})
@@ -279,9 +272,7 @@ func (sf *ShortcutFormatter) GetEmptyStateHint(action string, key string) string
 
 // GetSectionNavigationHint returns section navigation hints
 func (sf *ShortcutFormatter) GetSectionNavigationHint(hasMultipleSections bool) string {
-	if hasMultipleSections {
-		kb := sf.config.KeyBindings
-		return fmt.Sprintf("← → or %s to switch sections", sf.formatKey(kb.NextSection))
-	}
+	// Section navigation is not available due to key conflicts
+	// Tab is used for queue focus, Left/Right for seeking
 	return ""
 }
