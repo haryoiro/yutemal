@@ -89,6 +89,10 @@ type Model struct {
 	lastUpdate    time.Time
 	needsMarquee  bool // Track if marquee is needed for current content
 
+	// Rainbow seekbar animation
+	rainbowOffset     int
+	rainbowTickActive bool
+
 	// Mouse wheel throttling
 	lastScrollTime time.Time
 	scrollCooldown time.Duration
@@ -169,7 +173,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		logger.Debug("errorMsg received: %v, current state: %v", msg, m.state)
 	case tickMsg:
-		// Tickメッセージは多すぎるので記録しない
 	default:
 		msgType = "other"
 	}
@@ -203,9 +206,28 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tickMsg:
 		m.lastUpdate = time.Time(msg)
+
+		var cmds []tea.Cmd
+		// Handle marquee animation
 		if m.needsMarquee {
 			m.marqueeOffset++
-			return m, m.tickCmd()
+			cmds = append(cmds, m.tickCmd())
+		}
+
+		// Handle rainbow animation for rainbow seekbar style
+		if m.config.Theme.ProgressBarStyle == "rainbow" && m.playerState.TotalTime > 0 {
+			m.rainbowOffset = (m.rainbowOffset + 1) % 360
+			// Continue the tick cycle if active
+			if m.rainbowTickActive {
+				cmds = append(cmds, m.rainbowTickCmd())
+			}
+		} else {
+			// Stop rainbow animation if conditions are not met
+			m.rainbowTickActive = false
+		}
+
+		if len(cmds) > 0 {
+			return m, tea.Batch(cmds...)
 		}
 
 		return m, nil
@@ -237,10 +259,20 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		return m, tea.Batch(
-			m.listenToPlayer(),
-			m.checkMarqueeCmd(),
-		)
+		var cmds []tea.Cmd
+		cmds = append(cmds, m.listenToPlayer())
+		cmds = append(cmds, m.checkMarqueeCmd())
+
+		// Start rainbow animation if needed
+		if m.config.Theme.ProgressBarStyle == "rainbow" && m.playerState.TotalTime > 0 && !m.rainbowTickActive {
+			m.rainbowTickActive = true
+			cmds = append(cmds, m.rainbowTickCmd())
+		} else if m.config.Theme.ProgressBarStyle != "rainbow" || m.playerState.TotalTime == 0 {
+			// Stop rainbow animation if conditions are not met
+			m.rainbowTickActive = false
+		}
+
+		return m, tea.Batch(cmds...)
 
 	case sectionsLoadedMsg:
 		if m.state == HomeView {
@@ -447,4 +479,10 @@ func (m *Model) View() string {
 	}
 
 	return result
+}
+
+func (m *Model) rainbowTickCmd() tea.Cmd {
+	return tea.Tick(2000*time.Millisecond, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
 }

@@ -24,7 +24,7 @@ playing = "#9ece6a"         # Currently playing item color
 border = "#3b4261"          # Border color
 progress_bar = "#565f89"    # Progress bar background
 progress_bar_fill = "#7aa2f7" # Progress bar fill color
-progress_bar_style = "gradient" # Progress bar style: "line", "block", or "gradient"
+progress_bar_style = "gradient" # Progress bar style: "line", "block", "gradient", or "rainbow"
 
 # Alternative theme examples:
 

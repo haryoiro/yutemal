@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -228,6 +229,17 @@ func (m *Model) renderProgressBar(width int) string {
 			bar.WriteString(progressBgStyle.Render(strings.Repeat(ProgressGradientEmpty, empty)))
 		}
 
+	case "rainbow":
+		// Rainbow gradient style with animation
+		if filled > 0 {
+			rainbowBar := m.createRainbowBar(filled, m.rainbowOffset)
+			bar.WriteString(rainbowBar)
+		}
+
+		if empty > 0 {
+			bar.WriteString(progressBgStyle.Render(strings.Repeat(ProgressGradientEmpty, empty)))
+		}
+
 	default:
 		// Default to gradient
 		if filled > 0 {
@@ -289,6 +301,82 @@ func (m *Model) createGradientBar(width int, startColor, endColor string) string
 	}
 
 	return result
+}
+
+// createRainbowBar creates an animated rainbow gradient progress bar.
+func (m *Model) createRainbowBar(width int, t int) string {
+	if width <= 0 {
+		return ""
+	}
+
+	result := ""
+
+	// Fixed gradient length - one full rainbow cycle every 120 characters
+	gradientLength := 120.0
+	// Create rainbow gradient with offset for animation
+	for i := 0; i < width; i++ {
+		// Calculate position in the gradient cycle
+		position := float64(i) / gradientLength
+		// Add time offset to create animation effect
+		hue := math.Mod(position*360+float64(t), 360)
+		// Convert HSL to RGB with softer, more pleasant colors
+		// Lower saturation (0.6) and higher lightness (0.7) for pastel colors
+		r, g, b := hslToRGB(hue, 0.6, 0.7)
+
+		// Create color string in hex format
+		color := fmt.Sprintf("#%02x%02x%02x", r, g, b)
+
+		// Apply color to character
+		style := lipgloss.NewStyle().Foreground(lipgloss.Color(color))
+		result += style.Render("━")
+	}
+
+	return result
+}
+
+// hslToRGB converts HSL color values to RGB.
+func hslToRGB(h, s, l float64) (uint8, uint8, uint8) {
+	h /= 360.0
+
+	var r, g, b float64
+
+	if s == 0 {
+		r, g, b = l, l, l
+	} else {
+		var hue2rgb = func(p, q, t float64) float64 {
+			if t < 0 {
+				t++
+			}
+			if t > 1 {
+				t--
+			}
+			if t < 1.0/6.0 {
+				return p + (q-p)*6*t
+			}
+			if t < 1.0/2.0 {
+				return q
+			}
+			if t < 2.0/3.0 {
+				return p + (q-p)*(2.0/3.0-t)*6
+			}
+			return p
+		}
+
+		var q float64
+		if l < 0.5 {
+			q = l * (1 + s)
+		} else {
+			q = l + s - l*s
+		}
+
+		p := 2*l - q
+
+		r = hue2rgb(p, q, h+1.0/3.0)
+		g = hue2rgb(p, q, h)
+		b = hue2rgb(p, q, h-1.0/3.0)
+	}
+
+	return uint8(r * 255), uint8(g * 255), uint8(b * 255)
 }
 
 func (m *Model) renderControls(availableWidth int) string {
