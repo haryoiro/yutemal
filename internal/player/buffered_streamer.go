@@ -232,8 +232,10 @@ func (bs *BufferedStreamer) Stream(samples [][2]float64) (n int, ok bool) {
 			// No more data to play
 			logger.Debug("BufferedStreamer: all data played, closing stream")
 			bs.closed = true
+
 			return 0, false
 		}
+
 		if !bs.closed {
 			bs.handleUnderrun()
 		} else {
@@ -244,13 +246,14 @@ func (bs *BufferedStreamer) Stream(samples [][2]float64) (n int, ok bool) {
 	for i := range samples {
 		if bs.filled == 0 {
 			// Check if source is exhausted and buffer is empty
-			if bs.sourceExhausted {
+			switch {
+			case bs.sourceExhausted:
 				// We've played all available data
 				bs.closed = true
 				ok = i > 0
-			} else if bs.closed {
+			case bs.closed:
 				ok = i > 0
-			} else {
+			default:
 				ok = true
 			}
 
@@ -415,6 +418,7 @@ func (bs *BufferedStreamer) resizeBuffer() {
 		bs.mu.Unlock()
 		return
 	}
+
 	bs.resizeInProgress = true
 	targetSize := bs.targetBufferSize
 	bs.mu.Unlock()
@@ -431,6 +435,7 @@ func (bs *BufferedStreamer) resizeBuffer() {
 		// Increase by 10% or 0.1 second worth of samples, whichever is larger
 		increment := bs.bufferSize / 10
 		minIncrement := int(float64(bs.format.SampleRate) * 0.1)
+
 		if increment < minIncrement {
 			increment = minIncrement
 		}

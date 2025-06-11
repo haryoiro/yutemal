@@ -74,7 +74,6 @@ func NewClient(headers map[string]string, accountID string) (*Client, error) {
 	// Check if login is required
 	if strings.Contains(bodyStr, `<base href="https://accounts.google.com/v3/signin/">`) ||
 		strings.Contains(bodyStr, `<base href="https://consent.youtube.com/">`) {
-
 		return nil, fmt.Errorf("need to login")
 	}
 

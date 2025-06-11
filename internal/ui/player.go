@@ -199,21 +199,21 @@ func (m *Model) renderProgressBar(width int) string {
 	case "block":
 		// Block style with solid blocks
 		if filled > 0 {
-			bar.WriteString(progressBarStyle.Render(strings.Repeat("█", filled)))
+			bar.WriteString(progressBarStyle.Render(strings.Repeat(ProgressBlockFilled, filled)))
 		}
 
 		if empty > 0 {
-			bar.WriteString(progressBgStyle.Render(strings.Repeat("░", empty)))
+			bar.WriteString(progressBgStyle.Render(strings.Repeat(ProgressBlockEmpty, empty)))
 		}
 
 	case "line":
 		// Line style with simple lines
 		if filled > 0 {
-			bar.WriteString(progressBarStyle.Render(strings.Repeat("─", filled)))
+			bar.WriteString(progressBarStyle.Render(strings.Repeat(ProgressLineFilled, filled)))
 		}
 
 		if empty > 0 {
-			bar.WriteString(progressBgStyle.Render(strings.Repeat("─", empty)))
+			bar.WriteString(progressBgStyle.Render(strings.Repeat(ProgressLineEmpty, empty)))
 		}
 
 	case "gradient":
@@ -225,7 +225,7 @@ func (m *Model) renderProgressBar(width int) string {
 		}
 
 		if empty > 0 {
-			bar.WriteString(progressBgStyle.Render(strings.Repeat("━", empty)))
+			bar.WriteString(progressBgStyle.Render(strings.Repeat(ProgressGradientEmpty, empty)))
 		}
 
 	default:
@@ -236,7 +236,7 @@ func (m *Model) renderProgressBar(width int) string {
 		}
 
 		if empty > 0 {
-			bar.WriteString(progressBgStyle.Render(strings.Repeat("━", empty)))
+			bar.WriteString(progressBgStyle.Render(strings.Repeat(ProgressGradientEmpty, empty)))
 		}
 	}
 

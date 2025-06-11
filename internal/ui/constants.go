@@ -13,7 +13,16 @@ var (
 	EllipsisWidth = runewidth.StringWidth("...")
 	SpaceWidth    = 1
 
-	// Progress bar.
-	ProgressEmptyChar  = "─"
-	ProgressFilledChar = "━"
+	// Progress bar symbols for different styles.
+	// Block style
+	ProgressBlockFilled = "█"
+	ProgressBlockEmpty  = "░"
+
+	// Line style
+	ProgressLineFilled = "─"
+	ProgressLineEmpty  = "─"
+
+	// Gradient style
+	ProgressGradientFilled = "━"
+	ProgressGradientEmpty  = "━"
 )
