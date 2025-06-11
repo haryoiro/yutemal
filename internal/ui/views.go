@@ -74,7 +74,6 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 
 	b.WriteString("\033[B\n")
 
-
 	if len(m.playlistTracks) == 0 {
 		b.WriteString(dimStyle.Render("No tracks in this playlist"))
 		return b.String()
@@ -239,7 +238,7 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 		footerInfo = append(footerInfo, focusHelp)
 	}
 
-	b.WriteString("  "+dimStyle.Render(strings.Join(footerInfo, "  ")))
+	b.WriteString("  " + dimStyle.Render(strings.Join(footerInfo, "  ")))
 
 	return b.String()
 }

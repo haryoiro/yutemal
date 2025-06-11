@@ -25,22 +25,38 @@ type BufferedStreamer struct {
 
 	underruns int
 	maxFilled int
+
+	// Dynamic buffer management
+	minBufferSize        int
+	maxBufferSize        int
+	targetBufferSize     int
+	resizeInProgress     bool
+	consecutiveUnderruns int
+	lastUnderrunTime     time.Time
 }
 
 // NewBufferedStreamer creates a new buffered streamer.
 func NewBufferedStreamer(source beep.Streamer, format beep.Format, bufferSeconds float64) *BufferedStreamer {
-	bufferSize := int(float64(format.SampleRate) * bufferSeconds)
+	initialBufferSize := int(float64(format.SampleRate) * bufferSeconds)
+	minBufferSize := int(float64(format.SampleRate) * 2.0) // 2 seconds minimum
+	maxBufferSize := int(float64(format.SampleRate) * 8.0) // 8 seconds maximum
 
 	bs := &BufferedStreamer{
-		source:     source,
-		buffer:     make([][2]float64, bufferSize),
-		bufferSize: bufferSize,
-		format:     format,
-		position:   0,
+		source:           source,
+		buffer:           make([][2]float64, maxBufferSize), // Allocate max size upfront
+		bufferSize:       initialBufferSize,
+		targetBufferSize: initialBufferSize,
+		minBufferSize:    minBufferSize,
+		maxBufferSize:    maxBufferSize,
+		format:           format,
+		position:         0,
 	}
 	bs.cond = sync.NewCond(&bs.mu)
 
-	logger.Debug("Created buffered streamer with %.1f seconds buffer (%d samples)", bufferSeconds, bufferSize)
+	logger.Debug("Created buffered streamer with %.1f seconds buffer (%d samples), min: %.1f sec, max: %.1f sec",
+		bufferSeconds, initialBufferSize,
+		float64(minBufferSize)/float64(format.SampleRate),
+		float64(maxBufferSize)/float64(format.SampleRate))
 
 	go bs.fillLoop()
 
@@ -50,6 +66,8 @@ func NewBufferedStreamer(source beep.Streamer, format beep.Format, bufferSeconds
 // fillLoop continuously fills the buffer in the background.
 func (bs *BufferedStreamer) fillLoop() {
 	tempBuffer := make([][2]float64, 8192*2)
+	healthCheckTicker := time.NewTicker(5 * time.Second)
+	defer healthCheckTicker.Stop()
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -58,8 +76,13 @@ func (bs *BufferedStreamer) fillLoop() {
 	}()
 
 	for {
-		if !bs.processFillIteration(tempBuffer) {
-			return
+		select {
+		case <-healthCheckTicker.C:
+			bs.checkBufferHealth()
+		default:
+			if !bs.processFillIteration(tempBuffer) {
+				return
+			}
 		}
 	}
 }
@@ -170,11 +193,7 @@ func (bs *BufferedStreamer) Stream(samples [][2]float64) (n int, ok bool) {
 
 	if bs.filled == 0 {
 		if !bs.closed {
-			bs.underruns++
-			logger.Warn("Audio buffer underrun #%d detected at position %d (max fill: %d/%d = %.1f%%)",
-				bs.underruns, bs.position, bs.maxFilled, bs.bufferSize,
-				float64(bs.maxFilled)/float64(bs.bufferSize)*100)
-			time.Sleep(100 * time.Millisecond)
+			bs.handleUnderrun()
 		} else {
 			return 0, false
 		}
@@ -229,11 +248,16 @@ func (bs *BufferedStreamer) Close() error {
 
 	time.Sleep(10 * time.Millisecond)
 
-	if bs.underruns > 0 {
-		logger.Debug("BufferedStreamer stats: %d underruns, max buffer fill: %d/%d (%.1f%%)",
-			bs.underruns, bs.maxFilled, bs.bufferSize,
-			float64(bs.maxFilled)/float64(bs.bufferSize)*100)
-	}
+	// Log performance statistics
+	logger.Info("BufferedStreamer performance stats:")
+	logger.Info("  - Underruns: %d (consecutive max: %d)", bs.underruns, bs.consecutiveUnderruns)
+	logger.Info("  - Max buffer fill: %d/%d (%.1f%%)", 
+		bs.maxFilled, bs.bufferSize,
+		float64(bs.maxFilled)/float64(bs.bufferSize)*100)
+	logger.Info("  - Final buffer size: %.1f seconds (%d samples)",
+		float64(bs.bufferSize)/float64(bs.format.SampleRate), bs.bufferSize)
+	logger.Info("  - Target buffer size: %.1f seconds",
+		float64(bs.targetBufferSize)/float64(bs.format.SampleRate))
 
 	return nil
 }
@@ -280,4 +304,129 @@ func (bs *BufferedStreamer) Len() int {
 	}
 
 	return 0
+}
+
+// handleUnderrun handles buffer underrun with dynamic resizing and progressive retry
+func (bs *BufferedStreamer) handleUnderrun() {
+	bs.underruns++
+	now := time.Now()
+
+	// Check if this is a consecutive underrun
+	if now.Sub(bs.lastUnderrunTime) < 2*time.Second {
+		bs.consecutiveUnderruns++
+	} else {
+		bs.consecutiveUnderruns = 1
+	}
+	bs.lastUnderrunTime = now
+
+	logger.Warn("Audio buffer underrun #%d detected at position %d (consecutive: %d, max fill: %d/%d = %.1f%%)",
+		bs.underruns, bs.position, bs.consecutiveUnderruns,
+		bs.maxFilled, bs.bufferSize,
+		float64(bs.maxFilled)/float64(bs.bufferSize)*100)
+
+	// Dynamic buffer resizing based on consecutive underruns
+	if bs.consecutiveUnderruns >= 2 && bs.targetBufferSize < bs.maxBufferSize {
+		newSize := bs.targetBufferSize + int(float64(bs.format.SampleRate)*0.5) // Add 0.5 seconds
+		if newSize > bs.maxBufferSize {
+			newSize = bs.maxBufferSize
+		}
+
+		oldSizeSeconds := float64(bs.targetBufferSize) / float64(bs.format.SampleRate)
+		newSizeSeconds := float64(newSize) / float64(bs.format.SampleRate)
+
+		logger.Info("Increasing buffer size from %.1f to %.1f seconds due to repeated underruns",
+			oldSizeSeconds, newSizeSeconds)
+
+		bs.targetBufferSize = newSize
+		go bs.resizeBuffer()
+	}
+
+	// Progressive retry with decreasing wait times
+	waitTime := bs.calculateWaitTime()
+	time.Sleep(waitTime)
+}
+
+// calculateWaitTime returns progressively shorter wait times for retries
+func (bs *BufferedStreamer) calculateWaitTime() time.Duration {
+	switch bs.consecutiveUnderruns {
+	case 1:
+		return 100 * time.Millisecond
+	case 2:
+		return 50 * time.Millisecond
+	case 3:
+		return 25 * time.Millisecond
+	default:
+		return 10 * time.Millisecond
+	}
+}
+
+// resizeBuffer gradually adjusts the active buffer size
+func (bs *BufferedStreamer) resizeBuffer() {
+	bs.mu.Lock()
+	if bs.resizeInProgress {
+		bs.mu.Unlock()
+		return
+	}
+	bs.resizeInProgress = true
+	targetSize := bs.targetBufferSize
+	bs.mu.Unlock()
+
+	// Gradually increase buffer size to avoid sudden changes
+	for {
+		bs.mu.Lock()
+		if bs.closed || bs.bufferSize >= targetSize {
+			bs.resizeInProgress = false
+			bs.mu.Unlock()
+			break
+		}
+
+		// Increase by 10% or 0.1 second worth of samples, whichever is larger
+		increment := bs.bufferSize / 10
+		minIncrement := int(float64(bs.format.SampleRate) * 0.1)
+		if increment < minIncrement {
+			increment = minIncrement
+		}
+
+		newSize := bs.bufferSize + increment
+		if newSize > targetSize {
+			newSize = targetSize
+		}
+
+		bs.bufferSize = newSize
+		logger.Debug("Buffer size adjusted to %.2f seconds (%d samples)",
+			float64(newSize)/float64(bs.format.SampleRate), newSize)
+
+		bs.mu.Unlock()
+
+		// Wait a bit before next adjustment
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+// checkBufferHealth monitors buffer health and adjusts size downward if stable
+func (bs *BufferedStreamer) checkBufferHealth() {
+	bs.mu.Lock()
+	defer bs.mu.Unlock()
+
+	// If we've been stable for a while, consider reducing buffer size
+	if bs.underruns == 0 || time.Since(bs.lastUnderrunTime) > 30*time.Second {
+		if bs.targetBufferSize > bs.minBufferSize && bs.filled > bs.bufferSize*3/4 {
+			// Reduce target by 0.25 seconds
+			newTarget := bs.targetBufferSize - int(float64(bs.format.SampleRate)*0.25)
+			if newTarget < bs.minBufferSize {
+				newTarget = bs.minBufferSize
+			}
+
+			if newTarget < bs.targetBufferSize {
+				bs.targetBufferSize = newTarget
+				logger.Debug("Reducing target buffer size to %.2f seconds due to stable playback",
+					float64(newTarget)/float64(bs.format.SampleRate))
+			}
+		}
+
+		// Reset consecutive underrun counter if stable
+		if time.Since(bs.lastUnderrunTime) > 10*time.Second {
+			bs.consecutiveUnderruns = 0
+		}
+	}
 }

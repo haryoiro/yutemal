@@ -31,7 +31,11 @@ type minimp3Decoder struct {
 	lastReadTime  time.Time
 
 	// Pre-allocated buffers to reduce GC pressure
-	readBuffer []byte
+	readBuffer      []byte
+	decodeBuffer    []byte       // Reusable decode input buffer
+	pcmBuffer       []int16      // Reusable PCM output buffer
+	samplePool      [][2]float64 // Pool of sample buffers
+	samplePoolIndex int
 }
 
 // DecodeMiniMP3 decodes an MP3 file using minimp3.
@@ -84,6 +88,9 @@ func DecodeMiniMP3(file *os.File) (beep.StreamSeekCloser, beep.Format, error) {
 	logger.Debug("minimp3: Created decoder for %d Hz, %d channels, initial estimate: %d samples",
 		sampleRate, channels, totalSamples)
 
+	// Pre-allocate buffers to reduce GC pressure
+	const maxDecodeSize = 4608 * 2 // Max MP3 frame size * 2 for stereo
+
 	return &minimp3Decoder{
 		decoder:                dec,
 		data:                   data,
@@ -93,6 +100,11 @@ func DecodeMiniMP3(file *os.File) (beep.StreamSeekCloser, beep.Format, error) {
 		buffer:                 make([]int16, 0),
 		bufferIndex:            0,
 		durationUpdateCallback: nil,
+		// Pre-allocated buffers
+		readBuffer:   make([]byte, 65536), // 64KB read buffer
+		decodeBuffer: make([]byte, maxDecodeSize),
+		pcmBuffer:    make([]int16, maxDecodeSize),
+		samplePool:   make([][2]float64, 8192), // Pool of samples
 	}, format, nil
 }
 
@@ -203,14 +215,23 @@ func (d *minimp3Decoder) handleEOF(samples [][2]float64, startIndex int) {
 
 // convertBytesToSamples converts bytes to int16 samples.
 func (d *minimp3Decoder) convertBytesToSamples(buf []byte, bytesRead int) {
-	// Convert bytes to int16 samples - reuse buffer if possible
+	// Convert bytes to int16 samples - reuse pre-allocated buffer
 	requiredSize := bytesRead / 2
-	if cap(d.buffer) < requiredSize {
-		d.buffer = make([]int16, requiredSize)
+
+	// Use pre-allocated pcmBuffer if it's large enough
+	if requiredSize <= len(d.pcmBuffer) {
+		d.buffer = d.pcmBuffer[:requiredSize]
 	} else {
-		d.buffer = d.buffer[:requiredSize]
+		// Only allocate if we need more than pre-allocated
+		if cap(d.buffer) < requiredSize {
+			logger.Debug("Allocating larger buffer: %d samples (was %d)", requiredSize, cap(d.buffer))
+			d.buffer = make([]int16, requiredSize)
+		} else {
+			d.buffer = d.buffer[:requiredSize]
+		}
 	}
 
+	// Use optimized loop for byte-to-int16 conversion
 	for j := 0; j < requiredSize; j++ {
 		d.buffer[j] = int16(buf[j*2]) | (int16(buf[j*2+1]) << 8)
 	}
