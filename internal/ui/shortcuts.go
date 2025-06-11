@@ -171,7 +171,7 @@ func (sf *ShortcutFormatter) GetPlaylistHints() []ShortcutHint {
 	return []ShortcutHint{
 		{Key: sf.formatKeys(kb.Select), Action: "Play from Here"},
 		{Key: sf.formatKey(kb.RemoveTrack), Action: "Remove Track"},
-		{Key: "q", Action: "Add to Queue"},
+		{Key: "q", Action: "Show Queue"},
 	}
 }
 
