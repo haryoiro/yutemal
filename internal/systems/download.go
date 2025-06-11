@@ -37,7 +37,9 @@ func NewDownloadSystem(cfg *structures.Config, db database.DB, cacheDir string) 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	downloadDir := filepath.Join(cacheDir, "downloads")
-	os.MkdirAll(downloadDir, 0755)
+	if err := os.MkdirAll(downloadDir, 0755); err != nil {
+		logger.Error("Failed to create download directory: %v", err)
+	}
 
 	return &DownloadSystem{
 		config:      cfg,
@@ -232,15 +234,9 @@ func (ds *DownloadSystem) downloadTrack(track structures.Track) error {
 		}
 
 		// Build yt-dlp command with cookies if available
-		// Get audio quality from config or use default
-		audioQuality := ds.config.AudioQuality
-		if audioQuality == "" {
-			audioQuality = constants.AudioQualityMedium
-		}
-
 		// Get yt-dlp quality value
-		ytdlpQuality, ok := constants.AudioQualityMap[audioQuality]
-		if !ok {
+		ytdlpQuality, qualityOK := constants.AudioQualityMap[audioQuality]
+		if !qualityOK {
 			ytdlpQuality = constants.AudioQualityMap[constants.AudioQualityMedium]
 		}
 
@@ -250,7 +246,9 @@ func (ds *DownloadSystem) downloadTrack(track structures.Track) error {
 			"--audio-quality", ytdlpQuality,
 			"--no-playlist",
 			"--no-check-certificates", // Add this to avoid SSL issues
-			"--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+			"--user-agent",
+			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+				"AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
 			"--output", filepath.Join(ds.downloadDir, "%(id)s.%(ext)s"),
 		}
 
@@ -283,7 +281,7 @@ func (ds *DownloadSystem) downloadTrack(track structures.Track) error {
 		}
 
 		// Success - get actual file size
-		if fileInfo, err := os.Stat(outputPath); err == nil {
+		if fileInfo, statErr := os.Stat(outputPath); statErr == nil {
 			actualSizeMB := float64(fileInfo.Size()) / 1024.0 / 1024.0
 			logger.Debug("Successfully downloaded %s - Actual size: %.1f MB", track.TrackID, actualSizeMB)
 		} else {
@@ -328,8 +326,8 @@ func (ds *DownloadSystem) updateDatabase(track structures.Track, filePath string
 	}
 
 	// Add to database
-	if err := ds.database.Add(entry); err != nil {
-		return fmt.Errorf("failed to update database: %w", err)
+	if addErr := ds.database.Add(entry); addErr != nil {
+		return fmt.Errorf("failed to update database: %w", addErr)
 	}
 
 	return nil
@@ -359,7 +357,9 @@ func (ds *DownloadSystem) getFileBitrate(filePath string) int {
 	}
 
 	bitrate := 0
-	fmt.Sscanf(bitrateStr, "%d", &bitrate)
+	if _, parseErr := fmt.Sscanf(bitrateStr, "%d", &bitrate); parseErr != nil {
+		logger.Debug("Failed to parse bitrate: %v", parseErr)
+	}
 
 	// Convert to kbps
 	if bitrate > 0 {
@@ -486,7 +486,9 @@ func (ds *DownloadSystem) getFileDuration(filePath string) int {
 	}
 
 	var duration float64
-	fmt.Sscanf(durationStr, "%f", &duration)
+	if _, err := fmt.Sscanf(durationStr, "%f", &duration); err != nil {
+		logger.Debug("Failed to parse duration: %v", err)
+	}
 
 	// Convert to seconds (ceiling - round up)
 	if duration > 0 {

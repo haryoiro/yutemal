@@ -109,7 +109,10 @@ func main() {
 		fmt.Println("\nAre you sure you want to continue? (y/N): ")
 
 		var confirm string
-		_, _ = fmt.Scanln(&confirm)
+		if _, scanErr := fmt.Scanln(&confirm); scanErr != nil {
+			// Ignore input error, just treat as no confirmation
+			confirm = "n"
+		}
 
 		if confirm != "y" && confirm != "Y" {
 			fmt.Println("Cache clearing cancelled.")
@@ -118,14 +121,14 @@ func main() {
 
 		fmt.Println("Clearing all cache data...")
 
-		if err := os.RemoveAll(cacheDir); err != nil {
-			fmt.Printf("Failed to clear cache directory: %v\n", err)
+		if removeErr := os.RemoveAll(cacheDir); removeErr != nil {
+			fmt.Printf("Failed to clear cache directory: %v\n", removeErr)
 		} else {
 			fmt.Printf("✓ Cleared cache directory: %s\n", cacheDir)
 		}
 
-		if err := os.RemoveAll(dataDir); err != nil {
-			fmt.Printf("Failed to clear data directory: %v\n", err)
+		if removeErr := os.RemoveAll(dataDir); removeErr != nil {
+			fmt.Printf("Failed to clear data directory: %v\n", removeErr)
 		} else {
 			fmt.Printf("✓ Cleared data directory: %s\n", dataDir)
 		}
@@ -136,25 +139,25 @@ func main() {
 		return
 	}
 
-	if err := checkYtDlp(); err != nil {
+	if ytDlpErr := checkYtDlp(); ytDlpErr != nil {
 		showYtDlpError()
 		return
 	}
 
-	if err := checkFfprobe(); err != nil {
+	if ffprobeErr := checkFfprobe(); ffprobeErr != nil {
 		showFfprobeError()
 		return
 	}
 
 	logFile := filepath.Join(dataDir, "yutemal.log")
-	if err := initLogging(logFile, *debugMode); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to initialize logging: %v\n", err)
+	if logErr := initLogging(logFile, *debugMode); logErr != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initialize logging: %v\n", logErr)
 		os.Exit(1)
 	}
 
 	defer func() {
-		if err := logger.CloseLogger(); err != nil {
-			fmt.Printf("Failed to close logger: %v\n", err)
+		if closeErr := logger.CloseLogger(); closeErr != nil {
+			fmt.Printf("Failed to close logger: %v\n", closeErr)
 		}
 	}()
 
@@ -172,13 +175,13 @@ func main() {
 
 	appSystems := initializeSystems(cfg, db, cacheDir, headerFile)
 	defer func() {
-		if err := appSystems.Stop(); err != nil {
-			logger.Error("Failed to stop systems: %v", err)
+		if stopErr := appSystems.Stop(); stopErr != nil {
+			logger.Error("Failed to stop systems: %v", stopErr)
 		}
 	}()
 
-	if err := ui.RunSimple(appSystems, cfg); err != nil {
-		logger.Fatal("Application error: %v", err)
+	if runErr := ui.RunSimple(appSystems, cfg); runErr != nil {
+		logger.Fatal("Application error: %v", runErr)
 	}
 }
 
@@ -186,32 +189,36 @@ func getDirectories() (config, cache, data string, err error) {
 	// Use XDG Base Directory specification
 	if xdgConfig := os.Getenv("XDG_CONFIG_HOME"); xdgConfig != "" {
 		config = filepath.Join(xdgConfig, "yutemal")
-	} else if home, err := os.UserHomeDir(); err == nil {
+	} else if home, homeErr := os.UserHomeDir(); homeErr == nil {
 		config = filepath.Join(home, ".config", "yutemal")
 	}
 
 	if xdgCache := os.Getenv("XDG_CACHE_HOME"); xdgCache != "" {
 		cache = filepath.Join(xdgCache, "yutemal")
-	} else if home, err := os.UserHomeDir(); err == nil {
+	} else if home, homeErr := os.UserHomeDir(); homeErr == nil {
 		cache = filepath.Join(home, ".cache", "yutemal")
 	}
 
 	if xdgData := os.Getenv("XDG_DATA_HOME"); xdgData != "" {
 		data = filepath.Join(xdgData, "yutemal")
-	} else if home, err := os.UserHomeDir(); err == nil {
+	} else if home, homeErr := os.UserHomeDir(); homeErr == nil {
 		data = filepath.Join(home, ".local", "share", "yutemal")
 	}
 
 	// Create directories if they don't exist
-	if err := os.MkdirAll(config, 0755); err != nil {
-		return "", "", "", err
+	if configErr := os.MkdirAll(config, 0755); configErr != nil {
+		return "", "", "", configErr
 	}
-	if err := os.MkdirAll(cache, 0755); err != nil {
-		return "", "", "", err
-	}
-	_ = os.MkdirAll(data, 0755)
 
-	return
+	if cacheErr := os.MkdirAll(cache, 0755); cacheErr != nil {
+		return "", "", "", cacheErr
+	}
+
+	if dataErr := os.MkdirAll(data, 0755); dataErr != nil {
+		return "", "", "", dataErr
+	}
+
+	return config, cache, data, nil
 }
 
 func initLogging(logFile string, debugMode bool) error {
@@ -305,8 +312,8 @@ func loadConfiguration(configPath string) *structures.Config {
 		cfg = config.Default()
 
 		// Save default config for future use
-		if err := config.Save(cfg, configPath); err != nil {
-			logger.Warn("Failed to save default config: %v", err)
+		if saveErr := config.Save(cfg, configPath); saveErr != nil {
+			logger.Warn("Failed to save default config: %v", saveErr)
 		} else {
 			logger.Debug("Created default config at: %s", configPath)
 		}

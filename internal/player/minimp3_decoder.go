@@ -103,6 +103,7 @@ func (d *minimp3Decoder) Stream(samples [][2]float64) (n int, ok bool) {
 			return i, i > 0
 		}
 	}
+
 	return len(samples), true
 }
 
@@ -144,6 +145,7 @@ func (d *minimp3Decoder) refillBuffer(samples [][2]float64, startIndex int) bool
 	}
 
 	d.convertBytesToSamples(buf, bytesRead)
+
 	return true
 }
 
@@ -159,6 +161,7 @@ func (d *minimp3Decoder) detectUnderrun() {
 			}
 		}
 	}
+
 	d.lastReadTime = now
 }
 
@@ -301,8 +304,8 @@ func (d *minimp3Decoder) seekFromBeginning(targetPos int) error {
 	samplesToSkip := targetPos
 
 	for samplesToSkip > 0 {
-		bytesRead, err := d.decoder.Read(skipBuffer)
-		if err == io.EOF || bytesRead == 0 {
+		bytesRead, readErr := d.decoder.Read(skipBuffer)
+		if readErr == io.EOF || bytesRead == 0 {
 			break
 		}
 

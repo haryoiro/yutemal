@@ -57,7 +57,9 @@ func NewPlayerSystem(cfg *structures.Config, db database.DB, cacheDir string) *P
 	// Set initial volume once
 	if ps.player != nil {
 		logger.Debug("Setting initial volume to: %.2f", cfg.DefaultVolume)
-		ps.player.SetVolume(cfg.DefaultVolume)
+		if err := ps.player.SetVolume(cfg.DefaultVolume); err != nil {
+			logger.Error("Failed to set initial volume: %v", err)
+		}
 	}
 
 	return ps
@@ -456,7 +458,9 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 		ps.state.MusicStatus = make(map[string]structures.MusicDownloadStatus)
 
 		if ps.player != nil {
-			ps.player.Stop()
+			if err := ps.player.Stop(); err != nil {
+				logger.Error("Failed to stop player: %v", err)
+			}
 		}
 
 	case structures.RestartPlayerAction:
@@ -547,7 +551,9 @@ func (ps *PlayerSystem) nextSong() {
 		// Reached end of playlist, stop playing
 		ps.state.IsPlaying = false
 		if ps.player != nil {
-			ps.player.Stop()
+			if err := ps.player.Stop(); err != nil {
+				logger.Error("Failed to stop player: %v", err)
+			}
 		}
 
 		logger.Debug("Reached end of playlist")
@@ -712,7 +718,9 @@ func (ps *PlayerSystem) handleLoadFailure() {
 
 		ps.state.IsPlaying = false
 		if ps.player != nil {
-			ps.player.Stop()
+			if err := ps.player.Stop(); err != nil {
+				logger.Error("Failed to stop player: %v", err)
+			}
 		}
 	}
 }
@@ -742,7 +750,9 @@ func (ps *PlayerSystem) deleteCurrentTrack() {
 
 	// Stop playback
 	if ps.player != nil {
-		ps.player.Stop()
+		if err := ps.player.Stop(); err != nil {
+			logger.Error("Failed to stop player: %v", err)
+		}
 	}
 
 	// Remove from database and delete files
@@ -799,7 +809,9 @@ func (ps *PlayerSystem) deleteTrackAtIndex(index int) {
 
 	// If deleting the current track, stop playback
 	if index == ps.state.Current && ps.player != nil {
-		ps.player.Stop()
+		if err := ps.player.Stop(); err != nil {
+			logger.Error("Failed to stop player: %v", err)
+		}
 		ps.state.IsPlaying = false
 	}
 
@@ -830,8 +842,11 @@ func (ps *PlayerSystem) deleteTrackAtIndex(index int) {
 			ps.loadCurrentSong()
 
 			if ps.player != nil {
-				ps.player.Play()
-				ps.state.IsPlaying = true
+				if err := ps.player.Play(); err != nil {
+					logger.Error("Failed to start playback: %v", err)
+				} else {
+					ps.state.IsPlaying = true
+				}
 			}
 		}
 	}

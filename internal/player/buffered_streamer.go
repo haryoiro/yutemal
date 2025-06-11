@@ -96,9 +96,11 @@ func (bs *BufferedStreamer) adjustTempBuffer(tempBuffer [][2]float64, available 
 
 	if available == 0 {
 		bs.cond.Wait()
+
 		if bs.closed {
 			return tempBuffer
 		}
+
 		available = bs.bufferSize - bs.filled
 	}
 

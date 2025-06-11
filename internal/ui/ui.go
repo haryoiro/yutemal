@@ -220,8 +220,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			if m.playerState.Current < m.queueScrollOffset ||
 				m.playerState.Current >= m.queueScrollOffset+visibleLines {
-
 				m.queueScrollOffset = m.playerState.Current - visibleLines/2
+
 				if m.queueScrollOffset < 0 {
 					m.queueScrollOffset = 0
 				}

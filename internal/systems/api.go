@@ -68,7 +68,7 @@ func (as *APISystem) GetLibraryPlaylists() ([]Playlist, error) {
 		return nil, err
 	}
 
-	var result []Playlist
+	result := make([]Playlist, 0, len(playlists))
 	for _, p := range playlists {
 		result = append(result, Playlist{
 			ID:          p.BrowseID,
@@ -79,7 +79,7 @@ func (as *APISystem) GetLibraryPlaylists() ([]Playlist, error) {
 
 	// Cache the result
 	if as.db != nil && len(result) > 0 {
-		if data, err := json.Marshal(result); err == nil {
+		if data, marshalErr := json.Marshal(result); marshalErr == nil {
 			_ = as.db.SetCache(cacheKey, "playlist_list", string(data), cacheTTLPlaylistList)
 		}
 	}
@@ -110,7 +110,7 @@ func (as *APISystem) GetLikedPlaylists() ([]Playlist, error) {
 		return nil, err
 	}
 
-	var result []Playlist
+	result := make([]Playlist, 0, len(playlists))
 	for _, p := range playlists {
 		result = append(result, Playlist{
 			ID:          p.BrowseID,
@@ -121,7 +121,7 @@ func (as *APISystem) GetLikedPlaylists() ([]Playlist, error) {
 
 	// Cache the result
 	if as.db != nil && len(result) > 0 {
-		if data, err := json.Marshal(result); err == nil {
+		if data, marshalErr := json.Marshal(result); marshalErr == nil {
 			_ = as.db.SetCache(cacheKey, "playlist_list", string(data), cacheTTLPlaylistList)
 		}
 	}
@@ -152,7 +152,7 @@ func (as *APISystem) GetHomePlaylists() ([]Playlist, error) {
 		return nil, err
 	}
 
-	var playlists []Playlist
+	playlists := make([]Playlist, 0, len(results.Playlists))
 	for _, p := range results.Playlists {
 		playlists = append(playlists, Playlist{
 			ID:          p.BrowseID,
@@ -163,7 +163,7 @@ func (as *APISystem) GetHomePlaylists() ([]Playlist, error) {
 
 	// Cache the result
 	if as.db != nil && len(playlists) > 0 {
-		if data, err := json.Marshal(playlists); err == nil {
+		if data, marshalErr := json.Marshal(playlists); marshalErr == nil {
 			_ = as.db.SetCache(cacheKey, "playlist_list", string(data), cacheTTLPlaylistList)
 		}
 	}
@@ -194,7 +194,7 @@ func (as *APISystem) GetPlaylistTracks(playlistID string) ([]structures.Track, e
 		return nil, err
 	}
 
-	var result []structures.Track
+	result := make([]structures.Track, 0, len(tracks))
 	for _, v := range tracks {
 		result = append(result, structures.Track{
 			TrackID:     v.TrackID,
@@ -209,7 +209,7 @@ func (as *APISystem) GetPlaylistTracks(playlistID string) ([]structures.Track, e
 
 	// Cache the result
 	if as.db != nil && len(result) > 0 {
-		if data, err := json.Marshal(result); err == nil {
+		if data, marshalErr := json.Marshal(result); marshalErr == nil {
 			_ = as.db.SetCache(cacheKey, "playlist_tracks", string(data), cacheTTLPlaylistTracks)
 		}
 	}
@@ -243,7 +243,7 @@ func (as *APISystem) Search(query string) (*SearchResults, error) {
 		return nil, err
 	}
 
-	var videos []structures.Track
+	videos := make([]structures.Track, 0, len(results.Tracks))
 	for _, v := range results.Tracks {
 		videos = append(videos, structures.Track{
 			TrackID:     v.TrackID,
@@ -256,7 +256,7 @@ func (as *APISystem) Search(query string) (*SearchResults, error) {
 		})
 	}
 
-	var playlists []Playlist
+	playlists := make([]Playlist, 0, len(results.Playlists))
 	for _, p := range results.Playlists {
 		playlists = append(playlists, Playlist{
 			ID:          p.BrowseID,
@@ -272,7 +272,7 @@ func (as *APISystem) Search(query string) (*SearchResults, error) {
 
 	// Cache the result
 	if as.db != nil {
-		if data, err := json.Marshal(searchResults); err == nil {
+		if data, marshalErr := json.Marshal(searchResults); marshalErr == nil {
 			_ = as.db.SetCache(cacheKey, "search", string(data), cacheTTLSearch)
 		}
 	}
@@ -496,8 +496,8 @@ func (as *APISystem) GetSections() ([]structures.Section, error) {
 	// Try to get some content for new releases by searching for recent popular songs
 	popularSearches := []string{"new music 2024", "latest hits", "top songs"}
 	for _, searchTerm := range popularSearches {
-		searchResults, err := as.Search(searchTerm)
-		if err == nil && len(searchResults.Tracks) > 0 {
+		searchResults, searchErr := as.Search(searchTerm)
+		if searchErr == nil && len(searchResults.Tracks) > 0 {
 			// Add first few tracks from search
 			for i, track := range searchResults.Tracks {
 				if i >= 5 { // Limit to 5 tracks per search
@@ -538,7 +538,7 @@ func (as *APISystem) GetSections() ([]structures.Section, error) {
 
 	// Cache the result
 	if as.db != nil && len(sections) > 0 {
-		if data, err := json.Marshal(sections); err == nil {
+		if data, marshalErr := json.Marshal(sections); marshalErr == nil {
 			_ = as.db.SetCache(cacheKey, "sections", string(data), cacheTTLSections)
 		}
 	}

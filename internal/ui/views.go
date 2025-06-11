@@ -432,11 +432,10 @@ func (m Model) renderHome(maxWidth int) string {
 			if availableWidth > 0 && runewidth.StringWidth(displayText) > availableWidth {
 				if availableWidth > 3 {
 					// 文字列を切り詰め
-					runes := []rune(displayText)
 					truncated := ""
 					width := 0
 
-					for _, r := range runes {
+					for _, r := range displayText {
 						charWidth := runewidth.RuneWidth(r)
 						if width+charWidth > availableWidth-3 {
 							break
@@ -475,12 +474,7 @@ func (m Model) renderHome(maxWidth int) string {
 
 // renderSectionTabs renders the section tabs at the top.
 func (m Model) renderSectionTabs(maxWidth int) string {
-	titleStyle, selectedStyle, normalStyle, dimStyle, _ := m.getStyles()
-
-	// Apply focus style if home view has focus
-	if m.hasFocus("home") {
-		titleStyle = titleStyle.Underline(true)
-	}
+	_, selectedStyle, normalStyle, dimStyle, _ := m.getStyles()
 
 	if len(m.sections) <= 1 {
 		return ""
@@ -866,9 +860,9 @@ func (m *Model) renderQueue(maxWidth int, maxHeight int) string {
 
 		// Help text when focused
 		if m.hasFocus("queue") {
-			hints := m.shortcutFormatter.GetQueueHints(true)
-			if len(hints) > 1 {
-				info = append(info, m.shortcutFormatter.FormatHints(hints[1:])) // Skip the Tab hint
+			focusedHints := m.shortcutFormatter.GetQueueHints(true)
+			if len(focusedHints) > 1 {
+				info = append(info, m.shortcutFormatter.FormatHints(focusedHints[1:])) // Skip the Tab hint
 			}
 		}
 

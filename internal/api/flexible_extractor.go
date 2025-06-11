@@ -97,14 +97,14 @@ func extractArtistsFromFlexColumns(obj map[string]any) []string {
 		return artists
 	}
 
-	for _, run := range runs {
-		runObj, ok := run.(map[string]any)
-		if !ok {
+	for _, runItem := range runs {
+		runObj, runOK := runItem.(map[string]any)
+		if !runOK {
 			continue
 		}
 
-		runText, ok := runObj["text"].(string)
-		if ok && runText != " • " {
+		runText, runTextOK := runObj["text"].(string)
+		if runTextOK && runText != " • " {
 			artists = append(artists, runText)
 		}
 	}
