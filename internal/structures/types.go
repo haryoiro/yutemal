@@ -79,6 +79,7 @@ type PreviousAction struct{ Skip int }
 type CleanupAction struct{}
 type AddTracksToQueueAction struct{ Tracks []Track }
 type AddTrackAction struct{ Track Track }
+type InsertTrackAfterCurrentAction struct{ Track Track }
 type DeleteTrackAction struct{}
 type DeleteTrackAtIndexAction struct{ Index int }
 type ReplaceQueueAction struct{ Tracks []Track }

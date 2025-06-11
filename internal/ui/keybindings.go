@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/haryoiro/yutemal/internal/logger"
+	"github.com/haryoiro/yutemal/internal/structures"
 )
 
 // キーバインド関連のヘルパー関数
@@ -237,8 +238,14 @@ func (m *Model) handleSearchKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // handlePlaylistDetailKeys handles keys specific to the playlist detail view
-func (m *Model) handlePlaylistDetailKeys(_ tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Add playlist-specific key handling here if needed
+func (m *Model) handlePlaylistDetailKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Add single track to queue after current (use 'a' key)
+	if m.isKey(msg, "a") {
+		if len(m.playlistTracks) > 0 && m.playlistSelectedIndex < len(m.playlistTracks) {
+			track := m.playlistTracks[m.playlistSelectedIndex]
+			m.systems.Player.SendAction(structures.InsertTrackAfterCurrentAction{Track: track})
+		}
+	}
 	return m, nil
 }
 

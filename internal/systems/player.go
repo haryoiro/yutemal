@@ -357,6 +357,26 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 			ps.downloadCallback(a.Track)
 		}
 
+	case structures.InsertTrackAfterCurrentAction:
+		if len(ps.state.List) == 0 {
+			ps.state.List = append(ps.state.List, a.Track)
+			ps.state.Current = 0
+		} else {
+			// Insert after current track
+			insertPos := ps.state.Current + 1
+			if insertPos > len(ps.state.List) {
+				insertPos = len(ps.state.List)
+			}
+			ps.state.List = append(ps.state.List[:insertPos],
+				append([]structures.Track{a.Track}, ps.state.List[insertPos:]...)...)
+		}
+		ps.state.MusicStatus[a.Track.TrackID] = structures.NotDownloaded
+		// Queue for download
+		if ps.downloadCallback != nil {
+			ps.downloadCallback(a.Track)
+		}
+		logger.Debug("Inserted track '%s' after current position", a.Track.Title)
+
 	case structures.ReplaceQueueAction:
 		// Keep only up to current position
 		if ps.state.Current+1 < len(ps.state.List) {
