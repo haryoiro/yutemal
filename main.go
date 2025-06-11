@@ -79,7 +79,11 @@ func main() {
 		return
 	}
 
-	configDir, cacheDir, dataDir := getDirectories()
+	configDir, cacheDir, dataDir, err := getDirectories()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get directories: %v\n", err)
+		os.Exit(1)
+	}
 
 	if *showFiles {
 		fmt.Println("# yutemal file locations:")
@@ -178,7 +182,7 @@ func main() {
 	}
 }
 
-func getDirectories() (config, cache, data string) {
+func getDirectories() (config, cache, data string, err error) {
 	// Use XDG Base Directory specification
 	if xdgConfig := os.Getenv("XDG_CONFIG_HOME"); xdgConfig != "" {
 		config = filepath.Join(xdgConfig, "yutemal")
