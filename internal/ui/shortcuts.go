@@ -42,25 +42,25 @@ func (sf *ShortcutFormatter) formatKey(key string) string {
 	formatted := key
 	switch key {
 	case "space":
-		formatted = "␣" // or "Space" if preferred
+		formatted = "Space"
 	case "enter":
-		formatted = "⏎" // or "Enter" if preferred
+		formatted = "Enter"
 	case "esc":
-		formatted = "⎋" // or "Esc" if preferred
+		formatted = "Esc"
 	case "tab":
-		formatted = "⇥" // or "Tab" if preferred
+		formatted = "Tab"
 	case "shift+tab":
-		formatted = "⇤" // or "Shift+Tab" if preferred
+		formatted = "Shift+Tab"
 	case "backspace":
-		formatted = "⌫" // or "Back" if preferred
+		formatted = "Back"
 	case "ctrl+c":
-		formatted = "^C" // or "Ctrl+C" if preferred
+		formatted = "Ctrl+C"
 	case "ctrl+d":
-		formatted = "^D" // or "Ctrl+D" if preferred
+		formatted = "Ctrl+D"
 	case "cmd+c", "meta+c":
-		formatted = "⌘C"
+		formatted = "Cmd+C"
 	case "alt+c", "opt+c":
-		formatted = "⌥C"
+		formatted = "Alt+C"
 	case "up":
 		formatted = "↑"
 	case "down":
@@ -70,17 +70,17 @@ func (sf *ShortcutFormatter) formatKey(key string) string {
 	case "right":
 		formatted = "→"
 	case "pgup":
-		formatted = "⇞" // or "PgUp" if preferred
+		formatted = "PgUp"
 	case "pgdown":
-		formatted = "⇟" // or "PgDn" if preferred
+		formatted = "PgDn"
 	default:
 		// Handle other ctrl/cmd/alt combinations
 		if strings.HasPrefix(key, "ctrl+") {
-			formatted = "^" + strings.TrimPrefix(key, "ctrl+")
+			formatted = "Ctrl+" + strings.ToUpper(strings.TrimPrefix(key, "ctrl+"))
 		} else if strings.HasPrefix(key, "cmd+") || strings.HasPrefix(key, "meta+") {
-			formatted = "⌘" + strings.TrimPrefix(strings.TrimPrefix(key, "cmd+"), "meta+")
+			formatted = "Cmd+" + strings.ToUpper(strings.TrimPrefix(strings.TrimPrefix(key, "cmd+"), "meta+"))
 		} else if strings.HasPrefix(key, "alt+") || strings.HasPrefix(key, "opt+") {
-			formatted = "⌥" + strings.TrimPrefix(strings.TrimPrefix(key, "alt+"), "opt+")
+			formatted = "Alt+" + strings.ToUpper(strings.TrimPrefix(strings.TrimPrefix(key, "alt+"), "opt+"))
 		} else if len(key) == 1 {
 			// Single character keys stay as-is
 			formatted = key
@@ -91,17 +91,52 @@ func (sf *ShortcutFormatter) formatKey(key string) string {
 	return formatted
 }
 
-// formatKeys formats multiple key bindings (e.g., ["j", "down"] -> "j/↓")
+// formatKeys formats multiple key bindings (e.g., ["down", "j"] -> "↓/j")
 func (sf *ShortcutFormatter) formatKeys(keys []string) string {
 	if len(keys) == 0 {
 		return ""
 	}
 
-	formatted := make([]string, len(keys))
-	for i, key := range keys {
+	// Sort keys to ensure arrow keys come first
+	sortedKeys := make([]string, len(keys))
+	copy(sortedKeys, keys)
+	
+	// Custom sort: arrow keys first, then alphabetical
+	for i := 0; i < len(sortedKeys); i++ {
+		for j := i + 1; j < len(sortedKeys); j++ {
+			if shouldSwapKeys(sortedKeys[i], sortedKeys[j]) {
+				sortedKeys[i], sortedKeys[j] = sortedKeys[j], sortedKeys[i]
+			}
+		}
+	}
+
+	formatted := make([]string, len(sortedKeys))
+	for i, key := range sortedKeys {
 		formatted[i] = sf.formatKey(key)
 	}
 	return strings.Join(formatted, "/")
+}
+
+// shouldSwapKeys returns true if key1 should come after key2
+func shouldSwapKeys(key1, key2 string) bool {
+	// Arrow keys have priority
+	isArrow1 := isArrowKey(key1)
+	isArrow2 := isArrowKey(key2)
+	
+	if isArrow1 && !isArrow2 {
+		return false // key1 (arrow) should come first
+	}
+	if !isArrow1 && isArrow2 {
+		return true // key2 (arrow) should come first
+	}
+	
+	// If both are arrows or both are not arrows, use alphabetical order
+	return key1 > key2
+}
+
+// isArrowKey checks if a key is an arrow key
+func isArrowKey(key string) bool {
+	return key == "up" || key == "down" || key == "left" || key == "right"
 }
 
 // FormatHint formats a single shortcut hint
