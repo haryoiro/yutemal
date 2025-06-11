@@ -160,7 +160,7 @@ func (sf *ShortcutFormatter) GetPlayerHints() []ShortcutHint {
 		{Key: sf.formatKey(kb.PlayPause), Action: "Play/Pause"},
 		{Key: sf.formatKey(kb.SeekBackward) + "/" + sf.formatKey(kb.SeekForward), Action: "Seek"},
 		{Key: sf.formatKey(kb.Shuffle), Action: "Shuffle"},
-		{Key: "q", Action: "Queue"},
+		{Key: "q", Action: "Show Queue"},
 		{Key: sf.formatKey(kb.Quit), Action: "Quit"},
 	}
 }
@@ -169,9 +169,9 @@ func (sf *ShortcutFormatter) GetPlayerHints() []ShortcutHint {
 func (sf *ShortcutFormatter) GetPlaylistHints() []ShortcutHint {
 	kb := sf.config.KeyBindings
 	return []ShortcutHint{
-		{Key: sf.formatKeys(kb.Select), Action: "play"},
-		{Key: sf.formatKey(kb.RemoveTrack), Action: "delete"},
-		{Key: "q", Action: "queue"},
+		{Key: sf.formatKeys(kb.Select), Action: "Play from Here"},
+		{Key: sf.formatKey(kb.RemoveTrack), Action: "Remove Track"},
+		{Key: "q", Action: "Add to Queue"},
 	}
 }
 
@@ -179,8 +179,8 @@ func (sf *ShortcutFormatter) GetPlaylistHints() []ShortcutHint {
 func (sf *ShortcutFormatter) GetNavigationHints() []ShortcutHint {
 	kb := sf.config.KeyBindings
 	return []ShortcutHint{
-		{Key: sf.formatKeys(kb.MoveUp) + "/" + sf.formatKeys(kb.MoveDown), Action: "nav"},
-		{Key: sf.formatKeys(kb.Select), Action: "select"},
+		{Key: sf.formatKeys(kb.MoveUp) + "/" + sf.formatKeys(kb.MoveDown), Action: "Navigate"},
+		{Key: sf.formatKeys(kb.Select), Action: "Select"},
 	}
 }
 
@@ -188,16 +188,16 @@ func (sf *ShortcutFormatter) GetNavigationHints() []ShortcutHint {
 func (sf *ShortcutFormatter) GetQueueHints(hasFocus bool) []ShortcutHint {
 	kb := sf.config.KeyBindings
 	hints := []ShortcutHint{
-		{Key: sf.formatKeys(kb.MoveUp) + "/" + sf.formatKeys(kb.MoveDown), Action: "nav"},
-		{Key: sf.formatKeys(kb.Select), Action: "play"},
-		{Key: sf.formatKey(kb.RemoveTrack), Action: "delete"},
+		{Key: sf.formatKeys(kb.MoveUp) + "/" + sf.formatKeys(kb.MoveDown), Action: "Navigate"},
+		{Key: sf.formatKeys(kb.Select), Action: "Play from Here"},
+		{Key: sf.formatKey(kb.RemoveTrack), Action: "Remove Track"},
 	}
 
 	// Add focus-specific hint
 	if hasFocus {
-		hints = append([]ShortcutHint{{Key: sf.formatKey("tab"), Action: "back to main"}}, hints...)
+		hints = append([]ShortcutHint{{Key: sf.formatKey("tab"), Action: "Return to List"}}, hints...)
 	} else {
-		hints = append([]ShortcutHint{{Key: sf.formatKey("tab"), Action: "focus queue"}}, hints...)
+		hints = append([]ShortcutHint{{Key: sf.formatKey("tab"), Action: "Switch to Queue"}}, hints...)
 	}
 
 	return hints
@@ -207,8 +207,8 @@ func (sf *ShortcutFormatter) GetQueueHints(hasFocus bool) []ShortcutHint {
 func (sf *ShortcutFormatter) GetSearchHints() []ShortcutHint {
 	kb := sf.config.KeyBindings
 	return []ShortcutHint{
-		{Key: sf.formatKeys(kb.Select), Action: "search"},
-		{Key: sf.formatKey("esc"), Action: "cancel"},
+		{Key: sf.formatKeys(kb.Select), Action: "Search"},
+		{Key: sf.formatKey("esc"), Action: "Cancel"},
 	}
 }
 
@@ -220,25 +220,25 @@ func (sf *ShortcutFormatter) GetContextualHints(state ViewState, showQueue bool,
 	case HomeView:
 		if showQueue {
 			return sf.FormatHints([]ShortcutHint{
-				{Key: sf.formatKey("tab"), Action: "focus queue"},
-				{Key: sf.formatKey(kb.Search), Action: "search"},
+				{Key: sf.formatKey("tab"), Action: "Switch to Queue"},
+				{Key: sf.formatKey(kb.Search), Action: "Search"},
 			})
 		}
 		return sf.FormatHints([]ShortcutHint{
-			{Key: "q", Action: "show queue"},
+			{Key: "q", Action: "Show Queue"},
 			{Key: sf.formatKey(kb.Search), Action: "search"},
 		})
 
 	case PlaylistDetailView:
 		if showQueue {
 			return sf.FormatHints([]ShortcutHint{
-				{Key: sf.formatKey("tab"), Action: "focus queue"},
-				{Key: sf.formatKeys(kb.Back), Action: "home"},
+				{Key: sf.formatKey("tab"), Action: "Switch to Queue"},
+				{Key: sf.formatKeys(kb.Back), Action: "Go Home"},
 			})
 		}
 		return sf.FormatHints([]ShortcutHint{
-			{Key: "q", Action: "show queue"},
-			{Key: sf.formatKeys(kb.Back), Action: "home"},
+			{Key: "q", Action: "Show Queue"},
+			{Key: sf.formatKeys(kb.Back), Action: "Go Home"},
 		})
 
 	case SearchView:
@@ -247,8 +247,8 @@ func (sf *ShortcutFormatter) GetContextualHints(state ViewState, showQueue bool,
 	default:
 		if hasFocus("queue") {
 			return sf.FormatHints([]ShortcutHint{
-				{Key: sf.formatKey("tab"), Action: "back to main"},
-				{Key: "q", Action: "hide queue"},
+				{Key: sf.formatKey("tab"), Action: "Return to List"},
+				{Key: "q", Action: "Hide Queue"},
 			})
 		}
 		return ""
