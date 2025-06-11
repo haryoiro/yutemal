@@ -2,7 +2,8 @@ package api
 
 import (
 	"bytes"
-	"crypto/sha1"
+	"context"
+	"crypto/sha1" //nolint:gosec // YouTube API requires SHA1 for SAPISIDHASH
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,7 +18,7 @@ const (
 	YTMDomain = "https://music.youtube.com"
 )
 
-// Client represents a YouTube Music API client
+// Client represents a YouTube Music API client.
 type Client struct {
 	sapisid         string
 	innertubeAPIKey string
@@ -27,7 +28,7 @@ type Client struct {
 	httpClient      *http.Client
 }
 
-// NewClient creates a new YouTube Music API client from headers
+// NewClient creates a new YouTube Music API client from headers.
 func NewClient(headers map[string]string, accountID string) (*Client, error) {
 	// Create HTTP client with headers
 	httpClient := &http.Client{
@@ -47,7 +48,7 @@ func NewClient(headers map[string]string, accountID string) (*Client, error) {
 	}
 
 	// Fetch YouTube Music homepage to get API key and client version
-	req, err := http.NewRequest("GET", YTMDomain, nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", YTMDomain, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -73,6 +74,7 @@ func NewClient(headers map[string]string, accountID string) (*Client, error) {
 	// Check if login is required
 	if strings.Contains(bodyStr, `<base href="https://accounts.google.com/v3/signin/">`) ||
 		strings.Contains(bodyStr, `<base href="https://consent.youtube.com/">`) {
+
 		return nil, fmt.Errorf("need to login")
 	}
 
@@ -98,7 +100,7 @@ func NewClient(headers map[string]string, accountID string) (*Client, error) {
 	}, nil
 }
 
-// NewClientFromHeaderFile creates a client from a header file
+// NewClientFromHeaderFile creates a client from a header file.
 func NewClientFromHeaderFile(path string) (*Client, error) {
 	headers := make(map[string]string)
 
@@ -139,47 +141,48 @@ func NewClientFromHeaderFile(path string) (*Client, error) {
 	// Check for account ID file
 	accountID := ""
 	accountPath := filepath.Join(filepath.Dir(path), "account_id.txt")
-	if accountData, err := os.ReadFile(accountPath); err == nil {
+	accountData, accountErr := os.ReadFile(accountPath)
+
+	if accountErr == nil {
 		accountID = strings.TrimSpace(string(accountData))
 	}
 
 	return NewClient(headers, accountID)
 }
 
-// computeSAPIHash computes the SAPISIDHASH for authorization
+// computeSAPIHash computes the SAPISIDHASH for authorization.
 func (c *Client) computeSAPIHash() string {
 	timestamp := time.Now().Unix()
 	data := fmt.Sprintf("%d %s %s", timestamp, c.sapisid, YTMDomain)
 
-	h := sha1.New()
+	h := sha1.New() //nolint:gosec // YouTube API requires SHA1 for SAPISIDHASH
 	h.Write([]byte(data))
 	hash := fmt.Sprintf("%x", h.Sum(nil))
 
 	return fmt.Sprintf("%d_%s", timestamp, hash)
 }
 
-// browse makes a browse API request
+// browse makes a browse API request.
 func (c *Client) browse(endpoint Endpoint) (*BrowseResponse, error) {
 	url := fmt.Sprintf("%s/youtubei/v1/%s?key=%s&prettyPrint=false",
 		YTMDomain, endpoint.GetRoute(), c.innertubeAPIKey)
 
 	// Build request body
-	var body map[string]interface{}
-	context := map[string]interface{}{
-		"client": map[string]interface{}{
+	ctxData := map[string]any{
+		"client": map[string]any{
 			"clientName":    "WEB_REMIX",
 			"clientVersion": c.clientVersion,
 		},
 	}
 
 	if c.accountID != "" {
-		context["user"] = map[string]interface{}{
+		ctxData["user"] = map[string]any{
 			"onBehalfOfUser": c.accountID,
 		}
 	}
 
-	body = map[string]interface{}{
-		"context":         context,
+	body := map[string]any{
+		"context":         ctxData,
 		endpoint.GetKey(): endpoint.GetParam(),
 	}
 
@@ -188,7 +191,7 @@ func (c *Client) browse(endpoint Endpoint) (*BrowseResponse, error) {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewReader(jsonBody))
+	req, err := http.NewRequestWithContext(context.Background(), "POST", url, bytes.NewReader(jsonBody))
 	if err != nil {
 		return nil, err
 	}
@@ -211,19 +214,21 @@ func (c *Client) browse(endpoint Endpoint) (*BrowseResponse, error) {
 	}
 
 	var browseResp BrowseResponse
-	if err := json.Unmarshal(respBody, &browseResp); err != nil {
-		return nil, err
+	unmarshalErr := json.Unmarshal(respBody, &browseResp)
+
+	if unmarshalErr != nil {
+		return nil, unmarshalErr
 	}
 
 	return &browseResp, nil
 }
 
-// BrowseRaw makes a browse API request and returns raw response
+// BrowseRaw makes a browse API request and returns raw response.
 func (c *Client) BrowseRaw(endpoint Endpoint) (*BrowseResponse, error) {
 	return c.browse(endpoint)
 }
 
-// GetLibrary fetches the user's library
+// GetLibrary fetches the user's library.
 func (c *Client) GetLibrary(endpoint Endpoint) ([]PlaylistRef, error) {
 	resp, err := c.browse(endpoint)
 	if err != nil {
@@ -233,7 +238,7 @@ func (c *Client) GetLibrary(endpoint Endpoint) ([]PlaylistRef, error) {
 	return extractPlaylists(*resp), nil
 }
 
-// GetPlaylistByID fetches videos from a playlist by ID
+// GetPlaylistByID fetches videos from a playlist by ID.
 func (c *Client) GetPlaylistByID(playlistID string) ([]TrackRef, error) {
 	resp, err := c.browse(PlaylistEndpoint(playlistID))
 	if err != nil {
@@ -243,7 +248,7 @@ func (c *Client) GetPlaylistByID(playlistID string) ([]TrackRef, error) {
 	return extractTracks(*resp), nil
 }
 
-// Search performs a search query
+// Search performs a search query.
 func (c *Client) Search(query string) (*SearchResults, error) {
 	resp, err := c.browse(SearchEndpoint(query))
 	if err != nil {
@@ -256,7 +261,7 @@ func (c *Client) Search(query string) (*SearchResults, error) {
 	}, nil
 }
 
-// GetHomeEnhanced fetches the home page content with enhanced extraction
+// GetHomeEnhanced fetches the home page content with enhanced extraction.
 func (c *Client) GetHomeEnhanced() (*SearchResults, error) {
 	resp, err := c.browse(MusicHomeEndpoint())
 	if err != nil {
@@ -275,6 +280,7 @@ func (c *Client) GetHomeEnhanced() (*SearchResults, error) {
 				if track := extractTrackFromItem(item); track != nil {
 					tracks = append(tracks, *track)
 				}
+
 				if playlist := extractPlaylistFromItem(item); playlist != nil {
 					playlists = append(playlists, *playlist)
 				}
@@ -300,6 +306,7 @@ func (c *Client) GetHomeEnhanced() (*SearchResults, error) {
 	for _, t := range tracks {
 		trackMap[t.TrackID] = t
 	}
+
 	for _, t := range genericTracks {
 		trackMap[t.TrackID] = t
 	}
@@ -308,16 +315,18 @@ func (c *Client) GetHomeEnhanced() (*SearchResults, error) {
 	for _, p := range playlists {
 		playlistMap[p.BrowseID] = p
 	}
+
 	for _, p := range genericPlaylists {
 		playlistMap[p.BrowseID] = p
 	}
 
 	// Convert maps back to slices
-	var finalTracks []TrackRef
+	finalTracks := make([]TrackRef, 0, len(trackMap))
 	for _, t := range trackMap {
 		finalTracks = append(finalTracks, t)
 	}
-	var finalPlaylists []PlaylistRef
+
+	finalPlaylists := make([]PlaylistRef, 0, len(playlistMap))
 	for _, p := range playlistMap {
 		finalPlaylists = append(finalPlaylists, p)
 	}
@@ -328,27 +337,27 @@ func (c *Client) GetHomeEnhanced() (*SearchResults, error) {
 	}, nil
 }
 
-// GetStreamingData fetches streaming information for a video/track
+// GetStreamingData fetches streaming information for a video/track.
 func (c *Client) GetStreamingData(videoID string) (*StreamingData, error) {
 	url := fmt.Sprintf("%s/youtubei/v1/player?key=%s&prettyPrint=false",
 		YTMDomain, c.innertubeAPIKey)
 
 	// Build request body
-	context := map[string]interface{}{
-		"client": map[string]interface{}{
+	ctxData := map[string]any{
+		"client": map[string]any{
 			"clientName":    "WEB_REMIX",
 			"clientVersion": c.clientVersion,
 		},
 	}
 
 	if c.accountID != "" {
-		context["user"] = map[string]interface{}{
+		ctxData["user"] = map[string]any{
 			"onBehalfOfUser": c.accountID,
 		}
 	}
 
-	body := map[string]interface{}{
-		"context": context,
+	body := map[string]any{
+		"context": ctxData,
 		"videoId": videoID,
 	}
 
@@ -357,7 +366,7 @@ func (c *Client) GetStreamingData(videoID string) (*StreamingData, error) {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewReader(jsonBody))
+	req, err := http.NewRequestWithContext(context.Background(), "POST", url, bytes.NewReader(jsonBody))
 	if err != nil {
 		return nil, err
 	}
@@ -380,8 +389,10 @@ func (c *Client) GetStreamingData(videoID string) (*StreamingData, error) {
 	}
 
 	var playerResp PlayerResponse
-	if err := json.Unmarshal(respBody, &playerResp); err != nil {
-		return nil, err
+	unmarshalErr := json.Unmarshal(respBody, &playerResp)
+
+	if unmarshalErr != nil {
+		return nil, unmarshalErr
 	}
 
 	// Check playability
@@ -402,6 +413,7 @@ func extractSAPISID(cookies string) string {
 			return strings.TrimPrefix(part, "SAPISID=")
 		}
 	}
+
 	return ""
 }
 
@@ -410,9 +422,10 @@ func extractBetween(s, start, end string) string {
 	if startIdx == -1 {
 		return ""
 	}
-	startIdx += len(start)
 
+	startIdx += len(start)
 	endIdx := strings.Index(s[startIdx:], end)
+
 	if endIdx == -1 {
 		return ""
 	}
