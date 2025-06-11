@@ -383,9 +383,26 @@ func (m Model) renderSearch(maxWidth int) string {
 
 // renderHome renders the home view with sections
 func (m Model) renderHome(maxWidth int) string {
-	_, selectedStyle, normalStyle, dimStyle, errorStyle := m.getStyles()
+	titleStyle, selectedStyle, normalStyle, dimStyle, errorStyle := m.getStyles()
+
+	// Apply focus style if home view has focus
+	if m.hasFocus("home") {
+		titleStyle = titleStyle.Underline(true)
+	}
 
 	var b strings.Builder
+
+	// Header with title and shortcuts
+	headerTitle := "🏠 Home"
+	b.WriteString(titleStyle.Render(headerTitle))
+	b.WriteString("\n\033[A")
+
+	shortcuts := m.shortcutFormatter.FormatHints(m.shortcutFormatter.GetHomeHints(m.showQueue, len(m.sections) > 1))
+	if runewidth.StringWidth(headerTitle) + runewidth.StringWidth(shortcuts) + 2 <= maxWidth {
+		b.WriteString(dimStyle.Render(shortcuts))
+	}
+	b.WriteString("\033[B")
+	b.WriteString("\n\n")
 
 	if m.err != nil {
 		b.WriteString(errorStyle.Render(fmt.Sprintf("⚠️  Error: %v", m.err)))
@@ -393,7 +410,7 @@ func (m Model) renderHome(maxWidth int) string {
 	}
 
 	if len(m.sections) == 0 {
-		b.WriteString(" "+dimStyle.Render("Loading home page..."))
+		b.WriteString(dimStyle.Render("Loading home page..."))
 		return b.String()
 	}
 
@@ -505,10 +522,10 @@ func (m Model) renderSectionTabs(maxWidth int) string {
 
 	var tabs []string
 	for i, section := range m.sections {
-		tabStyle := normalStyle.Copy().PaddingLeft(2).PaddingRight(2)
+		tabStyle := normalStyle.PaddingLeft(2).PaddingRight(2)
 
 		if i == m.currentSectionIndex {
-			tabStyle = selectedStyle.Copy().PaddingLeft(2).PaddingRight(2)
+			tabStyle = selectedStyle.PaddingLeft(2).PaddingRight(2)
 		}
 
 		tabs = append(tabs, tabStyle.Render(section.Title))
@@ -519,14 +536,19 @@ func (m Model) renderSectionTabs(maxWidth int) string {
 	// タブがウィンドウ幅を超える場合の処理
 	if runewidth.StringWidth(tabsStr) > maxWidth {
 		// 簡単な実装：現在のタブだけを表示
-		currentTab := selectedStyle.Copy().PaddingLeft(2).PaddingRight(2).Render(m.sections[m.currentSectionIndex].Title)
-		return currentTab + dimStyle.Render(" " + m.shortcutFormatter.GetSectionNavigationHint(true))
+		currentTab := selectedStyle.PaddingLeft(2).PaddingRight(2).Render(m.sections[m.currentSectionIndex].Title)
+		hint := m.shortcutFormatter.GetSectionNavigationHint(len(m.sections) > 1)
+		if hint != "" {
+			return currentTab + "  " + dimStyle.Render(hint)
+		}
+		return currentTab
 	}
 
-	if m.showQueue {
-		return tabsStr + "\n" + dimStyle.Render(m.shortcutFormatter.GetSectionNavigationHint(false))
+	hint := m.shortcutFormatter.GetSectionNavigationHint(len(m.sections) > 1)
+	if hint != "" {
+		return tabsStr + "\n  " + dimStyle.Render(hint)
 	}
-	return tabsStr + "\n  " + dimStyle.Render("Tab to switch sections")
+	return tabsStr
 }
 
 func (m Model) applyMarquee(text string, maxLen int) string {

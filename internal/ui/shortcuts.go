@@ -171,6 +171,7 @@ func (sf *ShortcutFormatter) GetPlaylistHints(showQueue bool) []ShortcutHint {
 		{Key: sf.formatKeys(kb.Select), Action: "Play from Here"},
 		{Key: "a", Action: "Add Next"},
 		{Key: sf.formatKey(kb.RemoveTrack), Action: "Remove Track"},
+		{Key: sf.formatKeys(kb.Back), Action: "Back"},
 	}
 	
 	if showQueue {
@@ -190,6 +191,31 @@ func (sf *ShortcutFormatter) GetNavigationHints() []ShortcutHint {
 		{Key: sf.formatKeys(kb.MoveUp) + "/" + sf.formatKeys(kb.MoveDown), Action: "Navigate"},
 		{Key: sf.formatKeys(kb.Select), Action: "Select"},
 	}
+}
+
+// GetHomeHints returns shortcuts for the home view
+func (sf *ShortcutFormatter) GetHomeHints(showQueue bool, hasMultipleSections bool) []ShortcutHint {
+	kb := sf.config.KeyBindings
+	hints := []ShortcutHint{
+		{Key: sf.formatKeys(kb.Select), Action: "Open"},
+	}
+	
+	// Only show section navigation if there are multiple sections
+	if hasMultipleSections && !showQueue {
+		// Show both configured keys and arrow keys
+		hints = append(hints, ShortcutHint{Key: "←/→ or " + sf.formatKey(kb.NextSection), Action: "Switch Section"})
+	}
+	
+	hints = append(hints, ShortcutHint{Key: sf.formatKey(kb.Search), Action: "Search"})
+	
+	if showQueue {
+		hints = append(hints, ShortcutHint{Key: sf.formatKey("tab"), Action: "Focus Queue"})
+		hints = append(hints, ShortcutHint{Key: "q", Action: "Hide Queue"})
+	} else {
+		hints = append(hints, ShortcutHint{Key: "q", Action: "Show Queue"})
+	}
+	
+	return hints
 }
 
 // GetQueueHints returns queue-specific shortcuts
@@ -222,32 +248,14 @@ func (sf *ShortcutFormatter) GetSearchHints() []ShortcutHint {
 
 // GetContextualHints returns shortcuts based on the current UI state
 func (sf *ShortcutFormatter) GetContextualHints(state ViewState, showQueue bool, hasFocus func(string) bool) string {
-	kb := sf.config.KeyBindings
-
 	switch state {
 	case HomeView:
-		if showQueue {
-			return sf.FormatHints([]ShortcutHint{
-				{Key: sf.formatKey("tab"), Action: "Focus Queue"},
-				{Key: sf.formatKey(kb.Search), Action: "Search"},
-			})
-		}
-		return sf.FormatHints([]ShortcutHint{
-			{Key: "q", Action: "Show Queue"},
-			{Key: sf.formatKey(kb.Search), Action: "Search"},
-		})
+		// Home view shortcuts are shown in the header
+		return ""
 
 	case PlaylistDetailView:
-		if showQueue {
-			return sf.FormatHints([]ShortcutHint{
-				{Key: sf.formatKey("tab"), Action: "Focus Queue"},
-				{Key: sf.formatKeys(kb.Back), Action: "Go Home"},
-			})
-		}
-		return sf.FormatHints([]ShortcutHint{
-			{Key: "q", Action: "Show Queue"},
-			{Key: sf.formatKeys(kb.Back), Action: "Go Home"},
-		})
+		// Playlist view shortcuts are shown in the header
+		return ""
 
 	case SearchView:
 		return sf.FormatHints(sf.GetSearchHints())
@@ -270,9 +278,10 @@ func (sf *ShortcutFormatter) GetEmptyStateHint(action string, key string) string
 }
 
 // GetSectionNavigationHint returns section navigation hints
-func (sf *ShortcutFormatter) GetSectionNavigationHint(canSwitch bool) string {
-	if !canSwitch {
-		return fmt.Sprintf("%s to switch sections disabled (queue is shown)", sf.formatKey("tab"))
+func (sf *ShortcutFormatter) GetSectionNavigationHint(hasMultipleSections bool) string {
+	if hasMultipleSections {
+		kb := sf.config.KeyBindings
+		return fmt.Sprintf("← → or %s to switch sections", sf.formatKey(kb.NextSection))
 	}
-	return fmt.Sprintf("(%s/%s to switch)", sf.formatKey("tab"), sf.formatKey("shift+tab"))
+	return ""
 }
