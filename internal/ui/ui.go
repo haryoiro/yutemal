@@ -219,13 +219,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.rainbowOffset = (m.rainbowOffset + 1) % 360
 		}
 
-		// Continue tick if any animation needs it
-		if m.shouldTick() && m.tickActive {
+		// Continue tick if still active
+		if m.tickActive {
 			return m, m.unifiedTickCmd()
 		}
-
-		// Stop ticking if no longer needed
-		m.tickActive = false
 
 		return m, nil
 
@@ -490,6 +487,12 @@ func (m *Model) shouldTick() bool {
 
 func (m *Model) unifiedTickCmd() tea.Cmd {
 	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg {
+		// Check if tick is still needed
+		if !m.shouldTick() {
+			m.tickActive = false
+			return nil
+		}
+
 		return tickMsg(t)
 	})
 }
