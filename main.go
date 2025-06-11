@@ -28,6 +28,8 @@ const (
 )
 
 func main() {
+	// Setup runewidth configuration
+	ui.SetupRuneWidth()
 	var (
 		showHelp    = flag.Bool("help", false, "Show help message")
 		showFiles   = flag.Bool("files", false, "Show file locations")
@@ -103,7 +105,7 @@ func main() {
 		fmt.Println("\nAre you sure you want to continue? (y/N): ")
 
 		var confirm string
-		fmt.Scanln(&confirm)
+		_, _ = fmt.Scanln(&confirm)
 
 		if confirm != "y" && confirm != "Y" {
 			fmt.Println("Cache clearing cancelled.")
@@ -146,7 +148,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	defer logger.CloseLogger()
+	defer func() {
+		if err := logger.CloseLogger(); err != nil {
+			fmt.Printf("Failed to close logger: %v\n", err)
+		}
+	}()
 
 	configPath := filepath.Join(configDir, "config.toml")
 	cfg := loadConfiguration(configPath)
@@ -161,7 +167,11 @@ func main() {
 	}
 
 	appSystems := initializeSystems(cfg, db, cacheDir, headerFile)
-	defer appSystems.Stop()
+	defer func() {
+		if err := appSystems.Stop(); err != nil {
+			logger.Error("Failed to stop systems: %v", err)
+		}
+	}()
 
 	if err := ui.RunSimple(appSystems, cfg); err != nil {
 		logger.Fatal("Application error: %v", err)
@@ -189,9 +199,13 @@ func getDirectories() (config, cache, data string) {
 	}
 
 	// Create directories if they don't exist
-	os.MkdirAll(config, 0755)
-	os.MkdirAll(cache, 0755)
-	os.MkdirAll(data, 0755)
+	if err := os.MkdirAll(config, 0755); err != nil {
+		return "", "", "", err
+	}
+	if err := os.MkdirAll(cache, 0755); err != nil {
+		return "", "", "", err
+	}
+	_ = os.MkdirAll(data, 0755)
 
 	return
 }

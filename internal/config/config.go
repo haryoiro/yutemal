@@ -30,7 +30,7 @@ func Save(cfg *structures.Config, path string) error {
 		return err
 	}
 
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0600)
 }
 
 // Default returns the default configuration.

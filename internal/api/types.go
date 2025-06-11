@@ -93,10 +93,10 @@ func SearchEndpoint(query string) Endpoint {
 }
 
 // VideoEndpoint returns a video/player endpoint.
-func VideoEndpoint(videoId string) Endpoint {
+func VideoEndpoint(videoID string) Endpoint {
 	return musicEndpoint{
 		key:   "videoId",
-		param: videoId,
+		param: videoID,
 		route: "player",
 	}
 }

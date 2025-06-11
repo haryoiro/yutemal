@@ -52,65 +52,6 @@ func (m *Model) getStyles() (titleStyle, selectedStyle, normalStyle, dimStyle, e
 	return titleStyle, selectedStyle, normalStyle, dimStyle, errorStyle
 }
 
-func (m Model) renderPlaylistList(maxWidth int) string {
-	titleStyle, selectedStyle, normalStyle, dimStyle, errorStyle := m.getStyles()
-
-	var b strings.Builder
-	b.WriteString("  " + titleStyle.Render("🎵 Playlists"))
-	b.WriteString("\n")
-
-	if m.err != nil {
-		b.WriteString(errorStyle.Render(fmt.Sprintf("⚠️  Error: %v", m.err)))
-		return b.String()
-	}
-
-	if len(m.playlists) == 0 {
-		emptyHint := m.shortcutFormatter.GetEmptyStateHint("search", m.config.KeyBindings.Search)
-		b.WriteString(dimStyle.Render("No playlists found.\n\n" + emptyHint))
-
-		return b.String()
-	}
-
-	visibleItems := m.contentHeight - 4
-	if visibleItems < 1 {
-		visibleItems = 1
-	}
-
-	start := m.scrollOffset
-
-	end := start + visibleItems
-	if end > len(m.playlists) {
-		end = len(m.playlists)
-	}
-
-	for i := start; i < end; i++ {
-		playlist := m.playlists[i]
-
-		icon := "📁"
-		if i == m.selectedIndex {
-			icon = "▶"
-		}
-
-		titleWidth := maxWidth - 8
-		if titleWidth < 20 {
-			titleWidth = 20
-		}
-
-		line := fmt.Sprintf("%s  %s", icon, truncate(playlist.Title, titleWidth))
-
-		if i == m.selectedIndex {
-			b.WriteString(selectedStyle.Render(line))
-		} else {
-			b.WriteString(normalStyle.Render(line))
-		}
-
-		if i < end-1 {
-			b.WriteString("\n")
-		}
-	}
-
-	return b.String()
-}
 
 func (m Model) renderPlaylistDetail(maxWidth int) string {
 	titleStyle, selectedStyle, normalStyle, dimStyle, _ := m.getStyles()
@@ -258,7 +199,8 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 		isCurrentTrack := false
 
 		// Check if this track is currently playing
-		if m.playerState.Current < len(m.playerState.List) && m.playerState.List[m.playerState.Current].TrackID == track.TrackID {
+		if m.playerState.Current < len(m.playerState.List) &&
+			m.playerState.List[m.playerState.Current].TrackID == track.TrackID {
 			isCurrentTrack = true
 		}
 
@@ -545,7 +487,7 @@ func (m Model) renderSectionTabs(maxWidth int) string {
 		return ""
 	}
 
-	var tabs []string
+	tabs := make([]string, 0, len(m.sections))
 
 	for i, section := range m.sections {
 		tabStyle := normalStyle.PaddingLeft(2).PaddingRight(2)

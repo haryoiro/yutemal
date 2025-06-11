@@ -7,6 +7,13 @@ import (
 	"github.com/haryoiro/yutemal/internal/structures"
 )
 
+const (
+	upArrow    = "↑"
+	downArrow  = "↓"
+	leftArrow  = "←"
+	rightArrow = "→"
+)
+
 // ShortcutHint represents a single keyboard shortcut hint.
 type ShortcutHint struct {
 	Key    string
@@ -63,13 +70,13 @@ func (sf *ShortcutFormatter) formatKey(key string) string {
 	case "alt+c", "opt+c":
 		formatted = "Alt+C"
 	case "up":
-		formatted = "↑"
+		formatted = upArrow
 	case "down":
-		formatted = "↓"
+		formatted = downArrow
 	case "left":
-		formatted = "←"
+		formatted = leftArrow
 	case "right":
-		formatted = "→"
+		formatted = rightArrow
 	case "pgup":
 		formatted = "PgUp"
 	case "pgdown":
@@ -167,7 +174,10 @@ func (sf *ShortcutFormatter) GetPlayerHints(isHomeView bool, hasMultipleSections
 
 	// Show seek hint only when not in home view with multiple sections
 	if !isHomeView || !hasMultipleSections {
-		hints = append(hints, ShortcutHint{Key: sf.formatKey(kb.SeekBackward) + "/" + sf.formatKey(kb.SeekForward), Action: "Seek"})
+		hints = append(hints, ShortcutHint{
+			Key:    sf.formatKey(kb.SeekBackward) + "/" + sf.formatKey(kb.SeekForward),
+			Action: "Seek",
+		})
 	}
 
 	hints = append(hints,

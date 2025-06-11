@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/mattn/go-sqlite3" // SQLite driver
 
 	"github.com/haryoiro/yutemal/internal/structures"
 )

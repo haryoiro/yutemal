@@ -17,7 +17,10 @@ func findTrackID(obj map[string]any) string {
 		{"navigationEndpoint", "watchEndpoint", "videoId"},
 		{"playNavigationEndpoint", "videoPlaybackUpsellEndpoint", "videoId"},
 		{"playNavigationEndpoint", "watchEndpoint", "videoId"},
-		{"overlay", "musicItemThumbnailOverlayRenderer", "content", "musicPlayButtonRenderer", "playNavigationEndpoint", "watchEndpoint", "videoId"},
+		{
+			"overlay", "musicItemThumbnailOverlayRenderer", "content",
+			"musicPlayButtonRenderer", "playNavigationEndpoint", "watchEndpoint", "videoId",
+		},
 	}
 
 	for _, path := range paths {

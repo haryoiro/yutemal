@@ -14,7 +14,8 @@ import (
 	"github.com/haryoiro/yutemal/internal/systems"
 )
 
-func init() {
+// SetupRuneWidth configures the runewidth settings.
+func SetupRuneWidth() {
 	runewidth.DefaultCondition.EastAsianWidth = false
 }
 

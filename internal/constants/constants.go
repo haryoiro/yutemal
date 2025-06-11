@@ -11,7 +11,7 @@ const (
 
 // Timing constants.
 const (
-	DefaultSleepMs       = 100 * time.Millisecond
+	DefaultSleep         = 100 * time.Millisecond
 	MarqueeTickInterval  = 150 * time.Millisecond
 	PlayerUpdateInterval = 50 * time.Millisecond
 	DownloadRetryDelay   = 2 * time.Second
