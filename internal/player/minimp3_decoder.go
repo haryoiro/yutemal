@@ -166,10 +166,11 @@ func (d *minimp3Decoder) detectUnderrun() {
 	now := time.Now()
 	if !d.lastReadTime.IsZero() {
 		elapsed := now.Sub(d.lastReadTime)
-		if elapsed < time.Millisecond*10 {
+		// Only log if reads are happening too frequently (< 1ms is suspicious)
+		if elapsed < time.Millisecond {
 			d.underrunCount++
-			if d.underrunCount%10 == 0 {
-				logger.Debug("Potential buffer underrun detected: %d occurrences", d.underrunCount)
+			if d.underrunCount%100 == 0 {
+				logger.Debug("Very frequent decoder reads detected: %d occurrences (elapsed: %v)", d.underrunCount, elapsed)
 			}
 		}
 	}

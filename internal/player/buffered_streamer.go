@@ -50,6 +50,7 @@ func NewBufferedStreamer(source beep.Streamer, format beep.Format, bufferSeconds
 		maxBufferSize:    maxBufferSize,
 		format:           format,
 		position:         0,
+		lastUnderrunTime: time.Now(), // Initialize to prevent immediate reduction
 	}
 	bs.cond = sync.NewCond(&bs.mu)
 
@@ -408,9 +409,18 @@ func (bs *BufferedStreamer) checkBufferHealth() {
 	bs.mu.Lock()
 	defer bs.mu.Unlock()
 
-	// If we've been stable for a while, consider reducing buffer size
-	if bs.underruns == 0 || time.Since(bs.lastUnderrunTime) > 30*time.Second {
-		if bs.targetBufferSize > bs.minBufferSize && bs.filled > bs.bufferSize*3/4 {
+	// Only consider reducing buffer size if:
+	// 1. No underruns at all OR haven't had an underrun for a long time
+	// 2. Buffer is consistently full
+	// 3. We're above minimum buffer size
+	stableTime := time.Since(bs.lastUnderrunTime)
+	
+	if (bs.underruns == 0 && bs.position > int(bs.format.SampleRate)*30) || // 30 seconds of playback
+	   (bs.underruns > 0 && stableTime > 60*time.Second) { // 1 minute since last underrun
+		
+		// Only reduce if buffer is consistently very full
+		fillRatio := float64(bs.filled) / float64(bs.bufferSize)
+		if bs.targetBufferSize > bs.minBufferSize && fillRatio > 0.9 {
 			// Reduce target by 0.25 seconds
 			newTarget := bs.targetBufferSize - int(float64(bs.format.SampleRate)*0.25)
 			if newTarget < bs.minBufferSize {
@@ -419,14 +429,23 @@ func (bs *BufferedStreamer) checkBufferHealth() {
 
 			if newTarget < bs.targetBufferSize {
 				bs.targetBufferSize = newTarget
-				logger.Debug("Reducing target buffer size to %.2f seconds due to stable playback",
-					float64(newTarget)/float64(bs.format.SampleRate))
+				logger.Debug("Reducing target buffer size to %.2f seconds (fill ratio: %.1f%%, stable for: %v)",
+					float64(newTarget)/float64(bs.format.SampleRate),
+					fillRatio*100, stableTime)
 			}
 		}
 
-		// Reset consecutive underrun counter if stable
-		if time.Since(bs.lastUnderrunTime) > 10*time.Second {
+		// Reset consecutive underrun counter only after significant stable time
+		if stableTime > 30*time.Second {
 			bs.consecutiveUnderruns = 0
 		}
+	}
+	
+	// Log current buffer status periodically
+	if bs.position%(int(bs.format.SampleRate)*10) == 0 && bs.position > 0 { // Every 10 seconds
+		fillRatio := float64(bs.filled) / float64(bs.bufferSize)
+		logger.Debug("Buffer health: size=%.1fs, filled=%.1f%%, underruns=%d",
+			float64(bs.bufferSize)/float64(bs.format.SampleRate),
+			fillRatio*100, bs.underruns)
 	}
 }
