@@ -119,7 +119,7 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 	b.WriteString(titleStyle.Render(headerTitle))
 	b.WriteString("\n\033[A")
 
-	shortcuts := m.shortcutFormatter.FormatHints(m.shortcutFormatter.GetPlaylistHints())
+	shortcuts := m.shortcutFormatter.FormatHints(m.shortcutFormatter.GetPlaylistHints(m.showQueue))
 	if runewidth.StringWidth(headerTitle) + runewidth.StringWidth(shortcuts) + 2 <= maxWidth {
 		b.WriteString( dimStyle.Render(shortcuts))
 	}
