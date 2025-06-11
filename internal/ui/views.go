@@ -117,12 +117,13 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 	// Header with title and shortcuts
 	headerTitle := fmt.Sprintf("🎶 %s", m.playlistName)
 	b.WriteString(titleStyle.Render(headerTitle))
-	
-	// Show shortcuts only if they fit on the same line
+	b.WriteString("\n\033[A")
+
 	shortcuts := m.shortcutFormatter.FormatHints(m.shortcutFormatter.GetPlaylistHints())
 	if runewidth.StringWidth(headerTitle) + runewidth.StringWidth(shortcuts) + 2 <= maxWidth {
-		b.WriteString("  " + dimStyle.Render(shortcuts))
+		b.WriteString( dimStyle.Render(shortcuts))
 	}
+	b.WriteString("\033[B")
 	b.WriteString("\n\n")
 
 	if len(m.playlistTracks) == 0 {
@@ -392,7 +393,7 @@ func (m Model) renderHome(maxWidth int) string {
 	}
 
 	if len(m.sections) == 0 {
-		b.WriteString(dimStyle.Render("Loading home page..."))
+		b.WriteString(" "+dimStyle.Render("Loading home page..."))
 		return b.String()
 	}
 
@@ -525,7 +526,7 @@ func (m Model) renderSectionTabs(maxWidth int) string {
 	if m.showQueue {
 		return tabsStr + "\n" + dimStyle.Render(m.shortcutFormatter.GetSectionNavigationHint(false))
 	}
-	return tabsStr + "\n" + dimStyle.Render("Tab to switch sections")
+	return tabsStr + "\n  " + dimStyle.Render("Tab to switch sections")
 }
 
 func (m Model) applyMarquee(text string, maxLen int) string {
@@ -738,15 +739,16 @@ func (m *Model) renderQueue(maxWidth int, maxHeight int) string {
 	// Header
 	queueTitle := "🎵 Queue"
 	b.WriteString(titleStyle.Render(queueTitle))
-	
-	// Show shortcuts only if they fit on the same line
+	b.WriteString("\n\033[A")
+
 	hints := m.shortcutFormatter.GetQueueHints(m.hasFocus("queue"))
 	if len(hints) > 0 {
 		shortcuts := m.shortcutFormatter.FormatHint(hints[0])
 		if runewidth.StringWidth(queueTitle) + runewidth.StringWidth(shortcuts) + 2 <= maxWidth {
-			b.WriteString("  " + dimStyle.Render(shortcuts))
+			b.WriteString(dimStyle.Render(shortcuts))
 		}
 	}
+	b.WriteString("\033[B")
 	b.WriteString("\n\n")
 
 	// If no tracks in queue
