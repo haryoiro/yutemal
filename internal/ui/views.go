@@ -116,15 +116,13 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 
 	// Header with title and shortcuts
 	headerTitle := fmt.Sprintf("🎶 %s", m.playlistName)
-	shortcuts := m.shortcutFormatter.FormatHints(m.shortcutFormatter.GetPlaylistHints())
-	// Calculate available space for title
-	headerTitleWidth := maxWidth - runewidth.StringWidth(shortcuts) - 2
-	if headerTitleWidth > 0 {
-		headerTitle = truncate(headerTitle, headerTitleWidth)
-	}
 	b.WriteString(titleStyle.Render(headerTitle))
-	b.WriteString(strings.Repeat(" ", maxWidth - runewidth.StringWidth(headerTitle) - runewidth.StringWidth(shortcuts)))
-	b.WriteString(dimStyle.Render(shortcuts))
+	
+	// Show shortcuts only if they fit on the same line
+	shortcuts := m.shortcutFormatter.FormatHints(m.shortcutFormatter.GetPlaylistHints())
+	if runewidth.StringWidth(headerTitle) + runewidth.StringWidth(shortcuts) + 2 <= maxWidth {
+		b.WriteString("  " + dimStyle.Render(shortcuts))
+	}
 	b.WriteString("\n\n")
 
 	if len(m.playlistTracks) == 0 {
@@ -739,22 +737,15 @@ func (m *Model) renderQueue(maxWidth int, maxHeight int) string {
 
 	// Header
 	queueTitle := "🎵 Queue"
-	var shortcuts string
+	b.WriteString(titleStyle.Render(queueTitle))
+	
+	// Show shortcuts only if they fit on the same line
 	hints := m.shortcutFormatter.GetQueueHints(m.hasFocus("queue"))
 	if len(hints) > 0 {
-		shortcuts = m.shortcutFormatter.FormatHint(hints[0])
-	}
-	// Right-align shortcuts
-	if shortcuts != "" {
-		queueTitleWidth := maxWidth - runewidth.StringWidth(shortcuts) - 2
-		if queueTitleWidth > 0 {
-			queueTitle = truncate(queueTitle, queueTitleWidth)
+		shortcuts := m.shortcutFormatter.FormatHint(hints[0])
+		if runewidth.StringWidth(queueTitle) + runewidth.StringWidth(shortcuts) + 2 <= maxWidth {
+			b.WriteString("  " + dimStyle.Render(shortcuts))
 		}
-		b.WriteString(titleStyle.Render(queueTitle))
-		b.WriteString(strings.Repeat(" ", maxWidth - runewidth.StringWidth(queueTitle) - runewidth.StringWidth(shortcuts)))
-		b.WriteString(dimStyle.Render(shortcuts))
-	} else {
-		b.WriteString(titleStyle.Render(queueTitle))
 	}
 	b.WriteString("\n\n")
 
