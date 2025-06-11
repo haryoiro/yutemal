@@ -115,8 +115,16 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 	var b strings.Builder
 
 	// Header with title and shortcuts
-	b.WriteString(titleStyle.Render(fmt.Sprintf("🎶 %s", m.playlistName)))
-	b.WriteString(" " + dimStyle.Render(m.shortcutFormatter.FormatHints(m.shortcutFormatter.GetPlaylistHints())))
+	headerTitle := fmt.Sprintf("🎶 %s", m.playlistName)
+	shortcuts := m.shortcutFormatter.FormatHints(m.shortcutFormatter.GetPlaylistHints())
+	// Calculate available space for title
+	headerTitleWidth := maxWidth - runewidth.StringWidth(shortcuts) - 2
+	if headerTitleWidth > 0 {
+		headerTitle = truncate(headerTitle, headerTitleWidth)
+	}
+	b.WriteString(titleStyle.Render(headerTitle))
+	b.WriteString(strings.Repeat(" ", maxWidth - runewidth.StringWidth(headerTitle) - runewidth.StringWidth(shortcuts)))
+	b.WriteString(dimStyle.Render(shortcuts))
 	b.WriteString("\n\n")
 
 	if len(m.playlistTracks) == 0 {
@@ -730,10 +738,23 @@ func (m *Model) renderQueue(maxWidth int, maxHeight int) string {
 	var b strings.Builder
 
 	// Header
-	b.WriteString(titleStyle.Render("🎵 Queue"))
+	queueTitle := "🎵 Queue"
+	var shortcuts string
 	hints := m.shortcutFormatter.GetQueueHints(m.hasFocus("queue"))
 	if len(hints) > 0 {
-		b.WriteString(" " + dimStyle.Render(m.shortcutFormatter.FormatHint(hints[0])))
+		shortcuts = m.shortcutFormatter.FormatHint(hints[0])
+	}
+	// Right-align shortcuts
+	if shortcuts != "" {
+		queueTitleWidth := maxWidth - runewidth.StringWidth(shortcuts) - 2
+		if queueTitleWidth > 0 {
+			queueTitle = truncate(queueTitle, queueTitleWidth)
+		}
+		b.WriteString(titleStyle.Render(queueTitle))
+		b.WriteString(strings.Repeat(" ", maxWidth - runewidth.StringWidth(queueTitle) - runewidth.StringWidth(shortcuts)))
+		b.WriteString(dimStyle.Render(shortcuts))
+	} else {
+		b.WriteString(titleStyle.Render(queueTitle))
 	}
 	b.WriteString("\n\n")
 
