@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/haryoiro/yutemal/internal/api"
 	"github.com/haryoiro/yutemal/internal/config"
 	"github.com/haryoiro/yutemal/internal/database"
 	"github.com/haryoiro/yutemal/internal/logger"
@@ -168,12 +169,21 @@ func main() {
 	defer db.Close()
 
 	headerFile := findHeaderFile(configDir)
+	useBrowserCookies := false
 	if headerFile == "" {
-		showAuthenticationError(configDir)
-		return
+		// headers.txt not found — try browser cookies
+		fmt.Println("headers.txt not found. Trying Chrome browser cookies...")
+		_, err := api.ReadBrowserCookies(api.BrowserChrome)
+		if err != nil {
+			showAuthenticationError(configDir)
+			fmt.Printf("\nOr ensure you are logged in to YouTube Music in Chrome.\nError: %v\n", err)
+			return
+		}
+		useBrowserCookies = true
+		fmt.Println("Chrome cookies found!")
 	}
 
-	appSystems := initializeSystems(cfg, db, cacheDir, headerFile)
+	appSystems := initializeSystems(cfg, db, cacheDir, headerFile, useBrowserCookies)
 	defer func() {
 		if stopErr := appSystems.Stop(); stopErr != nil {
 			logger.Error("Failed to stop systems: %v", stopErr)
@@ -357,17 +367,27 @@ func showAuthenticationError(configDir string) {
 	fmt.Println("\nSee README for instructions on obtaining cookies.")
 }
 
-func initializeSystems(cfg *structures.Config, db database.DB, cacheDir, headerFile string) *systems.Systems {
+func initializeSystems(cfg *structures.Config, db database.DB, cacheDir, headerFile string, useBrowserCookies bool) *systems.Systems {
 	appSystems := systems.New(cfg, db, cacheDir)
 
-	if err := appSystems.API.InitializeFromHeaderFile(headerFile); err != nil {
-		logger.Warn("Failed to initialize YouTube API: %v", err)
-		fmt.Printf("Warning: YouTube API not available. Some features will be limited.\n")
-	}
+	if useBrowserCookies {
+		// Use browser cookies directly
+		if err := appSystems.API.InitializeFromBrowser(api.BrowserChrome); err != nil {
+			logger.Warn("Failed to initialize YouTube API from browser: %v", err)
+			fmt.Printf("Warning: YouTube API not available. Some features will be limited.\n")
+		}
+		appSystems.Download.SetBrowserCookies()
+	} else {
+		// Use header file
+		if err := appSystems.API.InitializeFromHeaderFile(headerFile); err != nil {
+			logger.Warn("Failed to initialize YouTube API: %v", err)
+			fmt.Printf("Warning: YouTube API not available. Some features will be limited.\n")
+		}
 
-	if err := appSystems.Download.SetHeaderFile(headerFile); err != nil {
-		logger.Warn("Failed to set header file for downloads: %v", err)
-		fmt.Printf("Warning: Downloads may fail without proper authentication.\n")
+		if err := appSystems.Download.SetHeaderFile(headerFile); err != nil {
+			logger.Warn("Failed to set header file for downloads: %v", err)
+			fmt.Printf("Warning: Downloads may fail without proper authentication.\n")
+		}
 	}
 
 	if err := appSystems.Start(); err != nil {

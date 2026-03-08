@@ -45,6 +45,18 @@ func (as *APISystem) InitializeFromHeaderFile(headerPath string) error {
 	return nil
 }
 
+// InitializeFromBrowser initializes the API client by reading cookies from the browser.
+func (as *APISystem) InitializeFromBrowser(browser api.BrowserCookieSource) error {
+	client, err := api.NewClientFromBrowser(browser)
+	if err != nil {
+		return fmt.Errorf("failed to create YouTube API client from browser: %w", err)
+	}
+
+	as.client = client
+
+	return nil
+}
+
 // GetLibraryPlaylists fetches user library playlists.
 func (as *APISystem) GetLibraryPlaylists() ([]Playlist, error) {
 	if as.client == nil {

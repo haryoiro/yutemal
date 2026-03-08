@@ -457,6 +457,21 @@ func (c *Client) GetStreamingData(videoID string) (*StreamingData, error) {
 	return &playerResp.StreamingData, nil
 }
 
+// NewClientFromBrowser creates a client by reading cookies directly from the browser.
+func NewClientFromBrowser(browser BrowserCookieSource) (*Client, error) {
+	cookieStr, err := ReadBrowserCookies(browser)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read browser cookies: %w", err)
+	}
+
+	headers := map[string]string{
+		"Cookie":     cookieStr,
+		"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:108.0) Gecko/20100101 Firefox/108.0",
+	}
+
+	return NewClient(headers, "")
+}
+
 // Helper functions
 
 func extractSAPISID(cookies string) string {

@@ -10,6 +10,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/tosone/minimp3 v1.0.2
+	golang.org/x/crypto v0.48.0
 )
 
 require (
@@ -32,7 +33,7 @@ require (
 	golang.org/x/exp/shiny v0.0.0-20250531010427-b6e5de432a8b // indirect
 	golang.org/x/image v0.27.0 // indirect
 	golang.org/x/mobile v0.0.0-20250520180527-a1d90793fc63 // indirect
-	golang.org/x/sync v0.14.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
-	golang.org/x/text v0.25.0 // indirect
+	golang.org/x/sync v0.19.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/text v0.34.0 // indirect
 )
