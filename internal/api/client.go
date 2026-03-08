@@ -149,6 +149,18 @@ func NewClientFromHeaderFile(path string) (*Client, error) {
 	return NewClient(headers, accountID)
 }
 
+// setAuthHeaders sets common authentication headers on a request.
+func (c *Client) setAuthHeaders(req *http.Request) {
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("SAPISIDHASH %s", c.computeSAPIHash()))
+	req.Header.Set("Origin", YTMDomain)
+	req.Header.Set("X-Origin", YTMDomain)
+	req.Header.Set("X-Goog-AuthUser", "0")
+	req.Header.Set("Referer", YTMDomain+"/")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+	req.Header.Set("Cookie", c.cookies)
+}
+
 // computeSAPIHash computes the SAPISIDHASH for authorization.
 func (c *Client) computeSAPIHash() string {
 	timestamp := time.Now().Unix()
@@ -195,11 +207,7 @@ func (c *Client) browse(endpoint Endpoint) (*BrowseResponse, error) {
 		return nil, err
 	}
 
-	// Set headers
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("SAPISIDHASH %s", c.computeSAPIHash()))
-	req.Header.Set("X-Origin", YTMDomain)
-	req.Header.Set("Cookie", c.cookies)
+	c.setAuthHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -425,11 +433,7 @@ func (c *Client) GetStreamingData(videoID string) (*StreamingData, error) {
 		return nil, err
 	}
 
-	// Set headers
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("SAPISIDHASH %s", c.computeSAPIHash()))
-	req.Header.Set("X-Origin", YTMDomain)
-	req.Header.Set("Cookie", c.cookies)
+	c.setAuthHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -458,8 +462,8 @@ func (c *Client) GetStreamingData(videoID string) (*StreamingData, error) {
 }
 
 // NewClientFromBrowser creates a client by reading cookies directly from the browser.
-func NewClientFromBrowser(browser BrowserCookieSource) (*Client, error) {
-	cookieStr, err := ReadBrowserCookies(browser)
+func NewClientFromBrowser(browser BrowserCookieSource, profile string) (*Client, error) {
+	cookieStr, err := ReadBrowserCookiesWithProfile(browser, profile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read browser cookies: %w", err)
 	}

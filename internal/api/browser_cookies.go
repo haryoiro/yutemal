@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha1" //nolint:gosec // Chrome uses SHA1 for PBKDF2
@@ -19,35 +20,98 @@ import (
 type BrowserCookieSource string
 
 const (
-	BrowserChrome BrowserCookieSource = "chrome"
+	BrowserChrome       BrowserCookieSource = "chrome"
+	BrowserChromeBeta   BrowserCookieSource = "chrome-beta"
+	BrowserChromeCanary BrowserCookieSource = "chrome-canary"
+	BrowserChromium     BrowserCookieSource = "chromium"
 )
 
-// ReadBrowserCookies reads and decrypts YouTube cookies from Chrome on macOS.
-func ReadBrowserCookies(browser BrowserCookieSource) (string, error) {
-	switch browser {
-	case BrowserChrome:
-		return readChromeCookies()
+// browserConfig holds browser-specific paths and keychain info.
+type browserConfig struct {
+	appSupportDir string // relative to ~/Library/Application Support/
+	keychainName  string // Keychain service name
+	ytdlpName     string // yt-dlp --cookies-from-browser value
+}
+
+var browserConfigs = map[BrowserCookieSource]browserConfig{
+	BrowserChrome: {
+		appSupportDir: "Google/Chrome",
+		keychainName:  "Chrome Safe Storage",
+		ytdlpName:     "chrome",
+	},
+	BrowserChromeBeta: {
+		appSupportDir: "Google/Chrome Beta",
+		keychainName:  "Chrome Safe Storage",
+		ytdlpName:     "chrome",
+	},
+	BrowserChromeCanary: {
+		appSupportDir: "Google/Chrome Canary",
+		keychainName:  "Chrome Safe Storage",
+		ytdlpName:     "chrome",
+	},
+	BrowserChromium: {
+		appSupportDir: "Chromium",
+		keychainName:  "Chromium Safe Storage",
+		ytdlpName:     "chromium",
+	},
+}
+
+// ParseBrowser parses a browser name string into a BrowserCookieSource.
+func ParseBrowser(name string) (BrowserCookieSource, bool) {
+	switch BrowserCookieSource(name) {
+	case BrowserChrome, BrowserChromeBeta, BrowserChromeCanary, BrowserChromium:
+		return BrowserCookieSource(name), true
 	default:
-		return "", fmt.Errorf("unsupported browser: %s", browser)
+		return "", false
 	}
 }
 
-func readChromeCookies() (string, error) {
+// YtdlpBrowserArg returns the argument for yt-dlp --cookies-from-browser.
+// Format: "browser:profile" or just "browser" if profile is empty.
+func YtdlpBrowserArg(browser BrowserCookieSource, profile string) string {
+	cfg, ok := browserConfigs[browser]
+	if !ok {
+		return string(browser)
+	}
+	if profile != "" {
+		return cfg.ytdlpName + ":" + profile
+	}
+	return cfg.ytdlpName
+}
+
+// ReadBrowserCookies reads and decrypts YouTube cookies from a Chromium-based browser on macOS.
+func ReadBrowserCookies(browser BrowserCookieSource) (string, error) {
+	return ReadBrowserCookiesWithProfile(browser, "Default")
+}
+
+// ReadBrowserCookiesWithProfile reads cookies from a specific browser profile.
+func ReadBrowserCookiesWithProfile(browser BrowserCookieSource, profile string) (string, error) {
+	cfg, ok := browserConfigs[browser]
+	if !ok {
+		return "", fmt.Errorf("unsupported browser: %s", browser)
+	}
+	if profile == "" {
+		profile = "Default"
+	}
+	return readChromiumCookies(cfg, profile)
+}
+
+func readChromiumCookies(cfg browserConfig, profile string) (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	// Chrome cookie DB path on macOS
-	dbPath := filepath.Join(home, "Library", "Application Support", "Google", "Chrome", "Default", "Cookies")
+	// Cookie DB path on macOS
+	dbPath := filepath.Join(home, "Library", "Application Support", cfg.appSupportDir, profile, "Cookies")
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		return "", fmt.Errorf("Chrome cookie database not found at %s", dbPath)
+		return "", fmt.Errorf("cookie database not found at %s", dbPath)
 	}
 
 	// Get encryption key from macOS Keychain
-	encKey, err := getChromeEncryptionKey()
+	encKey, err := getKeychainPassword(cfg.keychainName)
 	if err != nil {
-		return "", fmt.Errorf("failed to get Chrome encryption key: %w", err)
+		return "", fmt.Errorf("failed to get encryption key: %w", err)
 	}
 
 	// Derive AES key using PBKDF2
@@ -67,9 +131,9 @@ func readChromeCookies() (string, error) {
 	}
 	defer db.Close()
 
-	// Query YouTube cookies
+	// Query YouTube cookies (only .youtube.com domain, matching what browser sends)
 	rows, err := db.Query(
-		`SELECT name, encrypted_value, value FROM cookies WHERE host_key LIKE '%youtube.com' OR host_key LIKE '%google.com'`,
+		`SELECT name, encrypted_value, value FROM cookies WHERE host_key = '.youtube.com'`,
 	)
 	if err != nil {
 		return "", fmt.Errorf("failed to query cookies: %w", err)
@@ -108,12 +172,12 @@ func readChromeCookies() (string, error) {
 	}
 
 	if len(cookies) == 0 {
-		return "", fmt.Errorf("no YouTube/Google cookies found in Chrome")
+		return "", fmt.Errorf("no YouTube/Google cookies found")
 	}
 
 	// Check for essential cookies
 	if _, ok := cookies["SAPISID"]; !ok {
-		return "", fmt.Errorf("SAPISID cookie not found — please log in to YouTube Music in Chrome")
+		return "", fmt.Errorf("SAPISID cookie not found — please log in to YouTube Music in the browser")
 	}
 
 	// Build cookie header string (only YouTube-essential cookies to avoid header size issues)
@@ -146,12 +210,12 @@ func readChromeCookies() (string, error) {
 	return strings.Join(parts, "; "), nil
 }
 
-// getChromeEncryptionKey retrieves Chrome's encryption key from macOS Keychain.
-func getChromeEncryptionKey() ([]byte, error) {
-	cmd := exec.Command("security", "find-generic-password", "-w", "-s", "Chrome Safe Storage")
+// getKeychainPassword retrieves a browser's encryption key from macOS Keychain.
+func getKeychainPassword(serviceName string) ([]byte, error) {
+	cmd := exec.Command("security", "find-generic-password", "-w", "-s", serviceName)
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get Chrome Safe Storage key from Keychain: %w", err)
+		return nil, fmt.Errorf("failed to get %q key from Keychain: %w", serviceName, err)
 	}
 
 	return []byte(strings.TrimSpace(string(output))), nil
@@ -168,31 +232,64 @@ func decryptChromeValue(encrypted, key []byte) (string, error) {
 		return "", err
 	}
 
-	// IV is 16 space bytes (0x20)
-	iv := make([]byte, aes.BlockSize)
-	for i := range iv {
-		iv[i] = ' '
+	if len(encrypted)%aes.BlockSize != 0 {
+		return "", fmt.Errorf("encrypted data is not a multiple of block size")
 	}
 
 	if len(encrypted)%aes.BlockSize != 0 {
 		return "", fmt.Errorf("encrypted data is not a multiple of block size")
 	}
 
-	mode := cipher.NewCBCDecrypter(block, iv)
+	// Decrypt using AES-128-CBC with space IV (standard Chrome macOS format).
+	iv := bytes.Repeat([]byte{' '}, aes.BlockSize)
 	decrypted := make([]byte, len(encrypted))
-	mode.CryptBlocks(decrypted, encrypted)
+	cipher.NewCBCDecrypter(block, iv).CryptBlocks(decrypted, encrypted)
 
-	// Remove PKCS#7 padding
-	if len(decrypted) == 0 {
-		return "", nil
+	result, err := removePKCS7Padding(decrypted)
+	if err != nil {
+		return "", err
 	}
 
-	paddingLen := int(decrypted[len(decrypted)-1])
-	if paddingLen > aes.BlockSize || paddingLen > len(decrypted) {
-		return "", fmt.Errorf("invalid PKCS#7 padding")
+	// Newer Chrome versions prepend a 32-byte nonce to the plaintext before encryption.
+	// After decryption, skip the nonce to get the actual cookie value.
+	// Try with 32-byte skip first; fall back to no skip for older Chrome versions.
+	const nonceLen = 32
+	if len(result) > nonceLen && isAllPrintableASCII(result[nonceLen:]) {
+		return string(result[nonceLen:]), nil
+	}
+	if isAllPrintableASCII(result) {
+		return string(result), nil
 	}
 
-	return string(decrypted[:len(decrypted)-paddingLen]), nil
+	return "", fmt.Errorf("failed to decrypt cookie value")
+}
+
+// removePKCS7Padding removes PKCS#7 padding from decrypted data.
+func removePKCS7Padding(data []byte) ([]byte, error) {
+	if len(data) == 0 {
+		return data, nil
+	}
+	paddingLen := int(data[len(data)-1])
+	if paddingLen == 0 || paddingLen > aes.BlockSize || paddingLen > len(data) {
+		return nil, fmt.Errorf("invalid PKCS#7 padding")
+	}
+	// Verify all padding bytes
+	for i := len(data) - paddingLen; i < len(data); i++ {
+		if data[i] != byte(paddingLen) {
+			return nil, fmt.Errorf("invalid PKCS#7 padding byte")
+		}
+	}
+	return data[:len(data)-paddingLen], nil
+}
+
+// isAllPrintableASCII checks if all bytes are printable ASCII.
+func isAllPrintableASCII(data []byte) bool {
+	for _, b := range data {
+		if b < 0x20 || b > 0x7e {
+			return false
+		}
+	}
+	return len(data) > 0
 }
 
 // copyToTemp copies a file to a temporary location.

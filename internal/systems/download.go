@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/haryoiro/yutemal/internal/api"
 	"github.com/haryoiro/yutemal/internal/constants"
 	"github.com/haryoiro/yutemal/internal/database"
 	"github.com/haryoiro/yutemal/internal/logger"
@@ -22,8 +23,8 @@ type DownloadSystem struct {
 	database       database.DB
 	cacheDir       string
 	downloadDir    string
-	cookiesFile    string // Path to cookies file for yt-dlp
-	useBrowserCookies bool   // Use --cookies-from-browser instead of cookies file
+	cookiesFile       string // Path to cookies file for yt-dlp
+	browserCookiesArg string // yt-dlp --cookies-from-browser value (e.g., "chrome:Default")
 	queue          chan structures.Track
 	workers        int
 	wg             sync.WaitGroup
@@ -145,9 +146,9 @@ func (ds *DownloadSystem) SetHeaderFile(headerPath string) error {
 }
 
 // SetBrowserCookies enables using browser cookies directly via yt-dlp.
-func (ds *DownloadSystem) SetBrowserCookies() {
-	ds.useBrowserCookies = true
-	logger.Debug("Using browser cookies for yt-dlp authentication")
+func (ds *DownloadSystem) SetBrowserCookies(browser api.BrowserCookieSource, profile string) {
+	ds.browserCookiesArg = api.YtdlpBrowserArg(browser, profile)
+	logger.Debug("Using browser cookies for yt-dlp authentication: %s", ds.browserCookiesArg)
 }
 
 // QueueDownload adds a track to the download queue.
@@ -260,8 +261,8 @@ func (ds *DownloadSystem) downloadTrack(track structures.Track) error {
 		}
 
 		// Add cookies for authentication
-		if ds.useBrowserCookies {
-			args = append(args, "--cookies-from-browser", "chrome")
+		if ds.browserCookiesArg != "" {
+			args = append(args, "--cookies-from-browser", ds.browserCookiesArg)
 		} else if ds.cookiesFile != "" {
 			args = append(args, "--cookies", ds.cookiesFile)
 		}

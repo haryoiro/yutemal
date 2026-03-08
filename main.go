@@ -168,22 +168,44 @@ func main() {
 	db := initializeDatabase(dataDir)
 	defer db.Close()
 
+	// Determine authentication method
+	var browserSource api.BrowserCookieSource
+	browserProfile := cfg.BrowserProfile
+
+	if cfg.Browser != "" {
+		// Browser explicitly configured
+		b, ok := api.ParseBrowser(cfg.Browser)
+		if !ok {
+			fmt.Printf("Error: unsupported browser %q in config. Supported: chrome, chrome-canary, chromium\n", cfg.Browser)
+			return
+		}
+		browserSource = b
+		fmt.Printf("Using browser cookies from %s (profile: %s)...\n", browserSource, browserProfile)
+		_, err := api.ReadBrowserCookiesWithProfile(browserSource, browserProfile)
+		if err != nil {
+			showAuthenticationError(configDir)
+			fmt.Printf("\nBrowser cookie error: %v\n", err)
+			return
+		}
+		fmt.Println("Browser cookies found!")
+	}
+
 	headerFile := findHeaderFile(configDir)
-	useBrowserCookies := false
-	if headerFile == "" {
-		// headers.txt not found — try browser cookies
+	if browserSource == "" && headerFile == "" {
+		// No config and no headers.txt — try Chrome as fallback
 		fmt.Println("headers.txt not found. Trying Chrome browser cookies...")
-		_, err := api.ReadBrowserCookies(api.BrowserChrome)
+		_, err := api.ReadBrowserCookiesWithProfile(api.BrowserChrome, "Default")
 		if err != nil {
 			showAuthenticationError(configDir)
 			fmt.Printf("\nOr ensure you are logged in to YouTube Music in Chrome.\nError: %v\n", err)
 			return
 		}
-		useBrowserCookies = true
+		browserSource = api.BrowserChrome
+		browserProfile = "Default"
 		fmt.Println("Chrome cookies found!")
 	}
 
-	appSystems := initializeSystems(cfg, db, cacheDir, headerFile, useBrowserCookies)
+	appSystems := initializeSystems(cfg, db, cacheDir, headerFile, browserSource, browserProfile)
 	defer func() {
 		if stopErr := appSystems.Stop(); stopErr != nil {
 			logger.Error("Failed to stop systems: %v", stopErr)
@@ -367,16 +389,16 @@ func showAuthenticationError(configDir string) {
 	fmt.Println("\nSee README for instructions on obtaining cookies.")
 }
 
-func initializeSystems(cfg *structures.Config, db database.DB, cacheDir, headerFile string, useBrowserCookies bool) *systems.Systems {
+func initializeSystems(cfg *structures.Config, db database.DB, cacheDir, headerFile string, browserSource api.BrowserCookieSource, browserProfile string) *systems.Systems {
 	appSystems := systems.New(cfg, db, cacheDir)
 
-	if useBrowserCookies {
+	if browserSource != "" {
 		// Use browser cookies directly
-		if err := appSystems.API.InitializeFromBrowser(api.BrowserChrome); err != nil {
+		if err := appSystems.API.InitializeFromBrowser(browserSource, browserProfile); err != nil {
 			logger.Warn("Failed to initialize YouTube API from browser: %v", err)
 			fmt.Printf("Warning: YouTube API not available. Some features will be limited.\n")
 		}
-		appSystems.Download.SetBrowserCookies()
+		appSystems.Download.SetBrowserCookies(browserSource, browserProfile)
 	} else {
 		// Use header file
 		if err := appSystems.API.InitializeFromHeaderFile(headerFile); err != nil {

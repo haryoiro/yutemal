@@ -17,7 +17,7 @@ yutemal is a terminal-based YouTube Music client that allows you to browse, sear
 
 ## Requirements
 
-- Go 1.24.3 or later (managed via [mise](https://mise.jdx.dev/))
+- Go 1.26.1 or later (managed via [mise](https://mise.jdx.dev/))
 - yt-dlp (for downloading audio)
 - ffprobe (part of FFmpeg, for audio analysis)
 - Linux: `libasound2-dev libdbus-1-dev pkg-config`

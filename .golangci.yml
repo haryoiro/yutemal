@@ -3,7 +3,7 @@ run:
   timeout: 5m
   
   # Go version
-  go: "1.24"
+  go: "1.26"
 
   # By default, list of stable checks is used
 
@@ -130,7 +130,7 @@ linters-settings:
   # Unused
   unused:
     # Go version to target
-    go: "1.24"
+    go: "1.26"
 
   # Gocyclo - Cyclomatic complexity
   gocyclo:

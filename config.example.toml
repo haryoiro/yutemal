@@ -7,6 +7,12 @@ max_concurrent_downloads = 4
 max_cache_size = 1024  # in MB
 audio_quality = "medium"  # Audio quality: low/medium/high/best
 
+# Authentication Configuration
+# Set browser to read cookies directly instead of using headers.txt
+# Supported: "chrome", "chrome-beta", "chrome-canary", "chromium"
+# browser = "chrome"
+# browser_profile = "Default"  # e.g., "Default", "Profile 1", "Profile 2"
+
 # Player Configuration
 default_volume = 0.7
 seek_seconds = 5

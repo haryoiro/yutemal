@@ -137,6 +137,10 @@ type Config struct {
 	DefaultVolume float64 `toml:"default_volume"`
 	SeekSeconds   int     `toml:"seek_seconds"`
 
+	// Authentication Configuration
+	Browser        string `toml:"browser"`         // Browser to read cookies from: "chrome", "chrome-canary", "chromium"
+	BrowserProfile string `toml:"browser_profile"` // Browser profile name (e.g., "Default", "Profile 1")
+
 	// UI Configuration
 	DisableAltScreen bool `toml:"disable_alt_screen"` // Disable alternate screen for Kitty graphics compatibility
 }
