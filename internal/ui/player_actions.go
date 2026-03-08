@@ -111,3 +111,14 @@ func (m *Model) handleQueueSelection() (tea.Model, tea.Cmd) {
 
 	return m.handleEnter()
 }
+
+// eqCyclePreset cycles through EQ presets.
+func (m *Model) eqCyclePreset() (tea.Model, tea.Cmd) {
+	m.eqPresetIndex = (m.eqPresetIndex + 1) % len(eqPresetOrder)
+	presetName := eqPresetOrder[m.eqPresetIndex]
+	m.systems.Player.SendAction(structures.EQSetPresetAction{Preset: presetName})
+	return m, nil
+}
+
+// eqPresetOrder mirrors player.PresetOrder for the UI layer.
+var eqPresetOrder = []string{"flat", "bass_boost", "treble_boost", "vocal", "rock", "electronic", "acoustic"}

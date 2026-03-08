@@ -63,6 +63,9 @@ func NewPlayerSystem(cfg *structures.Config, db database.DB, cacheDir string) *P
 		}
 	}
 
+	// Store EQ preset to apply after first song loads
+	ps.state.EQEnabled = true
+
 	return ps
 }
 
@@ -116,6 +119,8 @@ func (ps *PlayerSystem) GetState() structures.PlayerState {
 		ps.state.IsPlaying = ps.player.IsPlaying()
 		ps.state.CurrentTime = ps.player.GetPosition()
 		ps.state.TotalTime = ps.player.GetDuration()
+		ps.state.EQGains = ps.player.GetEQGains()
+		ps.state.EQEnabled = ps.player.IsEQEnabled()
 	}
 
 	// Create a deep copy
@@ -485,6 +490,23 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 		} else {
 			logger.Warn("Invalid jump index: %d (queue size: %d)", a.Index, len(ps.state.List))
 		}
+
+	case structures.EQSetBandGainAction:
+		if ps.player != nil {
+			ps.player.SetEQBandGain(a.Band, a.GainDB)
+		}
+
+	case structures.EQSetPresetAction:
+		if ps.player != nil {
+			if preset, ok := player.EQPresets[a.Preset]; ok {
+				ps.player.SetEQGains(preset.Gains)
+			}
+		}
+
+	case structures.EQToggleAction:
+		if ps.player != nil {
+			ps.player.SetEQEnabled(!ps.player.IsEQEnabled())
+		}
 	}
 }
 
@@ -598,6 +620,15 @@ func (ps *PlayerSystem) loadCurrentSong() {
 		}
 
 		ps.state.TotalTime = ps.player.GetDuration()
+
+		// Apply EQ preset on first load
+		if ps.config.EQPreset != "" && ps.config.EQPreset != "flat" {
+			if preset, ok := player.EQPresets[ps.config.EQPreset]; ok {
+				ps.player.SetEQGains(preset.Gains)
+			}
+		} else if ps.config.EQBands != [10]float64{} {
+			ps.player.SetEQGains(ps.config.EQBands)
+		}
 
 		// Update track duration with actual file duration if different
 		actualDurationSeconds := int(ps.state.TotalTime.Seconds() + 0.999)

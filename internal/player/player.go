@@ -23,6 +23,7 @@ type Player struct {
 	mu                 sync.RWMutex
 	streamer           beep.StreamSeekCloser
 	bufferedStreamer   *BufferedStreamer
+	equalizer          *Equalizer
 	ctrl               *beep.Ctrl
 	volume             *effects.Volume
 	format             beep.Format
@@ -188,8 +189,16 @@ func (p *Player) setupVolume() {
 	volumeToApply := p.getVolumeToApply()
 	dbVolume, isSilent := p.calculateVolumeSettings(volumeToApply)
 
+	// Create or update equalizer
+	if p.equalizer == nil {
+		p.equalizer = NewEqualizer(p.bufferedStreamer, float64(p.format.SampleRate))
+	} else {
+		p.equalizer.streamer = p.bufferedStreamer
+		p.equalizer.UpdateSampleRate(float64(p.format.SampleRate))
+	}
+
 	volume := &effects.Volume{
-		Streamer: p.bufferedStreamer,
+		Streamer: p.equalizer,
 		Base:     2,
 		Volume:   dbVolume,
 		Silent:   isSilent,
@@ -469,6 +478,11 @@ func (p *Player) Seek(pos time.Duration) error {
 		}
 	}
 
+	// Reset EQ filter state to avoid transient pops from stale delay lines
+	if p.equalizer != nil {
+		p.equalizer.ResetState()
+	}
+
 	if wasPlaying && p.ctrl != nil {
 		// Give a tiny bit of time for buffer to fill before resuming
 		time.Sleep(100 * time.Millisecond)
@@ -673,6 +687,43 @@ func (p *Player) VolumeDown() error {
 	}
 
 	return p.SetVolume(newVol)
+}
+
+// SetEQBandGain sets a single EQ band's gain.
+func (p *Player) SetEQBandGain(band int, gainDB float64) {
+	if p.equalizer != nil {
+		p.equalizer.SetBandGain(band, gainDB)
+	}
+}
+
+// SetEQGains sets all EQ band gains at once.
+func (p *Player) SetEQGains(gains [NumBands]float64) {
+	if p.equalizer != nil {
+		p.equalizer.SetAllGains(gains)
+	}
+}
+
+// GetEQGains returns the current EQ band gains.
+func (p *Player) GetEQGains() [NumBands]float64 {
+	if p.equalizer != nil {
+		return p.equalizer.GetGains()
+	}
+	return [NumBands]float64{}
+}
+
+// SetEQEnabled enables or disables the equalizer.
+func (p *Player) SetEQEnabled(enabled bool) {
+	if p.equalizer != nil {
+		p.equalizer.SetEnabled(enabled)
+	}
+}
+
+// IsEQEnabled returns whether the equalizer is active.
+func (p *Player) IsEQEnabled() bool {
+	if p.equalizer != nil {
+		return p.equalizer.IsEnabled()
+	}
+	return false
 }
 
 func (p *Player) getActualDuration(filepath string) time.Duration {

@@ -181,6 +181,7 @@ func (sf *ShortcutFormatter) GetPlayerHints(isHomeView bool, hasMultipleSections
 	}
 
 	hints = append(hints,
+		ShortcutHint{Key: sf.formatKey(kb.ToggleEQ), Action: "EQ"},
 		ShortcutHint{Key: sf.formatKey(kb.Shuffle), Action: "Shuffle"},
 		ShortcutHint{Key: sf.formatKey(kb.Quit), Action: "Quit"},
 	)

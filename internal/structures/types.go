@@ -94,6 +94,14 @@ type SeekAction struct {
 type ShuffleQueueAction struct{}
 type JumpToIndexAction struct{ Index int }
 
+// Equalizer actions.
+type EQSetBandGainAction struct {
+	Band   int
+	GainDB float64
+}
+type EQSetPresetAction struct{ Preset string }
+type EQToggleAction struct{}
+
 // PlayerState represents the current state of the music player.
 // Fields ordered to minimize padding and group hot fields together.
 type PlayerState struct {
@@ -104,7 +112,9 @@ type PlayerState struct {
 	CurrentTime  time.Duration                 // 8 bytes
 	TotalTime    time.Duration                 // 8 bytes
 	Current      int                           // 8 bytes
-	IsPlaying    bool                          // 1 byte + 7 padding
+	EQGains      [10]float64                  // 80 bytes
+	IsPlaying    bool                          // 1 byte
+	EQEnabled    bool                          // 1 byte + 6 padding
 }
 
 // ListSelector manages list navigation.
@@ -138,6 +148,10 @@ type Config struct {
 	// Player Configuration
 	DefaultVolume float64 `toml:"default_volume"`
 	SeekSeconds   int     `toml:"seek_seconds"`
+
+	// Equalizer Configuration
+	EQPreset string       `toml:"eq_preset"` // Preset name: "flat", "bass_boost", "vocal", etc.
+	EQBands  [10]float64  `toml:"eq_bands"`  // Custom band gains in dB (-12 to +12)
 
 	// Authentication Configuration
 	Browser        string `toml:"browser"`         // Browser to read cookies from: "chrome", "chrome-canary", "chromium"
@@ -182,6 +196,9 @@ type KeyBindings struct {
 	Shuffle     string `toml:"shuffle"`
 	RemoveTrack string `toml:"remove_track"`
 	Home        string `toml:"home"`
+
+	// Equalizer
+	ToggleEQ string `toml:"toggle_eq"`
 }
 
 // Database entry structure.

@@ -41,6 +41,7 @@ func Default() *structures.Config {
 		SeekSeconds:            5,
 		MaxCacheSize:           1024,   // 1GB
 		AudioQuality:           "high", // Default to medium quality
+		EQPreset:               "flat",
 		Theme: structures.Theme{
 			Background:       "#1a1b26",  // Tokyo Night Storm background
 			Foreground:       "#c0caf5",  // Tokyo Night foreground
@@ -73,6 +74,8 @@ func Default() *structures.Config {
 			Shuffle:     "s",
 			RemoveTrack: "r",
 			Home:        "h",
+
+			ToggleEQ: "e",
 		},
 	}
 }

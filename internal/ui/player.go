@@ -407,6 +407,11 @@ func (m *Model) renderControls(availableWidth int) string {
 
 	parts = append(parts, fmt.Sprintf("%s %d%%", volumeIcon, volume))
 
+	// EQ preset
+	if m.playerState.EQEnabled && m.eqPresetIndex > 0 {
+		parts = append(parts, fmt.Sprintf("EQ:%s", eqPresetOrder[m.eqPresetIndex]))
+	}
+
 	// Bitrate info
 	if m.playerState.Current < len(m.playerState.List) && m.playerState.Current >= 0 {
 		track := m.playerState.List[m.playerState.Current]

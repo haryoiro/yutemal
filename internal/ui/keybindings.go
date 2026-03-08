@@ -152,6 +152,11 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.seekBackward()
 	}
 
+	// Equalizer: cycle presets
+	if m.isKey(msg, kb.ToggleEQ) {
+		return m.eqCyclePreset()
+	}
+
 	// Queue and playlist controls
 	if m.isKey(msg, kb.Shuffle) {
 		return m.shuffleQueue()

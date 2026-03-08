@@ -92,6 +92,9 @@ type Model struct {
 	// Rainbow seekbar animation
 	rainbowOffset int
 
+	// Equalizer UI state
+	eqPresetIndex int
+
 	// Unified tick management
 	tickActive bool
 
