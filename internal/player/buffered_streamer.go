@@ -178,12 +178,21 @@ func (bs *BufferedStreamer) handleSourceExhausted() {
 	bs.cond.Broadcast()
 }
 
-// writeToBuffer writes samples to the ring buffer.
+// writeToBuffer writes samples to the ring buffer using copy() for bulk transfer.
+// copy() uses optimized memcpy internally (NEON on ARM64, SSE/AVX on AMD64),
+// which is significantly faster than element-by-element assignment.
 func (bs *BufferedStreamer) writeToBuffer(tempBuffer [][2]float64, n int) {
 	bs.mu.Lock()
-	for i := 0; i < n; i++ {
-		bs.buffer[bs.writePos] = tempBuffer[i]
-		bs.writePos = (bs.writePos + 1) % bs.bufferSize
+
+	// Write in up to two chunks to handle ring buffer wrap-around
+	firstChunk := bs.bufferSize - bs.writePos
+	if firstChunk >= n {
+		copy(bs.buffer[bs.writePos:], tempBuffer[:n])
+		bs.writePos = (bs.writePos + n) % bs.bufferSize
+	} else {
+		copy(bs.buffer[bs.writePos:], tempBuffer[:firstChunk])
+		copy(bs.buffer, tempBuffer[firstChunk:n])
+		bs.writePos = n - firstChunk
 	}
 
 	bs.filled += n
@@ -243,31 +252,39 @@ func (bs *BufferedStreamer) Stream(samples [][2]float64) (n int, ok bool) {
 		}
 	}
 
-	for i := range samples {
+	for n < len(samples) {
 		if bs.filled == 0 {
 			// Check if source is exhausted and buffer is empty
 			switch {
 			case bs.sourceExhausted:
-				// We've played all available data
 				bs.closed = true
-				ok = i > 0
+				ok = n > 0
 			case bs.closed:
-				ok = i > 0
+				ok = n > 0
 			default:
 				ok = true
 			}
-
-			n = i
 
 			bs.cond.Broadcast()
 
 			return n, ok
 		}
 
-		samples[i] = bs.buffer[bs.readPos]
-		bs.readPos = (bs.readPos + 1) % bs.bufferSize
-		bs.filled--
-		bs.position++
+		// Bulk read using copy() — up to min(filled, remaining, contiguous) samples
+		remaining := len(samples) - n
+		toRead := min(bs.filled, remaining)
+		firstChunk := bs.bufferSize - bs.readPos
+		if firstChunk >= toRead {
+			copy(samples[n:], bs.buffer[bs.readPos:bs.readPos+toRead])
+			bs.readPos = (bs.readPos + toRead) % bs.bufferSize
+		} else {
+			copy(samples[n:], bs.buffer[bs.readPos:bs.readPos+firstChunk])
+			copy(samples[n+firstChunk:], bs.buffer[:toRead-firstChunk])
+			bs.readPos = toRead - firstChunk
+		}
+		bs.filled -= toRead
+		bs.position += toRead
+		n += toRead
 	}
 
 	bs.cond.Broadcast()
@@ -377,10 +394,9 @@ func (bs *BufferedStreamer) handleUnderrun() {
 
 	// Dynamic buffer resizing based on consecutive underruns
 	if bs.consecutiveUnderruns >= 2 && bs.targetBufferSize < bs.maxBufferSize {
-		newSize := bs.targetBufferSize + int(float64(bs.format.SampleRate)*0.5) // Add 0.5 seconds
-		if newSize > bs.maxBufferSize {
-			newSize = bs.maxBufferSize
-		}
+		newSize := min(
+			// Add 0.5 seconds
+			bs.targetBufferSize+int(float64(bs.format.SampleRate)*0.5), bs.maxBufferSize)
 
 		oldSizeSeconds := float64(bs.targetBufferSize) / float64(bs.format.SampleRate)
 		newSizeSeconds := float64(newSize) / float64(bs.format.SampleRate)
@@ -440,10 +456,7 @@ func (bs *BufferedStreamer) resizeBuffer() {
 			increment = minIncrement
 		}
 
-		newSize := bs.bufferSize + increment
-		if newSize > targetSize {
-			newSize = targetSize
-		}
+		newSize := min(bs.bufferSize+increment, targetSize)
 
 		bs.bufferSize = newSize
 		logger.Debug("Buffer size adjusted to %.2f seconds (%d samples)",
@@ -474,10 +487,7 @@ func (bs *BufferedStreamer) checkBufferHealth() {
 		fillRatio := float64(bs.filled) / float64(bs.bufferSize)
 		if bs.targetBufferSize > bs.minBufferSize && fillRatio > 0.9 {
 			// Reduce target by 0.25 seconds
-			newTarget := bs.targetBufferSize - int(float64(bs.format.SampleRate)*0.25)
-			if newTarget < bs.minBufferSize {
-				newTarget = bs.minBufferSize
-			}
+			newTarget := max(bs.targetBufferSize-int(float64(bs.format.SampleRate)*0.25), bs.minBufferSize)
 
 			if newTarget < bs.targetBufferSize {
 				bs.targetBufferSize = newTarget

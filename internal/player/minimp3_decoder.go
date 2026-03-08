@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"time"
+	"unsafe"
 
 	"github.com/faiface/beep"
 	"github.com/tosone/minimp3"
@@ -107,34 +108,32 @@ func DecodeMiniMP3(file *os.File) (beep.StreamSeekCloser, beep.Format, error) {
 	}, format, nil
 }
 
-// Stream streams audio samples.
+// Stream streams audio samples using batch conversion for better performance.
+// Instead of converting one sample at a time, this processes all available
+// buffered samples in a tight loop, enabling compiler auto-vectorization.
 func (d *minimp3Decoder) Stream(samples [][2]float64) (n int, ok bool) {
-	for i := range samples {
-		if !d.fillSample(samples, i) {
-			return i, i > 0
+	for n < len(samples) {
+		// Refill internal buffer if exhausted
+		if d.bufferIndex >= len(d.buffer) {
+			if !d.refillBuffer(samples, n) {
+				return n, n > 0
+			}
 		}
-	}
 
-	return len(samples), true
-}
-
-// fillSample fills a single sample.
-func (d *minimp3Decoder) fillSample(samples [][2]float64, index int) bool {
-	// Need more data?
-	if d.bufferIndex >= len(d.buffer) {
-		if !d.refillBuffer(samples, index) {
-			return false
+		// Batch convert as many samples as possible from the current buffer
+		var filled int
+		if d.format.NumChannels == 1 {
+			filled = d.fillMonoBatch(samples[n:])
+		} else {
+			filled = d.fillStereoBatch(samples[n:])
 		}
+		if filled == 0 {
+			break
+		}
+		n += filled
 	}
 
-	// Convert to float64 samples
-	if d.format.NumChannels == 1 {
-		d.fillMonoSample(samples, index)
-	} else {
-		d.fillStereoSample(samples, index)
-	}
-
-	return true
+	return n, n > 0
 }
 
 // refillBuffer refills the internal buffer when needed.
@@ -214,59 +213,57 @@ func (d *minimp3Decoder) handleEOF(samples [][2]float64, startIndex int) {
 	}
 }
 
-// convertBytesToSamples converts bytes to int16 samples.
+// convertBytesToSamples converts bytes to int16 samples using zero-copy reinterpretation.
+// This is safe on little-endian architectures (AMD64, ARM64) where the byte layout
+// of []byte matches the in-memory representation of []int16.
 func (d *minimp3Decoder) convertBytesToSamples(buf []byte, bytesRead int) {
-	// Convert bytes to int16 samples - reuse pre-allocated buffer
 	requiredSize := bytesRead / 2
 
-	// Use pre-allocated pcmBuffer if it's large enough
-	if requiredSize <= len(d.pcmBuffer) {
-		d.buffer = d.pcmBuffer[:requiredSize]
-	} else {
-		// Only allocate if we need more than pre-allocated
-		if cap(d.buffer) < requiredSize {
-			logger.Debug("Allocating larger buffer: %d samples (was %d)", requiredSize, cap(d.buffer))
-			d.buffer = make([]int16, requiredSize)
-		} else {
-			d.buffer = d.buffer[:requiredSize]
-		}
-	}
-
-	// Use optimized loop for byte-to-int16 conversion
-	for j := 0; j < requiredSize; j++ {
-		d.buffer[j] = int16(buf[j*2]) | (int16(buf[j*2+1]) << 8)
-	}
+	// Zero-copy: reinterpret the byte slice as int16 slice directly.
+	// Both ARM64 and AMD64 are little-endian, so buf[0]=low, buf[1]=high
+	// matches int16 memory layout. This eliminates the conversion loop entirely.
+	d.buffer = unsafe.Slice((*int16)(unsafe.Pointer(&buf[0])), requiredSize)
 
 	d.bufferIndex = 0
 }
 
-// fillMonoSample fills a mono sample.
-func (d *minimp3Decoder) fillMonoSample(samples [][2]float64, index int) {
-	if d.bufferIndex < len(d.buffer) {
-		sample := float64(d.buffer[d.bufferIndex]) / 32768.0
-		samples[index][0] = sample
-		samples[index][1] = sample
-		d.bufferIndex++
-		d.position++
-	} else {
-		samples[index][0] = 0
-		samples[index][1] = 0
+// fillMonoBatch converts available mono int16 samples to [][2]float64 in bulk.
+// Returns the number of samples filled. The tight loop with constant scaling
+// factor enables compiler auto-vectorization (NEON on ARM64, SSE on AMD64).
+func (d *minimp3Decoder) fillMonoBatch(samples [][2]float64) int {
+	available := len(d.buffer) - d.bufferIndex
+	count := min(available, len(samples))
+
+	const scale = 1.0 / 32768.0
+	buf := d.buffer[d.bufferIndex : d.bufferIndex+count]
+	for i, s := range buf {
+		v := float64(s) * scale
+		samples[i][0] = v
+		samples[i][1] = v
 	}
+
+	d.bufferIndex += count
+	d.position += count
+	return count
 }
 
-// fillStereoSample fills a stereo sample.
-func (d *minimp3Decoder) fillStereoSample(samples [][2]float64, index int) {
-	if d.bufferIndex+1 < len(d.buffer) {
-		left := float64(d.buffer[d.bufferIndex]) / 32768.0
-		right := float64(d.buffer[d.bufferIndex+1]) / 32768.0
-		samples[index][0] = left
-		samples[index][1] = right
-		d.bufferIndex += 2
-		d.position++
-	} else {
-		samples[index][0] = 0
-		samples[index][1] = 0
+// fillStereoBatch converts available stereo int16 samples to [][2]float64 in bulk.
+// Processes interleaved L/R pairs. Returns the number of stereo frames filled.
+func (d *minimp3Decoder) fillStereoBatch(samples [][2]float64) int {
+	availablePairs := (len(d.buffer) - d.bufferIndex) / 2
+	count := min(availablePairs, len(samples))
+
+	const scale = 1.0 / 32768.0
+	idx := d.bufferIndex
+	for i := range count {
+		samples[i][0] = float64(d.buffer[idx]) * scale
+		samples[i][1] = float64(d.buffer[idx+1]) * scale
+		idx += 2
 	}
+
+	d.bufferIndex = idx
+	d.position += count
+	return count
 }
 
 // Err returns any error.
@@ -331,10 +328,7 @@ func (d *minimp3Decoder) seekFromBeginning(targetPos int) error {
 			break
 		}
 
-		samplesRead := bytesRead / (2 * d.format.NumChannels)
-		if samplesRead > samplesToSkip {
-			samplesRead = samplesToSkip
-		}
+		samplesRead := min(bytesRead/(2*d.format.NumChannels), samplesToSkip)
 
 		samplesToSkip -= samplesRead
 		d.position += samplesRead
@@ -347,16 +341,11 @@ func (d *minimp3Decoder) seekFromBeginning(targetPos int) error {
 func (d *minimp3Decoder) seekApproximate(targetPos int) error {
 	// Use simple byte-based estimation
 	targetRatio := float64(targetPos) / float64(d.TotalSamples)
-	estimatedBytePos := int(targetRatio * float64(len(d.data)))
+	estimatedBytePos := max(
+		// Clamp to safe range
+		min(
 
-	// Clamp to safe range
-	if estimatedBytePos >= len(d.data)-1024 {
-		estimatedBytePos = len(d.data) - 1024
-	}
-
-	if estimatedBytePos < 0 {
-		estimatedBytePos = 0
-	}
+			int(targetRatio*float64(len(d.data))), len(d.data)-1024), 0)
 
 	// Create decoder from estimated position
 	dec, err := minimp3.NewDecoder(bytes.NewReader(d.data[estimatedBytePos:]))
