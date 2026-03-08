@@ -85,8 +85,8 @@ jobs:
             -X github.com/haryoiro/yutemal/internal/version.Date=$DATE" \
             -o yutemal-darwin-amd64 .
 
-          # Build for ARM64
-          GOOS=darwin GOARCH=arm64 go build -ldflags "-X github.com/haryoiro/yutemal/internal/version.Version=$VERSION \
+          # Build for ARM64 (with LSE atomics + hardware crypto for Apple Silicon)
+          GOOS=darwin GOARCH=arm64 GOARM64=v8.0,lse,crypto go build -ldflags "-X github.com/haryoiro/yutemal/internal/version.Version=$VERSION \
             -X github.com/haryoiro/yutemal/internal/version.Commit=$COMMIT \
             -X github.com/haryoiro/yutemal/internal/version.Date=$DATE" \
             -o yutemal-darwin-arm64 .

@@ -15,16 +15,17 @@ const (
 )
 
 // Track represents a music track.
+// Fields ordered by size (largest first) to minimize padding on ARM64/AMD64.
 type Track struct {
-	TrackID      string   `json:"track_id"`
-	Title        string   `json:"title"`
-	Artists      []string `json:"artists"`
-	Thumbnail    string   `json:"thumbnail,omitempty"`
-	Duration     int      `json:"duration"` // in seconds
-	IsAvailable  bool     `json:"is_available"`
-	IsExplicit   bool     `json:"is_explicit"`
-	AudioBitrate int      `json:"audio_bitrate,omitempty"` // Actual bitrate in kbps
-	AudioQuality string   `json:"audio_quality,omitempty"` // Quality level used for download
+	Artists      []string `json:"artists"`                 // 24 bytes (slice header)
+	TrackID      string   `json:"track_id"`                // 16 bytes
+	Title        string   `json:"title"`                   // 16 bytes
+	Thumbnail    string   `json:"thumbnail,omitempty"`     // 16 bytes
+	AudioQuality string   `json:"audio_quality,omitempty"` // 16 bytes
+	Duration     int      `json:"duration"`                // 8 bytes (in seconds)
+	AudioBitrate int      `json:"audio_bitrate,omitempty"` // 8 bytes (kbps)
+	IsAvailable  bool     `json:"is_available"`            // 1 byte
+	IsExplicit   bool     `json:"is_explicit"`             // 1 byte + 6 padding
 }
 
 // Section represents a content section on the home page.
@@ -94,15 +95,16 @@ type ShuffleQueueAction struct{}
 type JumpToIndexAction struct{ Index int }
 
 // PlayerState represents the current state of the music player.
+// Fields ordered to minimize padding and group hot fields together.
 type PlayerState struct {
-	List         []Track
-	Current      int
-	MusicStatus  map[string]MusicDownloadStatus
-	Volume       float64
-	IsPlaying    bool
-	CurrentTime  time.Duration
-	TotalTime    time.Duration
-	ListSelector *ListSelector
+	List         []Track                       // 24 bytes (slice header)
+	MusicStatus  map[string]MusicDownloadStatus // 8 bytes (pointer)
+	ListSelector *ListSelector                 // 8 bytes (pointer)
+	Volume       float64                       // 8 bytes
+	CurrentTime  time.Duration                 // 8 bytes
+	TotalTime    time.Duration                 // 8 bytes
+	Current      int                           // 8 bytes
+	IsPlaying    bool                          // 1 byte + 7 padding
 }
 
 // ListSelector manages list navigation.

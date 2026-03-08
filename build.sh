@@ -18,6 +18,13 @@ echo "Go version: $GO_VERSION"
 # Set environment variable for proper character width calculation
 export RUNEWIDTH_EASTASIAN=0
 
+# Enable ARM64 hardware extensions (LSE atomics + crypto acceleration)
+# LSE: faster sync.Mutex/atomic ops on Apple Silicon (M1+)
+# crypto: hardware AES/SHA instructions
+if [ "$(uname -m)" = "arm64" ]; then
+    export GOARM64="v8.0,lse,crypto"
+fi
+
 # Change to the go directory
 cd "$(dirname "$0")"
 
