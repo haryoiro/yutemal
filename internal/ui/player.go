@@ -113,10 +113,7 @@ func (m *Model) renderPlayer() string {
 		// Time format is always "MM:SS" so both are 5 characters
 		timeWidth := 10 + 2 // Two time displays (5 chars each) plus 2 spaces
 
-		barWidth := contentWidth - timeWidth*2 + 6
-		if barWidth < 10 {
-			barWidth = 10
-		}
+		barWidth := max(contentWidth-timeWidth*2+6, 10)
 
 		progressBar := m.renderProgressBar(barWidth)
 
@@ -137,10 +134,7 @@ func (m *Model) renderPlayer() string {
 		// Calculate exact width for empty progress bar
 		timeWidth := TimeFormatWidth*2 + 2 // 2 time displays + 2 spaces
 
-		barWidth := contentWidth - timeWidth*2 + 6
-		if barWidth < 10 {
-			barWidth = 10
-		}
+		barWidth := max(contentWidth-timeWidth*2+6, 10)
 
 		bar := progressBgStyle.Render(strings.Repeat("─", barWidth))
 		content.WriteString(fmt.Sprintf("%s %s %s",
@@ -309,12 +303,12 @@ func (m *Model) createRainbowBar(width int, t int) string {
 		return ""
 	}
 
-	result := ""
+	var result strings.Builder
 
 	// Fixed gradient length - one full rainbow cycle every 120 characters
 	gradientLength := 120.0
 	// Create rainbow gradient with offset for animation
-	for i := 0; i < width; i++ {
+	for i := range width {
 		// Calculate position in the gradient cycle
 		position := float64(i) / gradientLength
 		// Add time offset to create animation effect
@@ -328,10 +322,10 @@ func (m *Model) createRainbowBar(width int, t int) string {
 
 		// Apply color to character
 		style := lipgloss.NewStyle().Foreground(lipgloss.Color(color))
-		result += style.Render("━")
+		result.WriteString(style.Render("━"))
 	}
 
-	return result
+	return result.String()
 }
 
 // hslToRGB converts HSL color values to RGB.

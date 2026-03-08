@@ -276,15 +276,11 @@ func (m *Model) handleScrollDown() (tea.Model, tea.Cmd) {
 			// Queue表示の高さを計算（コンテンツエリアの1/3）
 			contentAreaHeight := m.height - m.playerHeight
 
-			queueHeight := contentAreaHeight / 3
-			if queueHeight < 5 {
-				queueHeight = 5
-			}
+			queueHeight := max(contentAreaHeight/3, 5)
 
-			visibleLines := queueHeight - 4 // Header, spacing, and scroll indicator
-			if visibleLines < 1 {
-				visibleLines = 1
-			}
+			visibleLines := max(
+				// Header, spacing, and scroll indicator
+				queueHeight-4, 1)
 
 			if m.queueSelectedIndex >= m.queueScrollOffset+visibleLines {
 				m.queueScrollOffset = m.queueSelectedIndex - visibleLines + 1

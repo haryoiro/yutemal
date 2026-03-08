@@ -1,6 +1,7 @@
 package systems
 
 import (
+	"maps"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -121,9 +122,7 @@ func (ps *PlayerSystem) GetState() structures.PlayerState {
 	stateCopy := *ps.state
 	stateCopy.MusicStatus = make(map[string]structures.MusicDownloadStatus)
 
-	for k, v := range ps.state.MusicStatus {
-		stateCopy.MusicStatus[k] = v
-	}
+	maps.Copy(stateCopy.MusicStatus, ps.state.MusicStatus)
 
 	return stateCopy
 }
@@ -384,10 +383,7 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 			ps.state.Current = 0
 		} else {
 			// Insert after current track
-			insertPos := ps.state.Current + 1
-			if insertPos > len(ps.state.List) {
-				insertPos = len(ps.state.List)
-			}
+			insertPos := min(ps.state.Current+1, len(ps.state.List))
 
 			ps.state.List = append(ps.state.List[:insertPos],
 				append([]structures.Track{a.Track}, ps.state.List[insertPos:]...)...)

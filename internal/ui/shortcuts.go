@@ -83,8 +83,8 @@ func (sf *ShortcutFormatter) formatKey(key string) string {
 		formatted = "PgDn"
 	default:
 		// Handle other ctrl/cmd/alt combinations
-		if strings.HasPrefix(key, "ctrl+") {
-			formatted = "Ctrl+" + strings.ToUpper(strings.TrimPrefix(key, "ctrl+"))
+		if after, ok := strings.CutPrefix(key, "ctrl+"); ok {
+			formatted = "Ctrl+" + strings.ToUpper(after)
 		} else if strings.HasPrefix(key, "cmd+") || strings.HasPrefix(key, "meta+") {
 			formatted = "Cmd+" + strings.ToUpper(strings.TrimPrefix(strings.TrimPrefix(key, "cmd+"), "meta+"))
 		} else if strings.HasPrefix(key, "alt+") || strings.HasPrefix(key, "opt+") {
@@ -111,7 +111,7 @@ func (sf *ShortcutFormatter) formatKeys(keys []string) string {
 	copy(sortedKeys, keys)
 
 	// Custom sort: arrow keys first, then alphabetical
-	for i := 0; i < len(sortedKeys); i++ {
+	for i := range sortedKeys {
 		for j := i + 1; j < len(sortedKeys); j++ {
 			if shouldSwapKeys(sortedKeys[i], sortedKeys[j]) {
 				sortedKeys[i], sortedKeys[j] = sortedKeys[j], sortedKeys[i]

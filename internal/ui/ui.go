@@ -229,23 +229,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case playerUpdateMsg:
 		m.playerState = structures.PlayerState(msg)
 		if m.showQueue && !m.queueFocused && len(m.playerState.List) > 0 {
-			visibleLines := m.contentHeight - 4
-			if visibleLines < 1 {
-				visibleLines = 1
-			}
+			visibleLines := max(m.contentHeight-4, 1)
 
 			if m.playerState.Current < m.queueScrollOffset ||
 				m.playerState.Current >= m.queueScrollOffset+visibleLines {
-				m.queueScrollOffset = m.playerState.Current - visibleLines/2
+				m.queueScrollOffset = max(m.playerState.Current-visibleLines/2, 0)
 
-				if m.queueScrollOffset < 0 {
-					m.queueScrollOffset = 0
-				}
-
-				maxScrollOffset := len(m.playerState.List) - visibleLines
-				if maxScrollOffset < 0 {
-					maxScrollOffset = 0
-				}
+				maxScrollOffset := max(len(m.playerState.List)-visibleLines, 0)
 
 				if m.queueScrollOffset > maxScrollOffset {
 					m.queueScrollOffset = maxScrollOffset
@@ -364,14 +354,16 @@ func (m *Model) View() string {
 
 	// Queue width calculation
 	if m.showQueue {
-		m.queueWidth = m.width / 3 // 33% of width
-		if m.queueWidth < 40 {
-			m.queueWidth = 40 // Minimum width
-		}
+		m.queueWidth = min(
+			// 33% of width
+			// Minimum width
+			max(
 
-		if m.queueWidth > 80 {
-			m.queueWidth = 80 // Maximum width
-		}
+				m.width/3,
+
+				40),
+			// Maximum width
+			80)
 	} else {
 		m.queueWidth = 0
 	}
@@ -449,23 +441,24 @@ func (m *Model) View() string {
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#00FF00"))
 
-		debugInfo := fmt.Sprintf("=== DEBUG INFO (%s to hide) ===\n", m.shortcutFormatter.formatKey("ctrl+d"))
-		debugInfo += "Current State: " + m.state.String() + "\n"
-		debugInfo += "Selected Index: " + fmt.Sprintf("%d", m.selectedIndex) + "\n"
-		debugInfo += "Playlist Selected: " + fmt.Sprintf("%d", m.playlistSelectedIndex) + "\n"
-		debugInfo += "Sections: " + fmt.Sprintf("%d", len(m.sections)) + "\n"
-		debugInfo += "\nState Changes:\n"
+		var debugInfo strings.Builder
+		debugInfo.WriteString(fmt.Sprintf("=== DEBUG INFO (%s to hide) ===\n", m.shortcutFormatter.formatKey("ctrl+d")))
+		debugInfo.WriteString("Current State: " + m.state.String() + "\n")
+		debugInfo.WriteString("Selected Index: " + fmt.Sprintf("%d", m.selectedIndex) + "\n")
+		debugInfo.WriteString("Playlist Selected: " + fmt.Sprintf("%d", m.playlistSelectedIndex) + "\n")
+		debugInfo.WriteString("Sections: " + fmt.Sprintf("%d", len(m.sections)) + "\n")
+		debugInfo.WriteString("\nState Changes:\n")
 
 		for _, change := range m.debugStateChanges {
-			debugInfo += "  " + change + "\n"
+			debugInfo.WriteString("  " + change + "\n")
 		}
 
-		debugInfo += "\nRecent Messages:\n"
+		debugInfo.WriteString("\nRecent Messages:\n")
 		for i, msg := range m.debugMessageLog {
-			debugInfo += fmt.Sprintf("  %d: %s\n", i, msg)
+			debugInfo.WriteString(fmt.Sprintf("  %d: %s\n", i, msg))
 		}
 
-		debugContent := debugStyle.Render(debugInfo)
+		debugContent := debugStyle.Render(debugInfo.String())
 		result = lipgloss.JoinHorizontal(lipgloss.Top, result, debugContent)
 	}
 

@@ -461,11 +461,7 @@ func (p *Player) Seek(pos time.Duration) error {
 // SeekForward seeks forward by the specified duration.
 func (p *Player) SeekForward(duration time.Duration) error {
 	currentPos := p.GetPosition()
-	newPos := currentPos + duration
-
-	if newPos > p.duration {
-		newPos = p.duration
-	}
+	newPos := min(currentPos+duration, p.duration)
 
 	return p.Seek(newPos)
 }
@@ -474,10 +470,7 @@ func (p *Player) SeekForward(duration time.Duration) error {
 func (p *Player) SeekBackward(duration time.Duration) error {
 	currentPos := p.GetPosition()
 
-	newPos := currentPos - duration
-	if newPos < 0 {
-		newPos = 0
-	}
+	newPos := max(currentPos-duration, 0)
 
 	return p.Seek(newPos)
 }

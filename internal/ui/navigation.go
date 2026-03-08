@@ -263,15 +263,11 @@ func (m *Model) getVisibleItems() int {
 func (m *Model) getQueueVisibleLines() int {
 	contentAreaHeight := m.height - m.playerHeight
 
-	queueHeight := contentAreaHeight / 3
-	if queueHeight < 5 {
-		queueHeight = 5
-	}
+	queueHeight := max(contentAreaHeight/3, 5)
 
-	visibleLines := queueHeight - 4 // Header, spacing, and scroll indicator
-	if visibleLines < 1 {
-		visibleLines = 1
-	}
+	visibleLines := max(
+		// Header, spacing, and scroll indicator
+		queueHeight-4, 1)
 
 	return visibleLines
 }
@@ -301,10 +297,9 @@ func (m *Model) adjustQueueScroll() {
 // adjustPlaylistScroll adjusts the playlist scroll offset to keep the selected item visible.
 func (m *Model) adjustPlaylistScroll() {
 	// Use same calculation as renderPlaylistDetail
-	visibleItems := m.contentHeight - 6 // Header and footer space
-	if visibleItems < 1 {
-		visibleItems = 1
-	}
+	visibleItems := max(
+		// Header and footer space
+		m.contentHeight-6, 1)
 
 	if m.playlistSelectedIndex < m.playlistScrollOffset {
 		m.playlistScrollOffset = m.playlistSelectedIndex

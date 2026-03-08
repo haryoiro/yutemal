@@ -79,25 +79,18 @@ func (m Model) renderPlaylistDetail(maxWidth int) string {
 		return b.String()
 	}
 
-	visibleItems := m.contentHeight - 6 // Header and footer space
-	if visibleItems < 1 {
-		visibleItems = 1
-	}
+	visibleItems := max(
+		// Header and footer space
+		m.contentHeight-6, 1)
 
 	start := m.playlistScrollOffset
 
-	end := start + visibleItems
-	if end > len(m.playlistTracks) {
-		end = len(m.playlistTracks)
-	}
+	end := min(start+visibleItems, len(m.playlistTracks))
 
 	// 最小幅の確保と動的レイアウト調整
 	if maxWidth < 50 {
 		// 小さい画面用の簡略レイアウト
-		titleWidth := maxWidth - 15
-		if titleWidth < 10 {
-			titleWidth = 10
-		}
+		titleWidth := max(maxWidth-15, 10)
 
 		for i := start; i < end; i++ {
 			track := m.playlistTracks[i]
@@ -259,25 +252,16 @@ func (m Model) renderSearch(maxWidth int) string {
 		return b.String()
 	}
 
-	visibleItems := m.contentHeight - 6
-	if visibleItems < 1 {
-		visibleItems = 1
-	}
+	visibleItems := max(m.contentHeight-6, 1)
 
 	start := m.scrollOffset
 
-	end := start + visibleItems
-	if end > len(m.searchResults) {
-		end = len(m.searchResults)
-	}
+	end := min(start+visibleItems, len(m.searchResults))
 
 	// 最小幅の確保と動的レイアウト調整
 	if maxWidth < 50 {
 		// 小さい画面用のレイアウト
-		titleWidth := maxWidth - 10
-		if titleWidth < 10 {
-			titleWidth = 10
-		}
+		titleWidth := max(maxWidth-10, 10)
 
 		for i := start; i < end; i++ {
 			track := m.searchResults[i]
@@ -385,17 +369,13 @@ func (m Model) renderHome(maxWidth int) string {
 			return b.String()
 		}
 
-		visibleItems := m.contentHeight - 8 // タブとタイトル用のスペースを確保
-		if visibleItems < 1 {
-			visibleItems = 1
-		}
+		visibleItems := max(
+			// タブとタイトル用のスペースを確保
+			m.contentHeight-8, 1)
 
 		startIndex := m.scrollOffset
 
-		endIndex := startIndex + visibleItems
-		if endIndex > len(section.Contents) {
-			endIndex = len(section.Contents)
-		}
+		endIndex := min(startIndex+visibleItems, len(section.Contents))
 
 		for i := startIndex; i < endIndex; i++ {
 			content := section.Contents[i]
@@ -431,7 +411,7 @@ func (m Model) renderHome(maxWidth int) string {
 			if availableWidth > 0 && runewidth.StringWidth(displayText) > availableWidth {
 				if availableWidth > 3 {
 					// 文字列を切り詰め
-					truncated := ""
+					var truncated strings.Builder
 					width := 0
 
 					for _, r := range displayText {
@@ -440,11 +420,11 @@ func (m Model) renderHome(maxWidth int) string {
 							break
 						}
 
-						truncated += string(r)
+						truncated.WriteString(string(r))
 						width += charWidth
 					}
 
-					displayText = truncated + "..."
+					displayText = truncated.String() + "..."
 				} else {
 					displayText = "..."
 				}
@@ -751,10 +731,9 @@ func (m *Model) renderQueue(maxWidth int, maxHeight int) string {
 	}
 
 	// Calculate visible lines (excluding header)
-	visibleLines := maxHeight - 4 // Header, spacing, and scroll indicator
-	if visibleLines < 1 {
-		visibleLines = 1
-	}
+	visibleLines := max(
+		// Header, spacing, and scroll indicator
+		maxHeight-4, 1)
 
 	// Ensure selected item is visible when queue is focused
 	if m.queueFocused {
@@ -766,10 +745,7 @@ func (m *Model) renderQueue(maxWidth int, maxHeight int) string {
 	}
 
 	// Ensure scroll offset is valid
-	maxScrollOffset := len(m.playerState.List) - visibleLines
-	if maxScrollOffset < 0 {
-		maxScrollOffset = 0
-	}
+	maxScrollOffset := max(len(m.playerState.List)-visibleLines, 0)
 
 	if m.queueScrollOffset > maxScrollOffset {
 		m.queueScrollOffset = maxScrollOffset
@@ -778,10 +754,7 @@ func (m *Model) renderQueue(maxWidth int, maxHeight int) string {
 	// Render tracks
 	startIndex := m.queueScrollOffset
 
-	endIndex := startIndex + visibleLines
-	if endIndex > len(m.playerState.List) {
-		endIndex = len(m.playerState.List)
-	}
+	endIndex := min(startIndex+visibleLines, len(m.playerState.List))
 
 	// Get actual track indices
 	getTrackIndex := func(displayIndex int) int {
