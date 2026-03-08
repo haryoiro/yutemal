@@ -36,6 +36,9 @@ type BufferedStreamer struct {
 
 	// Track source exhaustion separately from closed state
 	sourceExhausted bool
+
+	// done is closed when fillLoop exits, allowing Close() to wait synchronously.
+	done chan struct{}
 }
 
 // NewBufferedStreamer creates a new buffered streamer.
@@ -54,6 +57,7 @@ func NewBufferedStreamer(source beep.Streamer, format beep.Format, bufferSeconds
 		format:           format,
 		position:         0,
 		lastUnderrunTime: time.Now(), // Initialize to prevent immediate reduction
+		done:             make(chan struct{}),
 	}
 	bs.cond = sync.NewCond(&bs.mu)
 
@@ -74,6 +78,8 @@ func (bs *BufferedStreamer) fillLoop() {
 	healthCheckTicker := time.NewTicker(5 * time.Second)
 
 	defer healthCheckTicker.Stop()
+
+	defer close(bs.done)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -183,6 +189,12 @@ func (bs *BufferedStreamer) handleSourceExhausted() {
 // which is significantly faster than element-by-element assignment.
 func (bs *BufferedStreamer) writeToBuffer(tempBuffer [][2]float64, n int) {
 	bs.mu.Lock()
+
+	// Don't write stale data after Drain() has been called.
+	if bs.closed {
+		bs.mu.Unlock()
+		return
+	}
 
 	// Write in up to two chunks to handle ring buffer wrap-around
 	firstChunk := bs.bufferSize - bs.writePos
@@ -301,19 +313,41 @@ func (bs *BufferedStreamer) Err() error {
 	return nil
 }
 
-// Close closes the buffered streamer.
-func (bs *BufferedStreamer) Close() error {
+// Drain marks the streamer as closed and empties the buffer so that
+// Stream() returns immediately with no data. This must be called before
+// speaker.Lock() to avoid deadlock when Stream() is blocked in cond.Wait().
+func (bs *BufferedStreamer) Drain() {
 	bs.mu.Lock()
-	if bs.closed {
-		bs.mu.Unlock()
-		return nil
-	}
-
 	bs.closed = true
+	bs.filled = 0
 	bs.cond.Broadcast()
 	bs.mu.Unlock()
+}
 
-	time.Sleep(10 * time.Millisecond)
+// Close closes the buffered streamer and waits for fillLoop to exit.
+func (bs *BufferedStreamer) Close() error {
+	bs.mu.Lock()
+	if !bs.closed {
+		bs.closed = true
+		bs.cond.Broadcast()
+	}
+	bs.mu.Unlock()
+
+	// Wait for fillLoop to exit with a timeout.
+	select {
+	case <-bs.done:
+	case <-time.After(500 * time.Millisecond):
+		// Nudge fillLoop in case it's stuck in cond.Wait()
+		bs.mu.Lock()
+		bs.cond.Broadcast()
+		bs.mu.Unlock()
+
+		select {
+		case <-bs.done:
+		case <-time.After(500 * time.Millisecond):
+			logger.Warn("BufferedStreamer: fillLoop did not exit within timeout")
+		}
+	}
 
 	// Log performance statistics
 	logger.Info("BufferedStreamer performance stats:")

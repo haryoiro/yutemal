@@ -95,14 +95,39 @@ func (p *Player) loadFileInternal(filepath string) error {
 }
 
 func (p *Player) cleanupStreamer() {
+	// Step 1: Nil the duration callback to prevent deadlock.
+	// fillLoop -> source.Stream() -> handleEOF -> durationUpdateCallback
+	// tries to acquire p.mu, which LoadFile() already holds.
 	if p.streamer != nil {
-		p.streamer.Close()
-		p.streamer = nil
+		if dec, ok := p.streamer.(*minimp3Decoder); ok {
+			dec.durationUpdateCallback = nil
+		}
+	}
+
+	// Step 2: Drain the buffer — sets closed=true, empties buffer,
+	// wakes up any cond.Wait() in Stream() or fillLoop.
+	// After this, BufferedStreamer.Stream() returns immediately.
+	if p.bufferedStreamer != nil {
+		p.bufferedStreamer.Drain()
+	}
+
+	// Step 3: Clear all streamers from the speaker.
+	// speaker.Clear() internally acquires speaker mu, so do NOT wrap
+	// it in speaker.Lock()/Unlock() — that would deadlock on the
+	// non-reentrant mutex.
+	if p.speakerInitialized {
+		speaker.Clear()
+	}
+
+	// Step 4: Wait for fillLoop to exit and close resources.
+	if p.bufferedStreamer != nil {
+		p.bufferedStreamer.Close()
 		p.bufferedStreamer = nil
 	}
 
-	if p.speakerInitialized {
-		speaker.Clear()
+	if p.streamer != nil {
+		p.streamer.Close()
+		p.streamer = nil
 	}
 }
 
