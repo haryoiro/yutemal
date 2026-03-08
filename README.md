@@ -49,7 +49,15 @@ go build -o yutemal main.go
 
 ### Authentication
 
-yutemal requires YouTube Music cookies for authentication:
+yutemal requires YouTube Music cookies for authentication. There are two methods:
+
+#### Method 1: Automatic browser cookie detection (Recommended)
+
+If you are logged in to YouTube Music in Chrome, yutemal will automatically read cookies from Chrome when `headers.txt` is not found. No additional setup is required.
+
+> **Note**: Currently only Chrome is supported for automatic cookie detection.
+
+#### Method 2: Manual headers.txt
 
 1. Install a browser extension to export cookies (e.g., "Get cookies.txt LOCALLY" for Chrome/Firefox)
 2. Visit music.youtube.com and log in
@@ -153,9 +161,9 @@ pip install yt-dlp
 
 ### Authentication Issues
 
-1. Make sure `headers.txt` exists in the correct location
-2. Check that cookies are in Netscape format
-3. Ensure cookies are from a logged-in session
+1. Ensure you are logged in to YouTube Music in Chrome (for automatic cookie detection)
+2. If using `headers.txt`, make sure it exists in the correct location
+3. Check that your cookies are not expired
 
 ### Debug Mode
 
