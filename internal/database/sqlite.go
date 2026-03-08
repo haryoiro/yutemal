@@ -18,6 +18,14 @@ type SQLiteDatabase struct {
 	mu   sync.RWMutex
 	db   *sql.DB
 	path string
+
+	// Prepared statements for hot queries (reduces CGO crossing overhead)
+	stmtGet      *sql.Stmt
+	stmtGetAll   *sql.Stmt
+	stmtAdd      *sql.Stmt
+	stmtRemove   *sql.Stmt
+	stmtGetCache *sql.Stmt
+	stmtSetCache *sql.Stmt
 }
 
 // OpenSQLite opens or creates a SQLite database.
@@ -67,6 +75,7 @@ func OpenSQLite(path string) (*SQLiteDatabase, error) {
 		"PRAGMA synchronous = NORMAL",
 		"PRAGMA cache_size = 10000",
 		"PRAGMA temp_store = MEMORY",
+		"PRAGMA mmap_size = 268435456", // 256MB memory-mapped I/O — reduces read syscalls
 	}
 
 	for _, pragma := range pragmas {
@@ -84,6 +93,11 @@ func OpenSQLite(path string) (*SQLiteDatabase, error) {
 	if createErr := sqliteDB.createTables(); createErr != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to create tables: %w", createErr)
+	}
+
+	if prepErr := sqliteDB.prepareStatements(); prepErr != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to prepare statements: %w", prepErr)
 	}
 
 	return sqliteDB, nil
@@ -269,8 +283,74 @@ func (db *SQLiteDatabase) runMigrations() error {
 	return nil
 }
 
-// Close closes the database.
+// prepareStatements pre-compiles frequently used SQL queries.
+// This avoids repeated query parsing and reduces CGO crossing overhead per call.
+func (db *SQLiteDatabase) prepareStatements() error {
+	var err error
+
+	db.stmtGet, err = db.db.Prepare(`
+		SELECT track_id, title, artists, thumbnail, duration, is_available,
+		       is_explicit, added_at, file_path, file_size, audio_bitrate, audio_quality
+		FROM tracks WHERE track_id = ?
+	`)
+	if err != nil {
+		return fmt.Errorf("prepare Get: %w", err)
+	}
+
+	db.stmtGetAll, err = db.db.Prepare(`
+		SELECT track_id, title, artists, thumbnail, duration, is_available,
+		       is_explicit, added_at, file_path, file_size, audio_bitrate, audio_quality
+		FROM tracks ORDER BY added_at DESC
+	`)
+	if err != nil {
+		return fmt.Errorf("prepare GetAll: %w", err)
+	}
+
+	db.stmtAdd, err = db.db.Prepare(`
+		INSERT OR REPLACE INTO tracks
+		(track_id, title, artists, thumbnail, duration, is_available, is_explicit,
+		 added_at, file_path, file_size, audio_bitrate, audio_quality)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`)
+	if err != nil {
+		return fmt.Errorf("prepare Add: %w", err)
+	}
+
+	db.stmtRemove, err = db.db.Prepare("DELETE FROM tracks WHERE track_id = ?")
+	if err != nil {
+		return fmt.Errorf("prepare Remove: %w", err)
+	}
+
+	db.stmtGetCache, err = db.db.Prepare(`
+		SELECT response_data FROM api_cache
+		WHERE cache_key = ? AND expires_at > CURRENT_TIMESTAMP
+	`)
+	if err != nil {
+		return fmt.Errorf("prepare GetCache: %w", err)
+	}
+
+	db.stmtSetCache, err = db.db.Prepare(`
+		INSERT OR REPLACE INTO api_cache
+		(cache_key, cache_type, response_data, created_at, expires_at)
+		VALUES (?, ?, ?, CURRENT_TIMESTAMP, datetime('now', '+' || ? || ' seconds'))
+	`)
+	if err != nil {
+		return fmt.Errorf("prepare SetCache: %w", err)
+	}
+
+	return nil
+}
+
+// Close closes prepared statements and the database.
 func (db *SQLiteDatabase) Close() error {
+	for _, stmt := range []*sql.Stmt{
+		db.stmtGet, db.stmtGetAll, db.stmtAdd, db.stmtRemove,
+		db.stmtGetCache, db.stmtSetCache,
+	} {
+		if stmt != nil {
+			stmt.Close()
+		}
+	}
 	return db.db.Close()
 }
 
@@ -284,14 +364,7 @@ func (db *SQLiteDatabase) Add(entry structures.DatabaseEntry) error {
 		return fmt.Errorf("failed to marshal artists: %w", err)
 	}
 
-	query := `
-		INSERT OR REPLACE INTO tracks
-		(track_id, title, artists, thumbnail, duration, is_available, is_explicit,
-		 added_at, file_path, file_size, audio_bitrate, audio_quality)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`
-
-	_, err = db.db.Exec(query,
+	_, err = db.stmtAdd.Exec(
 		entry.Track.TrackID,
 		entry.Track.Title,
 		string(artistsJSON),
@@ -314,7 +387,7 @@ func (db *SQLiteDatabase) Remove(trackID string) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	_, err := db.db.Exec("DELETE FROM tracks WHERE track_id = ?", trackID)
+	_, err := db.stmtRemove.Exec(trackID)
 
 	return err
 }
@@ -324,14 +397,7 @@ func (db *SQLiteDatabase) Get(trackID string) (*structures.DatabaseEntry, bool) 
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	query := `
-		SELECT track_id, title, artists, thumbnail, duration, is_available,
-		       is_explicit, added_at, file_path, file_size, audio_bitrate, audio_quality
-		FROM tracks
-		WHERE track_id = ?
-	`
-
-	row := db.db.QueryRow(query, trackID)
+	row := db.stmtGet.QueryRow(trackID)
 
 	var entry structures.DatabaseEntry
 	var artistsJSON string
@@ -383,14 +449,7 @@ func (db *SQLiteDatabase) GetAll() []structures.DatabaseEntry {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	query := `
-		SELECT track_id, title, artists, thumbnail, duration, is_available,
-		       is_explicit, added_at, file_path, file_size, audio_bitrate, audio_quality
-		FROM tracks
-		ORDER BY added_at DESC
-	`
-
-	rows, err := db.db.Query(query)
+	rows, err := db.stmtGetAll.Query()
 	if err != nil {
 		return nil
 	}
@@ -449,10 +508,7 @@ func (db *SQLiteDatabase) GetCache(cacheKey string) (string, bool) {
 	defer db.mu.RUnlock()
 
 	var responseData string
-	err := db.db.QueryRow(`
-		SELECT response_data FROM api_cache
-		WHERE cache_key = ? AND expires_at > CURRENT_TIMESTAMP
-	`, cacheKey).Scan(&responseData)
+	err := db.stmtGetCache.QueryRow(cacheKey).Scan(&responseData)
 
 	if err != nil {
 		return "", false
@@ -466,13 +522,7 @@ func (db *SQLiteDatabase) SetCache(cacheKey, cacheType, responseData string, ttl
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	query := `
-		INSERT OR REPLACE INTO api_cache
-		(cache_key, cache_type, response_data, created_at, expires_at)
-		VALUES (?, ?, ?, CURRENT_TIMESTAMP, datetime('now', '+' || ? || ' seconds'))
-	`
-
-	_, err := db.db.Exec(query, cacheKey, cacheType, responseData, ttlSeconds)
+	_, err := db.stmtSetCache.Exec(cacheKey, cacheType, responseData, ttlSeconds)
 
 	return err
 }
