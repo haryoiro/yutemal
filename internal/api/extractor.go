@@ -138,7 +138,7 @@ func getPath(data map[string]any, keys ...any) any {
 
 // interfaceSliceToMapSlice converts []any to []map[string]any.
 func interfaceSliceToMapSlice(slice []any) []map[string]any {
-	var result []map[string]any
+	result := make([]map[string]any, 0, len(slice))
 
 	for _, item := range slice {
 		if m, ok := item.(map[string]any); ok {

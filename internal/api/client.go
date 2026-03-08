@@ -30,9 +30,14 @@ type Client struct {
 
 // NewClient creates a new YouTube Music API client from headers.
 func NewClient(headers map[string]string, accountID string) (*Client, error) {
-	// Create HTTP client with headers
+	// Create HTTP client with connection pooling for reuse across API calls.
 	httpClient := &http.Client{
 		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:        10,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     90 * time.Second,
+		},
 	}
 
 	// Get cookies
@@ -110,8 +115,8 @@ func NewClientFromHeaderFile(path string) (*Client, error) {
 	}
 
 	// Parse headers
-	lines := strings.Split(string(content), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(string(content), "\n")
+	for line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
@@ -310,18 +315,18 @@ func (c *Client) extractHomeContent(resp *BrowseResponse) (*SearchResults, error
 
 // extractFromShelf extracts tracks and playlists from music shelf items.
 func (c *Client) extractFromShelf(content any) ([]TrackRef, []PlaylistRef) {
-	var tracks []TrackRef
-	var playlists []PlaylistRef
-
 	contentMap, ok := content.(map[string]any)
 	if !ok {
-		return tracks, playlists
+		return nil, nil
 	}
 
 	shelfItems := extractMusicShelfItems(contentMap)
 	if shelfItems == nil {
-		return tracks, playlists
+		return nil, nil
 	}
+
+	tracks := make([]TrackRef, 0, len(shelfItems))
+	playlists := make([]PlaylistRef, 0, len(shelfItems)/4)
 
 	for _, item := range shelfItems {
 		if track := extractTrackFromItem(item); track != nil {
@@ -338,17 +343,17 @@ func (c *Client) extractFromShelf(content any) ([]TrackRef, []PlaylistRef) {
 
 // extractFromGrid extracts playlists from grid items.
 func (c *Client) extractFromGrid(content any) []PlaylistRef {
-	var playlists []PlaylistRef
-
 	contentMap, ok := content.(map[string]any)
 	if !ok {
-		return playlists
+		return nil
 	}
 
 	gridItems := extractGridItems(contentMap)
 	if gridItems == nil {
-		return playlists
+		return nil
 	}
+
+	playlists := make([]PlaylistRef, 0, len(gridItems))
 
 	for _, item := range gridItems {
 		if playlist := extractPlaylistFromItem(item); playlist != nil {
@@ -479,11 +484,11 @@ func NewClientFromBrowser(browser BrowserCookieSource, profile string) (*Client,
 // Helper functions
 
 func extractSAPISID(cookies string) string {
-	parts := strings.Split(cookies, ";")
-	for _, part := range parts {
+	parts := strings.SplitSeq(cookies, ";")
+	for part := range parts {
 		part = strings.TrimSpace(part)
-		if strings.HasPrefix(part, "SAPISID=") {
-			return strings.TrimPrefix(part, "SAPISID=")
+		if after, ok := strings.CutPrefix(part, "SAPISID="); ok {
+			return after
 		}
 	}
 

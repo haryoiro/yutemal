@@ -7,6 +7,7 @@ import (
 	"crypto/sha1" //nolint:gosec // Chrome uses SHA1 for PBKDF2
 	"database/sql"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -236,10 +237,6 @@ func decryptChromeValue(encrypted, key []byte) (string, error) {
 		return "", fmt.Errorf("encrypted data is not a multiple of block size")
 	}
 
-	if len(encrypted)%aes.BlockSize != 0 {
-		return "", fmt.Errorf("encrypted data is not a multiple of block size")
-	}
-
 	// Decrypt using AES-128-CBC with space IV (standard Chrome macOS format).
 	iv := bytes.Repeat([]byte{' '}, aes.BlockSize)
 	decrypted := make([]byte, len(encrypted))
@@ -292,19 +289,21 @@ func isAllPrintableASCII(data []byte) bool {
 	return len(data) > 0
 }
 
-// copyToTemp copies a file to a temporary location.
+// copyToTemp copies a file to a temporary location using streaming io.Copy
+// to avoid loading the entire file into memory.
 func copyToTemp(src string) (string, error) {
-	data, err := os.ReadFile(src)
+	srcFile, err := os.Open(src)
 	if err != nil {
 		return "", err
 	}
+	defer srcFile.Close()
 
 	tmpFile, err := os.CreateTemp("", "yutemal-cookies-*.db")
 	if err != nil {
 		return "", err
 	}
 
-	if _, err := tmpFile.Write(data); err != nil {
+	if _, err := io.Copy(tmpFile, srcFile); err != nil {
 		tmpFile.Close()
 		os.Remove(tmpFile.Name())
 		return "", err
