@@ -227,21 +227,7 @@ func (p *Player) getVolumeToApply() float64 {
 }
 
 func (p *Player) calculateVolumeSettings(volumeToApply float64) (float64, bool) {
-	switch {
-	case volumeToApply <= 0:
-		return -60.0, true
-	case volumeToApply < 0.001:
-		return -60.0, false
-	default:
-		adjustedVolume := volumeToApply * volumeToApply
-		dbVolume := 20.0 * math.Log10(adjustedVolume)
-
-		if dbVolume < -60.0 {
-			dbVolume = -60.0
-		}
-
-		return dbVolume, false
-	}
+	return LinearToDecibel(volumeToApply)
 }
 
 func (p *Player) setupSpeaker(format beep.Format) error {
@@ -739,19 +725,5 @@ func (p *Player) getActualDuration(filepath string) time.Duration {
 		return 0
 	}
 
-	durationStr := strings.TrimSpace(string(output))
-	if durationStr == "" || durationStr == "N/A" {
-		return 0
-	}
-
-	var seconds float64
-	if _, parseErr := fmt.Sscanf(durationStr, "%f", &seconds); parseErr != nil {
-		return 0
-	}
-
-	if seconds > 0 {
-		return time.Duration(seconds * float64(time.Second))
-	}
-
-	return 0
+	return ParseDurationOutput(string(output))
 }

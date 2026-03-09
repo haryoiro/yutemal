@@ -14,6 +14,7 @@ import (
 	"github.com/haryoiro/yutemal/internal/database"
 	"github.com/haryoiro/yutemal/internal/logger"
 	"github.com/haryoiro/yutemal/internal/player"
+	"github.com/haryoiro/yutemal/internal/queue"
 	"github.com/haryoiro/yutemal/internal/structures"
 )
 
@@ -23,6 +24,7 @@ type PlayerSystem struct {
 	config           *structures.Config
 	database         database.DB
 	state            *structures.PlayerState
+	queue            *queue.Queue
 	actionChan       chan structures.SoundAction
 	stopChan         chan struct{}
 	player           *player.Player
@@ -44,6 +46,7 @@ func NewPlayerSystem(cfg *structures.Config, db database.DB, cacheDir string) *P
 	ps := &PlayerSystem{
 		config:     cfg,
 		database:   db,
+		queue:      queue.New(),
 		actionChan: make(chan structures.SoundAction, 100),
 		stopChan:   make(chan struct{}),
 		player:     audioPlayer,
@@ -112,6 +115,10 @@ func (ps *PlayerSystem) SendAction(action structures.SoundAction) {
 func (ps *PlayerSystem) GetState() structures.PlayerState {
 	ps.mu.RLock()
 	defer ps.mu.RUnlock()
+
+	// Sync queue to state
+	ps.state.List = ps.queue.Tracks
+	ps.state.Current = ps.queue.Current
 
 	// Update state from audio player
 	if ps.player != nil {
@@ -185,7 +192,7 @@ func (ps *PlayerSystem) updateLoop() {
 
 // refreshDownloadStatus updates the download status for all tracks in the list.
 func (ps *PlayerSystem) refreshDownloadStatus() {
-	for _, track := range ps.state.List {
+	for _, track := range ps.queue.Tracks {
 		// Check if file exists in database
 		if _, exists := ps.database.Get(track.TrackID); exists {
 			ps.state.MusicStatus[track.TrackID] = structures.Downloaded
@@ -357,75 +364,44 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 		ps.previousSong()
 
 	case structures.AddTracksToQueueAction:
+		ps.queue.AddTracks(a.Tracks)
 		for _, track := range a.Tracks {
-			ps.state.List = append(ps.state.List, track)
-			// Queue for download
 			if ps.downloadCallback != nil {
 				ps.downloadCallback(track)
 			}
 		}
-		// Refresh status for all tracks
 		ps.refreshDownloadStatus()
 
 	case structures.AddTrackAction:
-		if len(ps.state.List) == 0 {
-			ps.state.List = append(ps.state.List, a.Track)
-		} else {
-			// Insert after current
-			ps.state.List = append(ps.state.List[:ps.state.Current+1],
-				append([]structures.Track{a.Track}, ps.state.List[ps.state.Current+1:]...)...)
-		}
-
+		ps.queue.InsertAfterCurrent(a.Track)
 		ps.state.MusicStatus[a.Track.TrackID] = structures.NotDownloaded
-		// Queue for download
 		if ps.downloadCallback != nil {
 			ps.downloadCallback(a.Track)
 		}
 
 	case structures.InsertTrackAfterCurrentAction:
-		if len(ps.state.List) == 0 {
-			ps.state.List = append(ps.state.List, a.Track)
-			ps.state.Current = 0
-		} else {
-			// Insert after current track
-			insertPos := min(ps.state.Current+1, len(ps.state.List))
-
-			ps.state.List = append(ps.state.List[:insertPos],
-				append([]structures.Track{a.Track}, ps.state.List[insertPos:]...)...)
-		}
-
+		ps.queue.InsertAfterCurrent(a.Track)
 		ps.state.MusicStatus[a.Track.TrackID] = structures.NotDownloaded
-		// Queue for download
 		if ps.downloadCallback != nil {
 			ps.downloadCallback(a.Track)
 		}
-
 		logger.Debug("Inserted track '%s' after current position", a.Track.Title)
 
 	case structures.ReplaceQueueAction:
-		// Keep only up to current position
-		if ps.state.Current+1 < len(ps.state.List) {
-			ps.state.List = ps.state.List[:ps.state.Current+1]
-		}
-		// Add new tracks
 		for _, track := range a.Tracks {
-			ps.state.List = append(ps.state.List, track)
-			// Queue for download
 			if ps.downloadCallback != nil {
 				ps.downloadCallback(track)
 			}
 		}
-		// Refresh status for all tracks
+		ps.queue.ReplaceAfterCurrent(a.Tracks)
 		ps.refreshDownloadStatus()
-		// Move to next
-		ps.nextSong()
+		ps.loadCurrentSong()
 
 	case structures.TrackStatusUpdateAction:
 		ps.state.MusicStatus[a.TrackID] = a.Status
 		// If the track just finished downloading and it's the current track, reload it
-		if a.Status == structures.Downloaded &&
-			ps.state.Current < len(ps.state.List) &&
-			ps.state.List[ps.state.Current].TrackID == a.TrackID {
+		curTrack, curOK := ps.queue.CurrentTrack()
+		if a.Status == structures.Downloaded && curOK && curTrack.TrackID == a.TrackID {
 
 			logger.Debug("Current track download completed, reloading...")
 			// Give the database a moment to sync
@@ -454,8 +430,7 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 		ps.deleteTrackAtIndex(a.Index)
 
 	case structures.CleanupAction:
-		ps.state.List = nil
-		ps.state.Current = 0
+		ps.queue.Clear()
 		ps.state.MusicStatus = make(map[string]structures.MusicDownloadStatus)
 
 		if ps.player != nil {
@@ -477,18 +452,15 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 		}
 
 	case structures.ShuffleQueueAction:
-		// Shuffle the queue after the current song
-		ps.shuffleQueue()
+		ps.queue.Shuffle(rand.New(rand.NewSource(time.Now().UnixNano())))
 		logger.Debug("Queue shuffled")
 
 	case structures.JumpToIndexAction:
-		// Jump directly to the specified index
-		if a.Index >= 0 && a.Index < len(ps.state.List) {
-			ps.state.Current = a.Index
+		if ps.queue.JumpTo(a.Index) {
 			ps.loadCurrentSong()
 			logger.Debug("Jumped to track at index %d", a.Index)
 		} else {
-			logger.Warn("Invalid jump index: %d (queue size: %d)", a.Index, len(ps.state.List))
+			logger.Warn("Invalid jump index: %d (queue size: %d)", a.Index, ps.queue.Len())
 		}
 
 	case structures.EQSetBandGainAction:
@@ -510,33 +482,6 @@ func (ps *PlayerSystem) handleAction(action structures.SoundAction) {
 	}
 }
 
-// shuffleQueue shuffles the tracks after the current position.
-func (ps *PlayerSystem) shuffleQueue() {
-	if len(ps.state.List) <= ps.state.Current+1 {
-		// No tracks after the current one to shuffle
-		return
-	}
-
-	// Get the tracks after the current position
-	trackCount := len(ps.state.List) - ps.state.Current - 1
-	if trackCount <= 0 {
-		return
-	}
-
-	// Shuffle the remaining tracks using Fisher-Yates algorithm
-	remainingTracks := ps.state.List[ps.state.Current+1:]
-
-	for i := len(remainingTracks) - 1; i > 0; i-- {
-		j := rand.Intn(i + 1)
-		remainingTracks[i], remainingTracks[j] = remainingTracks[j], remainingTracks[i]
-	}
-
-	// Rebuild the list: keep tracks up to current, then add shuffled tracks
-	newList := make([]structures.Track, ps.state.Current+1, len(ps.state.List))
-	copy(newList, ps.state.List[:ps.state.Current+1])
-	ps.state.List = append(newList, remainingTracks...)
-}
-
 // nextSong advances to the next song - simplified version.
 func (ps *PlayerSystem) nextSong() {
 	// Disable updates during song transition
@@ -552,14 +497,11 @@ func (ps *PlayerSystem) nextSong() {
 
 	wasPlaying := ps.state.IsPlaying
 
-	if ps.state.Current+1 < len(ps.state.List) {
-		ps.state.Current++
+	if ps.queue.Next() {
 		ps.loadCurrentSong()
-		// Maintain playing state
 		if wasPlaying && ps.player != nil {
 			if err := ps.player.Play(); err != nil {
 				logger.Error("Failed to start playback after advancing to next song: %v", err)
-
 				ps.state.IsPlaying = false
 			} else {
 				ps.state.IsPlaying = true
@@ -573,7 +515,6 @@ func (ps *PlayerSystem) nextSong() {
 				logger.Error("Failed to stop player: %v", err)
 			}
 		}
-
 		logger.Debug("Reached end of playlist")
 	}
 }
@@ -582,14 +523,11 @@ func (ps *PlayerSystem) nextSong() {
 func (ps *PlayerSystem) previousSong() {
 	wasPlaying := ps.state.IsPlaying
 
-	if ps.state.Current > 0 {
-		ps.state.Current--
+	if ps.queue.Previous() {
 		ps.loadCurrentSong()
-		// Maintain playing state
 		if wasPlaying && ps.player != nil {
 			if err := ps.player.Play(); err != nil {
 				logger.Error("Failed to start playback after going to previous song: %v", err)
-
 				ps.state.IsPlaying = false
 			} else {
 				ps.state.IsPlaying = true
@@ -604,7 +542,7 @@ func (ps *PlayerSystem) loadCurrentSong() {
 		return
 	}
 
-	currentTrack := ps.state.List[ps.state.Current]
+	currentTrack := ps.queue.Tracks[ps.queue.Current]
 	logger.Debug("Loading song: %s by %s", currentTrack.Title, strings.Join(currentTrack.Artists, ", "))
 
 	// Check if the file is downloaded
@@ -635,7 +573,7 @@ func (ps *PlayerSystem) loadCurrentSong() {
 		if actualDurationSeconds != currentTrack.Duration && actualDurationSeconds > 0 {
 			logger.Debug("Updating track duration from %d to %d seconds", currentTrack.Duration, actualDurationSeconds)
 			currentTrack.Duration = actualDurationSeconds
-			ps.state.List[ps.state.Current].Duration = actualDurationSeconds
+			ps.queue.Tracks[ps.queue.Current].Duration = actualDurationSeconds
 			entry.Track.Duration = actualDurationSeconds
 
 			if err := ps.database.Add(*entry); err != nil {
@@ -685,7 +623,7 @@ func (ps *PlayerSystem) loadCurrentSong() {
 				if actualDurationSeconds != currentTrack.Duration && actualDurationSeconds > 0 {
 					logger.Debug("Updating track duration from %d to %d seconds", currentTrack.Duration, actualDurationSeconds)
 					currentTrack.Duration = actualDurationSeconds
-					ps.state.List[ps.state.Current].Duration = actualDurationSeconds
+					ps.queue.Tracks[ps.queue.Current].Duration = actualDurationSeconds
 				}
 
 				// Add to database for future reference
@@ -729,20 +667,20 @@ func (ps *PlayerSystem) loadCurrentSong() {
 
 // handleLoadFailure handles the case when current song fails to load.
 func (ps *PlayerSystem) handleLoadFailure() {
-	currentTrack := ps.state.List[ps.state.Current]
+	currentTrack, ok := ps.queue.CurrentTrack()
+	if !ok {
+		return
+	}
 	logger.Warn("Failed to load track: %s, attempting to skip", currentTrack.Title)
 
-	// Mark as failed
 	ps.state.MusicStatus[currentTrack.TrackID] = structures.DownloadFailed
 
 	// Try to advance to next song if available
-	if ps.state.Current+1 < len(ps.state.List) {
+	if ps.queue.Current+1 < ps.queue.Len() {
 		logger.Debug("Advancing to next song due to load failure")
 		ps.nextSong()
 	} else {
-		// No more songs, stop playback
 		logger.Debug("No more songs available, stopping playback")
-
 		ps.state.IsPlaying = false
 		if ps.player != nil {
 			if err := ps.player.Stop(); err != nil {
@@ -759,8 +697,8 @@ func (ps *PlayerSystem) validatePlayerState() bool {
 		return false
 	}
 
-	if ps.state.Current < 0 || ps.state.Current >= len(ps.state.List) {
-		logger.Error("Invalid current track index: %d (list size: %d)", ps.state.Current, len(ps.state.List))
+	if !ps.queue.ValidCurrent() {
+		logger.Error("Invalid current track index: %d (list size: %d)", ps.queue.Current, ps.queue.Len())
 		return false
 	}
 
@@ -769,11 +707,10 @@ func (ps *PlayerSystem) validatePlayerState() bool {
 
 // deleteCurrentTrack removes the current track from the playlist and deletes its files.
 func (ps *PlayerSystem) deleteCurrentTrack() {
-	if ps.state.Current < 0 || ps.state.Current >= len(ps.state.List) {
+	currentTrack, ok := ps.queue.CurrentTrack()
+	if !ok {
 		return
 	}
-
-	currentTrack := ps.state.List[ps.state.Current]
 
 	// Stop playback
 	if ps.player != nil {
@@ -784,96 +721,61 @@ func (ps *PlayerSystem) deleteCurrentTrack() {
 
 	// Remove from database and delete files
 	if entry, exists := ps.database.Get(currentTrack.TrackID); exists {
-		// Remove from database
 		if err := ps.database.Remove(currentTrack.TrackID); err != nil {
 			logger.Error("Failed to remove track from database: %v", err)
 		}
-
-		// Delete the file
 		if err := os.Remove(entry.FilePath); err != nil {
 			logger.Error("Failed to delete file %s: %v", entry.FilePath, err)
 		}
-
-		// Also try to delete JSON metadata if it exists
 		jsonPath := strings.TrimSuffix(entry.FilePath, filepath.Ext(entry.FilePath)) + ".json"
 		if err := os.Remove(jsonPath); err != nil && !os.IsNotExist(err) {
 			logger.Error("Failed to delete JSON file %s: %v", jsonPath, err)
 		}
 	}
 
-	// Remove from music status
 	delete(ps.state.MusicStatus, currentTrack.TrackID)
+	ps.queue.DeleteCurrent()
 
-	// Remove from playlist
-	ps.state.List = append(ps.state.List[:ps.state.Current], ps.state.List[ps.state.Current+1:]...)
-
-	// No need to update shuffle order anymore
-
-	// Update list selector
 	if ps.state.ListSelector != nil && ps.state.ListSelector.ListSize > 0 {
 		ps.state.ListSelector.ListSize--
 	}
 
-	// Adjust current position
-	if ps.state.Current >= len(ps.state.List) && ps.state.Current > 0 {
-		ps.state.Current--
-	}
-
-	// If there are still songs, play the next one
-	if len(ps.state.List) > 0 {
+	if !ps.queue.IsEmpty() {
 		ps.loadCurrentSong()
 	}
 }
 
 // deleteTrackAtIndex removes a track at the specified index.
 func (ps *PlayerSystem) deleteTrackAtIndex(index int) {
-	if index < 0 || index >= len(ps.state.List) {
+	if index < 0 || index >= ps.queue.Len() {
 		return
 	}
 
-	track := ps.state.List[index]
-	wasPlaying := ps.state.IsPlaying && index == ps.state.Current
+	track := ps.queue.Tracks[index]
+	wasPlaying := ps.state.IsPlaying && index == ps.queue.Current
 
 	// If deleting the current track, stop playback
-	if index == ps.state.Current && ps.player != nil {
+	if index == ps.queue.Current && ps.player != nil {
 		if err := ps.player.Stop(); err != nil {
 			logger.Error("Failed to stop player: %v", err)
 		}
 		ps.state.IsPlaying = false
 	}
 
-	// Remove from music status
 	delete(ps.state.MusicStatus, track.TrackID)
+	deletedCurrent := ps.queue.DeleteAt(index)
 
-	// Remove from playlist
-	ps.state.List = append(ps.state.List[:index], ps.state.List[index+1:]...)
-
-	// No need to update shuffle order anymore
-
-	// Update list selector
 	if ps.state.ListSelector != nil && ps.state.ListSelector.ListSize > 0 {
 		ps.state.ListSelector.ListSize--
 	}
 
-	// Adjust current position
-	if index < ps.state.Current {
-		// Deleted before current, shift current back
-		ps.state.Current--
-	} else if index == ps.state.Current {
-		// Deleted current track
-		if ps.state.Current >= len(ps.state.List) && ps.state.Current > 0 {
-			ps.state.Current--
-		}
-		// Load and play new current track if was playing
-		if len(ps.state.List) > 0 && wasPlaying {
-			ps.loadCurrentSong()
-
-			if ps.player != nil {
-				if err := ps.player.Play(); err != nil {
-					logger.Error("Failed to start playback: %v", err)
-				} else {
-					ps.state.IsPlaying = true
-				}
+	if deletedCurrent && !ps.queue.IsEmpty() && wasPlaying {
+		ps.loadCurrentSong()
+		if ps.player != nil {
+			if err := ps.player.Play(); err != nil {
+				logger.Error("Failed to start playback: %v", err)
+			} else {
+				ps.state.IsPlaying = true
 			}
 		}
 	}
