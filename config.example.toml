@@ -79,32 +79,34 @@ progress_bar_style = "gradient" # Progress bar style: "line", "block", "gradient
 [key_bindings]
 # Global controls
 play_pause = "space"
-quit = "ctrl+d"
+quit = "ctrl+c"
 volume_up = ["+", "="]
 volume_down = ["-", "_"]
 seek_forward = "right"
 seek_backward = "left"
 
 # Navigation
+# Tab cycles focus: Main → Queue (if visible) → Player → Main
 move_up = ["up", "k"]
 move_down = ["down", "j"]
 select = ["enter", "l"]
-back = ["esc", "backspace"]
-next_section = "tab"
-prev_section = "shift+tab"
+back = ["esc", "b"]
 
 # Actions
-search = "f"
+search = ["f", "/"]
 shuffle = "s"
-remove_track = "r"
-home = "h"
+remove_track = "d"
 
 # Equalizer (press 'e' to cycle presets)
 toggle_eq = "e"
 
-# Alternative key binding examples:
-# You can customize any key binding. Some examples:
+# Additional keys (hardcoded):
+# Tab     - Cycle focus between panes
+# q       - Toggle queue visibility
+# a       - Add track after current (in playlist detail)
+# g/G     - Jump to top/bottom
 
+# Alternative key binding examples:
 # Vim-style navigation only:
 # move_up = ["k"]
 # move_down = ["j"]
@@ -117,8 +119,3 @@ toggle_eq = "e"
 # seek_backward = ","
 # volume_up = ["]"]
 # volume_down = ["["]
-
-# Minimal controls:
-# quit = "q"
-# search = "/"
-# home = "g"

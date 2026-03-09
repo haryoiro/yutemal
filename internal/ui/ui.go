@@ -22,16 +22,13 @@ func SetupRuneWidth() {
 type ViewState int
 
 const (
-	HomeView ViewState = iota
-	PlaylistListView
+	PlaylistListView ViewState = iota
 	PlaylistDetailView
 	SearchView
 )
 
 func (v ViewState) String() string {
 	switch v {
-	case HomeView:
-		return "HomeView"
 	case PlaylistListView:
 		return "PlaylistListView"
 	case PlaylistDetailView:
@@ -55,11 +52,10 @@ type Model struct {
 	contentHeight      int
 	playerContentWidth int
 
-	// Section-related fields (HomeView)
-	sections            []structures.Section
-	currentSectionIndex int
-	selectedIndex       int
-	scrollOffset        int
+	// PlaylistListView fields
+	playlists     []systems.Playlist
+	selectedIndex int
+	scrollOffset  int
 
 	// PlaylistDetailView fields
 	playlistTracks        []structures.Track
@@ -67,17 +63,15 @@ type Model struct {
 	playlistSelectedIndex int
 	playlistScrollOffset  int
 
-	// Legacy fields for compatibility
-	playlists       []systems.Playlist
-	currentList     []structures.Track
-	currentListName string
-
 	// Queue display
 	showQueue          bool
 	queueWidth         int
 	queueScrollOffset  int
 	queueFocused       bool
 	queueSelectedIndex int
+
+	// Player focus
+	playerFocused bool
 
 	// Other fields
 	playerState   structures.PlayerState
@@ -116,7 +110,6 @@ type tickMsg time.Time
 type playerUpdateMsg structures.PlayerState
 type playlistsLoadedMsg []systems.Playlist
 type tracksLoadedMsg []structures.Track
-type sectionsLoadedMsg []structures.Section
 type errorMsg error
 
 func RunSimple(systems *systems.Systems, config *structures.Config) error {
@@ -125,16 +118,16 @@ func RunSimple(systems *systems.Systems, config *structures.Config) error {
 		config:            config,
 		themeManager:      NewThemeManager(config.Theme),
 		shortcutFormatter: NewShortcutFormatter(config),
-		state:             HomeView,
+		state:             PlaylistListView,
 		playerHeight:      5,
-		marqueeTicker:     time.NewTicker(500 * time.Millisecond), // Match the tickCmd frequency
-		scrollCooldown:    20 * time.Millisecond,                  // 50ms between scroll events
+		marqueeTicker:     time.NewTicker(500 * time.Millisecond),
+		scrollCooldown:    20 * time.Millisecond,
 		keyDebouncer:      NewKeyDebouncer(),
 	}
 
 	opts := []tea.ProgramOption{
-		tea.WithMouseCellMotion(), // マウスイベントを有効化
-		tea.WithAltScreen(),       // Use alternate screen
+		tea.WithMouseCellMotion(),
+		tea.WithAltScreen(),
 	}
 
 	p := tea.NewProgram(&m, opts...)
@@ -149,33 +142,27 @@ func (m *Model) Init() tea.Cmd {
 	logger.Debug("Init called, starting with state: %v", m.state)
 
 	return tea.Batch(
-		m.loadSections(),
-		// Don't start ticker initially - it will start when needed
+		m.loadPlaylists(),
 		m.listenToPlayer(),
 	)
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// デバッグ用メッセージログ記録
 	oldState := m.state
 
-	// メッセージ種別によるログ記録
 	msgType := ""
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		msgType = "KeyMsg: " + msg.String()
 		logger.Debug("KeyMsg received: %v, current state: %v", msg, m.state)
-	case sectionsLoadedMsg:
-		msgType = "sectionsLoadedMsg"
-
-		logger.Debug("sectionsLoadedMsg received, current state: %v", m.state)
+	case playlistsLoadedMsg:
+		msgType = "playlistsLoadedMsg"
+		logger.Debug("playlistsLoadedMsg received, current state: %v", m.state)
 	case tracksLoadedMsg:
 		msgType = "tracksLoadedMsg"
-
 		logger.Debug("tracksLoadedMsg received, current state: %v", m.state)
 	case errorMsg:
 		msgType = "errorMsg"
-
 		logger.Debug("errorMsg received: %v, current state: %v", msg, m.state)
 	case tickMsg:
 	default:
@@ -183,7 +170,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if msgType != "" && msgType != "other" {
-		// デバッグメッセージをリングバッファに記録
 		m.debugMessageLog = append(m.debugMessageLog, msgType+" @ "+m.state.String())
 		if len(m.debugMessageLog) > 20 {
 			m.debugMessageLog = m.debugMessageLog[1:]
@@ -195,7 +181,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-		// プレイヤースタイルのフレームサイズを考慮
 		playerStyle := lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
 			Padding(0, 1)
@@ -212,17 +197,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		m.lastUpdate = time.Time(msg)
 
-		// Handle marquee animation
 		if m.needsMarquee {
 			m.marqueeOffset++
 		}
 
-		// Handle rainbow animation for rainbow seekbar style
 		if m.config.Theme.ProgressBarStyle == "rainbow" && m.playerState.TotalTime > 0 {
 			m.rainbowOffset = (m.rainbowOffset + 1) % 360
 		}
 
-		// Continue tick if still active
 		if m.tickActive {
 			return m, m.unifiedTickCmd()
 		}
@@ -250,31 +232,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.listenToPlayer())
 		cmds = append(cmds, m.checkMarqueeCmd())
 
-		// Start unified tick if needed (for rainbow or marquee)
 		if m.shouldTick() && !m.tickActive {
 			m.tickActive = true
 			cmds = append(cmds, m.unifiedTickCmd())
 		}
 
 		return m, tea.Batch(cmds...)
-
-	case sectionsLoadedMsg:
-		if m.state == HomeView {
-			m.sections = msg
-
-			m.currentSectionIndex = 0
-			for i, section := range m.sections {
-				if section.ID == "library" || section.Title == "Your Library" {
-					m.currentSectionIndex = i
-					break
-				}
-			}
-
-			m.selectedIndex = 0
-			m.scrollOffset = 0
-		}
-
-		return m, nil
 
 	case playlistsLoadedMsg:
 		m.playlists = msg
@@ -284,11 +247,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tracksLoadedMsg:
+		if m.state == SearchView {
+			m.searchResults = msg
+			m.selectedIndex = 0
+			m.scrollOffset = 0
+			return m, nil
+		}
+
 		m.playlistTracks = msg
-		m.currentList = msg
 
 		if m.state == PlaylistDetailView {
-			// Already reset in handleEnter, but ensure consistency
 			if m.playlistSelectedIndex >= len(msg) {
 				m.playlistSelectedIndex = 0
 			}
@@ -296,12 +264,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.playlistScrollOffset > 0 && m.playlistScrollOffset >= len(msg) {
 				m.playlistScrollOffset = 0
 			}
-		} else {
-			// For other views, use the general indices
-			m.selectedIndex = 0
-			m.scrollOffset = 0
 		}
-		// Download all songs in the playlist when loaded
+
 		return m, m.downloadAllSongs(msg)
 
 	case errorMsg:
@@ -309,7 +273,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// 状態変更を検出して記録
 	if m.state != oldState {
 		stateChange := fmt.Sprintf("%s -> %s", oldState.String(), m.state.String())
 
@@ -329,7 +292,6 @@ func (m *Model) View() string {
 		return ""
 	}
 
-	// スタイルを先に定義
 	borderColor := lipgloss.Color(m.config.Theme.Border)
 	if m.themeManager != nil {
 		borderColor = lipgloss.Color(m.config.Theme.Border)
@@ -340,43 +302,40 @@ func (m *Model) View() string {
 		BorderForeground(borderColor).
 		Padding(0, -3)
 
+	playerBorderColor := borderColor
+	if m.hasFocus("player") {
+		playerBorderColor = lipgloss.Color(m.config.Theme.Selected)
+	}
+
 	playerStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(borderColor).
+		BorderForeground(playerBorderColor).
 		Padding(0, 1)
+
+	queueBorderColor := borderColor
+	if m.hasFocus("queue") {
+		queueBorderColor = lipgloss.Color(m.config.Theme.Selected)
+	}
 
 	queueStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(borderColor).
+		BorderForeground(queueBorderColor).
 		Padding(0, 1)
 
-	// GetFrameSize()でフレームサイズを取得
 	mainV, mainH := mainStyle.GetFrameSize()
 	playerV, playerH := playerStyle.GetFrameSize()
 	queueV, queueH := queueStyle.GetFrameSize()
 
-	// Queue width calculation
 	if m.showQueue {
-		m.queueWidth = min(
-			// 33% of width
-			// Minimum width
-			max(
-
-				m.width/3,
-
-				40),
-			// Maximum width
-			80)
+		m.queueWidth = min(max(m.width/3, 40), 80)
 	} else {
 		m.queueWidth = 0
 	}
 
-	// 実際のコンテンツ幅を計算
 	mainContentWidth := m.width - mainH - m.queueWidth
 	queueContentWidth := m.queueWidth - queueH
 	playerContentWidth := m.width - playerH
 
-	// 正確な幅と高さを設定
 	mainStyle = mainStyle.
 		Width(mainContentWidth).
 		Height(m.contentHeight)
@@ -389,23 +348,20 @@ func (m *Model) View() string {
 		Width(playerContentWidth).
 		Height(m.playerHeight - playerV)
 
-	// コンテンツをレンダリング（実際の利用可能幅を渡す）
 	var content string
 
 	switch m.state {
-	case HomeView:
-		content = m.renderHome(mainContentWidth)
+	case PlaylistListView:
+		content = m.renderPlaylistList(mainContentWidth)
 	case PlaylistDetailView:
 		content = m.renderPlaylistDetail(mainContentWidth)
 	case SearchView:
 		content = m.renderSearch(mainContentWidth)
 	}
 
-	// プレイヤーに正しい幅を渡す
 	m.playerContentWidth = playerContentWidth
 	player := m.renderPlayer()
 
-	// Split content by lines and ensure it fits in the content area
 	contentLines := strings.Split(content, "\n")
 	maxContentLines := m.contentHeight - mainV + 2
 
@@ -415,7 +371,6 @@ func (m *Model) View() string {
 
 	content = strings.Join(contentLines, "\n")
 
-	// Render main content and queue side by side if queue is shown
 	var topContent string
 
 	if m.showQueue {
@@ -435,7 +390,6 @@ func (m *Model) View() string {
 		playerStyle.Render(player),
 	)
 
-	// デバッグ情報を表示（必要に応じて）
 	if m.showDebugInfo {
 		debugStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#00FF00")).
@@ -449,7 +403,7 @@ func (m *Model) View() string {
 		debugInfo.WriteString("Current State: " + m.state.String() + "\n")
 		debugInfo.WriteString("Selected Index: " + fmt.Sprintf("%d", m.selectedIndex) + "\n")
 		debugInfo.WriteString("Playlist Selected: " + fmt.Sprintf("%d", m.playlistSelectedIndex) + "\n")
-		debugInfo.WriteString("Sections: " + fmt.Sprintf("%d", len(m.sections)) + "\n")
+		debugInfo.WriteString("Playlists: " + fmt.Sprintf("%d", len(m.playlists)) + "\n")
 		debugInfo.WriteString("\nState Changes:\n")
 
 		for _, change := range m.debugStateChanges {
@@ -469,11 +423,9 @@ func (m *Model) View() string {
 }
 
 func (m *Model) shouldTick() bool {
-	// Tick if marquee is needed
 	if m.needsMarquee {
 		return true
 	}
-	// Tick if rainbow animation is active
 	if m.config.Theme.ProgressBarStyle == "rainbow" && m.playerState.TotalTime > 0 {
 		return true
 	}
@@ -483,7 +435,6 @@ func (m *Model) shouldTick() bool {
 
 func (m *Model) unifiedTickCmd() tea.Cmd {
 	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg {
-		// Check if tick is still needed
 		if !m.shouldTick() {
 			m.tickActive = false
 			return nil

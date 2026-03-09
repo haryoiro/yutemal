@@ -322,171 +322,72 @@ func (m Model) renderSearch(maxWidth int) string {
 	return b.String()
 }
 
-// renderHome renders the home view with sections.
-func (m Model) renderHome(maxWidth int) string {
+// renderPlaylistList renders the playlist list view.
+func (m Model) renderPlaylistList(maxWidth int) string {
 	titleStyle, selectedStyle, normalStyle, dimStyle, errorStyle := m.getStyles()
 
-	// Apply focus style if home view has focus
-	if m.hasFocus("home") {
+	if m.hasFocus("playlistList") {
 		titleStyle = titleStyle.Underline(true)
 	}
 
 	var b strings.Builder
 
-	// Header with title and shortcuts
-	headerTitle := "🏠 Home"
+	headerTitle := "📋 Your Library"
 	b.WriteString("  " + titleStyle.Render(headerTitle))
 	b.WriteString("\n\033[A")
 
-	shortcuts := m.shortcutFormatter.FormatHints(m.shortcutFormatter.GetHomeHints(m.showQueue, len(m.sections) > 1))
+	shortcuts := m.shortcutFormatter.FormatHints(m.shortcutFormatter.GetPlaylistListHints(m.showQueue))
 	if runewidth.StringWidth(headerTitle)+runewidth.StringWidth(shortcuts)+2 <= maxWidth {
 		b.WriteString("  " + dimStyle.Render(shortcuts))
 	}
 
-	b.WriteString("\033[B")
-	b.WriteString("\n")
+	b.WriteString("\033[B\n")
 
 	if m.err != nil {
 		b.WriteString(errorStyle.Render(fmt.Sprintf("⚠️  Error: %v", m.err)))
 		return b.String()
 	}
 
-	if len(m.sections) == 0 {
-		b.WriteString(dimStyle.Render("Loading home page..."))
+	if len(m.playlists) == 0 {
+		b.WriteString(dimStyle.Render("Loading playlists..."))
 		return b.String()
 	}
 
-	// レンダリングするセクションタブ
-	b.WriteString(m.renderSectionTabs(maxWidth))
-	b.WriteString("\n\n")
+	visibleItems := max(m.contentHeight-6, 1)
+	start := m.scrollOffset
+	end := min(start+visibleItems, len(m.playlists))
 
-	// 現在のセクションのコンテンツをレンダリング
-	if m.currentSectionIndex < len(m.sections) {
-		section := m.sections[m.currentSectionIndex]
+	for i := start; i < end; i++ {
+		playlist := m.playlists[i]
+		style := normalStyle
+		prefix := "   "
 
-		if len(section.Contents) == 0 {
-			b.WriteString(dimStyle.Render("No content in this section"))
-			return b.String()
+		if i == m.selectedIndex {
+			style = selectedStyle
+			prefix = " ▶ "
 		}
 
-		visibleItems := max(
-			// タブとタイトル用のスペースを確保
-			m.contentHeight-8, 1)
-
-		startIndex := m.scrollOffset
-
-		endIndex := min(startIndex+visibleItems, len(section.Contents))
-
-		for i := startIndex; i < endIndex; i++ {
-			content := section.Contents[i]
-			style := normalStyle
-			prefix := "   "
-
-			if i == m.selectedIndex {
-				style = selectedStyle
-				prefix = " ▶ "
-			}
-
-			var displayText string
-
-			switch content.Type {
-			case "playlist":
-				if content.Playlist != nil {
-					displayText = fmt.Sprintf("📁 %s", content.Playlist.Title)
-					if content.Playlist.VideoCount > 0 {
-						displayText += fmt.Sprintf(" (%d tracks)", content.Playlist.VideoCount)
-					}
-				}
-			case "track":
-				if content.Track != nil {
-					artists := strings.Join(content.Track.Artists, ", ")
-					displayText = fmt.Sprintf("🎵 %s - %s", content.Track.Title, artists)
-				}
-			default:
-				displayText = fmt.Sprintf("Unknown content type: %s", content.Type)
-			}
-
-			// 長すぎるテキストを切り詰める
-			availableWidth := maxWidth - runewidth.StringWidth(prefix) - 2
-			if availableWidth > 0 && runewidth.StringWidth(displayText) > availableWidth {
-				if availableWidth > 3 {
-					// 文字列を切り詰め
-					var truncated strings.Builder
-					width := 0
-
-					for _, r := range displayText {
-						charWidth := runewidth.RuneWidth(r)
-						if width+charWidth > availableWidth-3 {
-							break
-						}
-
-						truncated.WriteString(string(r))
-						width += charWidth
-					}
-
-					displayText = truncated.String() + "..."
-				} else {
-					displayText = "..."
-				}
-			}
-
-			b.WriteString(style.Render(prefix + displayText))
-
-			if i < endIndex-1 {
-				b.WriteString("\n")
-			}
+		displayText := fmt.Sprintf("📁 %s", playlist.Title)
+		if playlist.VideoCount > 0 {
+			displayText += fmt.Sprintf(" (%d tracks)", playlist.VideoCount)
 		}
 
-		// スクロールインジケーター
-		if len(section.Contents) > visibleItems {
-			totalItems := len(section.Contents)
-			currentPage := (m.selectedIndex / visibleItems) + 1
-			totalPages := (totalItems + visibleItems - 1) / visibleItems
+		availableWidth := maxWidth - runewidth.StringWidth(prefix) - 2
+		displayText = truncate(displayText, availableWidth)
 
-			b.WriteString("\n\n")
-			b.WriteString(dimStyle.Render(fmt.Sprintf("Page %d/%d (%d items)", currentPage, totalPages, totalItems)))
+		b.WriteString(style.Render(prefix + displayText))
+
+		if i < end-1 {
+			b.WriteString("\n")
 		}
+	}
+
+	if len(m.playlists) > visibleItems {
+		b.WriteString("\n\n")
+		b.WriteString(dimStyle.Render(fmt.Sprintf("%d/%d", m.selectedIndex+1, len(m.playlists))))
 	}
 
 	return b.String()
-}
-
-// renderSectionTabs renders the section tabs at the top.
-func (m Model) renderSectionTabs(maxWidth int) string {
-	_, selectedStyle, normalStyle, dimStyle, _ := m.getStyles()
-
-	if len(m.sections) <= 1 {
-		return ""
-	}
-
-	tabs := make([]string, 0, len(m.sections))
-
-	for i, section := range m.sections {
-		tabStyle := normalStyle.PaddingLeft(2).PaddingRight(2)
-
-		if i == m.currentSectionIndex {
-			tabStyle = selectedStyle.PaddingLeft(2).PaddingRight(2)
-		}
-
-		tabs = append(tabs, tabStyle.Render(section.Title))
-	}
-
-	tabsStr := strings.Join(tabs, " ")
-
-	// タブがウィンドウ幅を超える場合の処理
-	if runewidth.StringWidth(tabsStr) > maxWidth {
-		// 簡単な実装：現在のタブだけを表示
-		currentTab := selectedStyle.PaddingLeft(2).PaddingRight(2).Render(m.sections[m.currentSectionIndex].Title)
-		return currentTab
-	}
-
-	// Add navigation hint if there are multiple sections and queue is not shown
-	if len(m.sections) > 1 && !m.showQueue {
-		hint := dimStyle.Render(" (← → to switch)")
-		return tabsStr + hint
-	}
-
-	return tabsStr
 }
 
 func (m Model) applyMarquee(text string, maxLen int) string {

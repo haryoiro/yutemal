@@ -62,18 +62,15 @@ func Default() *structures.Config {
 			SeekBackward: "left",
 
 			// Navigation
-			MoveUp:      []string{"up", "k"},
-			MoveDown:    []string{"down", "j"},
-			Select:      []string{"enter", "l"},
-			Back:        []string{"backspace", "b"}, // ESC removed to prevent mouse-triggered navigation
-			NextSection: "tab",
-			PrevSection: "shift+tab",
+			MoveUp:   []string{"up", "k"},
+			MoveDown: []string{"down", "j"},
+			Select:   []string{"enter", "l"},
+			Back:     []string{"esc", "b"},
 
 			// Actions
-			Search:      "f",
+			Search:      []string{"f", "/"},
 			Shuffle:     "s",
-			RemoveTrack: "r",
-			Home:        "h",
+			RemoveTrack: "d",
 
 			ToggleEQ: "e",
 		},

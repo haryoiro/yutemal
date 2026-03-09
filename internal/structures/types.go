@@ -184,18 +184,15 @@ type KeyBindings struct {
 	SeekBackward string   `toml:"seek_backward"`
 
 	// Navigation
-	MoveUp      []string `toml:"move_up"`
-	MoveDown    []string `toml:"move_down"`
-	Select      []string `toml:"select"`
-	Back        []string `toml:"back"`
-	NextSection string   `toml:"next_section"`
-	PrevSection string   `toml:"prev_section"`
+	MoveUp  []string `toml:"move_up"`
+	MoveDown []string `toml:"move_down"`
+	Select  []string `toml:"select"`
+	Back    []string `toml:"back"`
 
 	// Actions
-	Search      string `toml:"search"`
-	Shuffle     string `toml:"shuffle"`
-	RemoveTrack string `toml:"remove_track"`
-	Home        string `toml:"home"`
+	Search      []string `toml:"search"`
+	Shuffle     string   `toml:"shuffle"`
+	RemoveTrack string   `toml:"remove_track"`
 
 	// Equalizer
 	ToggleEQ string `toml:"toggle_eq"`

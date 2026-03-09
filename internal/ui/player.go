@@ -433,9 +433,7 @@ func (m *Model) renderControls(availableWidth int) string {
 	}
 
 	// Controls hint
-	isHomeView := m.state == HomeView
-	hasMultipleSections := len(m.sections) > 1
-	hint := m.shortcutFormatter.FormatHints(m.shortcutFormatter.GetPlayerHints(isHomeView, hasMultipleSections))
+	hint := m.shortcutFormatter.FormatHints(m.shortcutFormatter.GetPlayerHints(m.hasFocus("player")))
 	parts = append(parts, dimStyle.Render(hint))
 
 	// 利用可能幅に収まるように調整

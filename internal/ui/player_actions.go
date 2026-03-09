@@ -57,7 +57,7 @@ func (m *Model) removeTrack() (tea.Model, tea.Cmd) {
 				m.queueSelectedIndex--
 			}
 		}
-	} else if m.state == PlaylistDetailView && len(m.currentList) > 0 {
+	} else if m.state == PlaylistDetailView && len(m.playlistTracks) > 0 {
 		// Remove current song action
 		m.systems.Player.SendAction(structures.DeleteTrackAction{})
 	}
@@ -78,20 +78,6 @@ func (m *Model) toggleQueue() (tea.Model, tea.Cmd) {
 		// When closing queue, return focus to main
 		m.setFocus(FocusMain)
 		logger.Debug("toggleQueue: Queue hidden, focus returned to main")
-	}
-
-	return m, nil
-}
-
-// toggleQueueFocus toggles focus between main content and queue.
-func (m *Model) toggleQueueFocus() (tea.Model, tea.Cmd) {
-	if m.showQueue {
-		// Toggle focus based on current state
-		if m.getFocusedPane() == FocusQueue {
-			m.setFocus(FocusMain)
-		} else {
-			m.setFocus(FocusQueue)
-		}
 	}
 
 	return m, nil

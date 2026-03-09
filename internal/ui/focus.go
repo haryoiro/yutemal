@@ -10,6 +10,7 @@ type FocusPane int
 const (
 	FocusMain FocusPane = iota
 	FocusQueue
+	FocusPlayer
 	FocusSearch
 )
 
@@ -17,6 +18,10 @@ const (
 
 // getFocusedPane returns the currently focused pane.
 func (m *Model) getFocusedPane() FocusPane {
+	if m.playerFocused {
+		return FocusPlayer
+	}
+
 	if m.queueFocused && m.showQueue {
 		return FocusQueue
 	}
@@ -35,39 +40,47 @@ func (m *Model) setFocus(pane FocusPane) {
 	switch pane {
 	case FocusMain:
 		m.queueFocused = false
+		m.playerFocused = false
 	case FocusQueue:
 		if m.showQueue {
 			m.queueFocused = true
+			m.playerFocused = false
 			// Initialize queue selection at current track when focusing
 			if m.queueSelectedIndex < 0 || m.queueSelectedIndex >= len(m.playerState.List) {
 				m.queueSelectedIndex = m.playerState.Current
 			}
 		}
+	case FocusPlayer:
+		m.queueFocused = false
+		m.playerFocused = true
 	case FocusSearch:
 		// Search view automatically gets focus when active
 		m.queueFocused = false
+		m.playerFocused = false
 	}
 
 	newFocus := m.getFocusedPane()
 	if oldFocus != newFocus {
-		logger.Debug("Focus changed: %d -> %d (state=%s, showQueue=%t, queueFocused=%t)",
-			oldFocus, newFocus, m.state, m.showQueue, m.queueFocused)
+		logger.Debug("Focus changed: %d -> %d (state=%s, showQueue=%t, queueFocused=%t, playerFocused=%t)",
+			oldFocus, newFocus, m.state, m.showQueue, m.queueFocused, m.playerFocused)
 	}
 }
 
-// cycleFocus cycles through available focus targets.
-func (m *Model) cycleFocus(forward bool) {
+// cycleFocus cycles through available focus targets: Main → Queue (if visible) → Player → Main.
+func (m *Model) cycleFocus() {
 	current := m.getFocusedPane()
 
 	switch current {
 	case FocusMain:
-		if forward && m.showQueue {
+		if m.showQueue {
 			m.setFocus(FocusQueue)
+		} else {
+			m.setFocus(FocusPlayer)
 		}
 	case FocusQueue:
-		if !forward || !m.showQueue {
-			m.setFocus(FocusMain)
-		}
+		m.setFocus(FocusPlayer)
+	case FocusPlayer:
+		m.setFocus(FocusMain)
 	case FocusSearch:
 		// Search view keeps focus until exited
 	}
@@ -80,32 +93,19 @@ func (m *Model) hasFocus(component string) bool {
 		return m.getFocusedPane() == FocusMain
 	case "queue":
 		return m.getFocusedPane() == FocusQueue
+	case "player":
+		return m.getFocusedPane() == FocusPlayer
 	case "search":
 		return m.getFocusedPane() == FocusSearch
 	case "playlist":
 		return m.state == PlaylistDetailView && m.getFocusedPane() == FocusMain
-	case "home":
-		return m.state == HomeView && m.getFocusedPane() == FocusMain
+	case "playlistList":
+		return m.state == PlaylistListView && m.getFocusedPane() == FocusMain
 	default:
 		return false
 	}
 }
 
-// canNavigate returns true if navigation is allowed in the current focus state.
-func (m *Model) canNavigate() bool {
-	focus := m.getFocusedPane()
-	switch focus {
-	case FocusMain:
-		return true
-	case FocusQueue:
-		return true
-	case FocusSearch:
-		// Navigation is limited in search view
-		return false
-	}
-
-	return false
-}
 
 // getFocusHelpText returns help text for the current focus state.
 func (m *Model) getFocusHelpText() string {
