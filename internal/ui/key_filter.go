@@ -67,17 +67,3 @@ func (m *Model) shouldProcessKey(keyStr string, msg tea.KeyMsg) bool {
 	// All other keys don't need debouncing
 	return true
 }
-
-// isNavigationKey returns true if the key is a navigation key.
-func isNavigationKey(keyStr string) bool {
-	switch keyStr {
-	case "up", "down", "left", "right", "pgup", "pgdown", "home", "end":
-		return true
-	case "j", "k", "h", "l": // Vim-style navigation
-		return true
-	case "g", "G": // Jump to top/bottom
-		return true
-	}
-
-	return false
-}

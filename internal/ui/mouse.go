@@ -210,20 +210,6 @@ func (m *Model) handleScrollDown() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// ビューごとの最大アイテム数を取得.
-func (m *Model) getMaxItems() int {
-	switch m.state {
-	case PlaylistDetailView:
-		return len(m.playlistTracks)
-	case SearchView:
-		return len(m.searchResults)
-	case PlaylistListView:
-		return len(m.playlists)
-	default:
-		return 0
-	}
-}
-
 // 選択されたトラックを再生.
 func (m *Model) playSelectedTrack() (tea.Model, tea.Cmd) {
 	switch m.state {
