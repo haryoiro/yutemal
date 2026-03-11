@@ -123,21 +123,24 @@ Key configuration options:
 - `←/→`: Seek backward/forward
 - `+/=`: Volume up
 - `-/_`: Volume down
-- `Ctrl+C` or `Ctrl+D`: Quit application
+- `Ctrl+C`: Quit application
 
 ### Navigation
 - `↑/k`: Move up
 - `↓/j`: Move down
-- `PgUp/PgDn`: Page scroll
+- `g/G`: Jump to top/bottom
+- `PgUp/PgDn` or `Ctrl+B/Ctrl+F`: Page scroll
 - `Enter/l`: Select/Play
-- `Esc/Backspace`: Go back
+- `Esc/b`: Go back
 
 ### View Controls
-- `Tab`: Next section
-- `Shift+Tab`: Previous section
-- `f`: Open search
-- `h`: Return to home
-- `r`: Remove track from playlist
+- `Tab`: Cycle focus (Main → Queue → Player)
+- `f` or `/`: Open search
+- `q`: Toggle queue
+- `s`: Shuffle queue
+- `e`: Cycle EQ preset
+- `d`: Remove track from playlist
+- `a`: Add track next (in playlist detail)
 
 ## Mouse Support
 
